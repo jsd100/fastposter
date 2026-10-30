@@ -7,6 +7,7 @@ import (
 	"fastposter/server/internal/app"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
+	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/transport"
 	"github.com/cloudwego/kitex/server"
@@ -54,7 +55,7 @@ func main() {
 		log.Fatal(e)
 	}
 	images := assets.NewService(db, store, &assets.Normalizer{MagickPath: c.MagickPath, ProfilePath: filepath.Join(root, "assets/color/sRGB.icc"), PolicyDir: filepath.Join(root, "deploy/imagemagick")}, filepath.Join(c.AbsoluteDataDir, ".work"))
-	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), Health: db.PingContext}, server.WithServiceAddr(addr))
+	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), Health: db.PingContext}, server.WithServiceAddr(addr))
 	if e = s.Run(); e != nil {
 		log.Fatal(e)
 	}

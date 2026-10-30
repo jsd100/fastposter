@@ -212,7 +212,7 @@ func (s *Service) authorize(ctx context.Context, p auth.Principal, a AssetVersio
 	if allowed > 0 {
 		return true, nil
 	}
-	e = s.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM asset_refs ref JOIN projects p ON ref.owner_kind='project' AND ref.owner_id=p.id WHERE p.owner_id=? AND p.deleted_at IS NULL AND ref.asset_id=? AND ref.asset_version=?", p.UserID, a.ID, a.Version).Scan(&allowed)
+	e = s.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM asset_refs ref JOIN projects p ON ref.owner_kind IN ('project','project-history') AND ref.owner_id=p.id WHERE p.owner_id=? AND p.deleted_at IS NULL AND ref.asset_id=? AND ref.asset_version=?", p.UserID, a.ID, a.Version).Scan(&allowed)
 	return allowed > 0, e
 }
 func (s *Service) Get(ctx context.Context, p auth.Principal, id string) (AssetVersion, error) {
