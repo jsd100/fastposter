@@ -359,3 +359,123 @@
     height: 22px;
   }
 }
+.poster-rich-input,
+.poster-rich-input .ProseMirror {
+  outline: none;
+  width: 100%;
+  min-height: 1em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+.poster-rich-input .ProseMirror p {
+  margin: 0;
+  min-height: 1em;
+}
+.poster-rich-input .ProseMirror:focus {
+  outline: none;
+}
+.text-panel {
+  padding-top: 18px;
+  border-top: 1px solid #e5ebdd;
+  margin-top: 18px;
+}
+.style-target {
+  font-size: 9px;
+  color: #8da279;
+  margin-bottom: 15px;
+  line-height: 1.7;
+}
+.panel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 10px;
+  color: #80936b;
+  min-width: 0;
+  margin: 12px 0;
+}
+.panel-field input,
+.panel-field select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #dce6d0;
+  border-radius: 5px;
+  height: 35px;
+  padding: 0 8px;
+  color: #5a7345;
+  background: #fcfdf9;
+  font-size: 12px;
+  outline: none;
+}
+.panel-field input:focus,
+.panel-field select:focus {
+  border-color: #8fab77;
+  box-shadow: 0 0 0 2px #b6c9a52b;
+}
+.panel-field input[type="color"] {
+  padding: 4px;
+  cursor: pointer;
+}
+.panel-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.format-buttons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.format-buttons .button {
+  padding: 0 9px;
+  min-width: 32px;
+}
+.format-buttons [aria-pressed="true"] {
+  background: #e5eedb;
+  border-color: #b9cfa4;
+  color: #41652e;
+}
+.effect-panel {
+  border-top: 1px solid #e6edde;
+  padding-top: 16px;
+  margin-top: 22px;
+  font-size: 10px;
+  color: #80936b;
+}
+.effect-panel summary {
+  cursor: pointer;
+  min-height: 25px;
+}
+.clear-effect {
+  border: 0;
+  background: none;
+  color: #92a380;
+  font-size: 9px;
+  align-self: flex-end;
+  min-height: 25px;
+}
+@media (max-width: 680px) {
+  .text-panel {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .panel-field input,
+  .panel-field select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .mobile-block-actions .button {
+    font-size: 10px;
+    padding: 0 10px;
+  }
+  .effect-panel summary {
+    min-height: 44px;
+  }
+  .poster-editor .bottom-sheet {
+    max-height: min(65dvh, 550px);
+  }
+}
+@media(max-width:680px){.editor-workspace{height:var(--editor-viewport-height,100dvh)}}

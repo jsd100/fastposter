@@ -9,6 +9,7 @@ import {
 import type { TextBlock as Block } from "@fastposter/poster-schema";
 import { measureLayout, type LayoutReport } from "@fastposter/poster-renderer";
 import {
+  pinchView,
   moveTextBlock,
   resizeTextWidth,
   clamp,
@@ -41,6 +42,20 @@ export function Stage({
   const outer = useRef<HTMLDivElement>(null),
     canvas = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
+  const touches = useRef(new Map<number, Point>());
+  const pinch = useRef<{ view: ViewTransform; a: Point; b: Point } | null>(
+    null,
+  );
+  function touchEnd(e: PointerEvent<HTMLDivElement>) {
+    touches.current.delete(e.pointerId);
+    if (pinch.current) {
+      if (touches.current.size < 2) pinch.current = null;
+      gesture.current = null;
+      return true;
+    }
+    return false;
+  }
+
   const [layout, setLayout] = useState<LayoutReport | null>(null);
   const d = state.document;
   const view = state.view;
@@ -183,6 +198,29 @@ export function Stage({
       className="editor-stage"
       ref={outer}
       data-editor-stage
+      style={{ touchAction: state.mode === "edit" ? "auto" : "none" }}
+      onPointerDownCapture={(e) => {
+        if (
+          e.pointerType !== "touch" ||
+          state.mode === "edit" ||
+          (e.target as HTMLElement).closest("button,select")
+        )
+          return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        touches.current.set(e.pointerId, {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+        });
+        if (touches.current.size === 2) {
+          store.cancel();
+          gesture.current = null;
+          const [a, b] = Array.from(touches.current.values());
+          pinch.current = { view: store.getState().view, a, b };
+          e.currentTarget.setPointerCapture(e.pointerId);
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }}
       onPointerDown={(e) => {
         if (
           e.button !== 0 ||
@@ -197,9 +235,35 @@ export function Stage({
         };
         e.currentTarget.setPointerCapture(e.pointerId);
       }}
-      onPointerMove={move}
-      onPointerUp={(e) => end(e)}
-      onPointerCancel={(e) => end(e, true)}
+      onPointerMove={(e) => {
+        if (pinch.current) {
+          const rect = e.currentTarget.getBoundingClientRect();
+          if (touches.current.has(e.pointerId))
+            touches.current.set(e.pointerId, {
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            });
+          const [a, b] = Array.from(touches.current.values());
+          if (a && b)
+            store.setView(
+              pinchView(
+                pinch.current.view,
+                pinch.current.a,
+                pinch.current.b,
+                a,
+                b,
+              ),
+            );
+          return;
+        }
+        move(e);
+      }}
+      onPointerUp={(e) => {
+        if (!touchEnd(e)) end(e);
+      }}
+      onPointerCancel={(e) => {
+        if (!touchEnd(e)) end(e, true);
+      }}
     >
       <div
         className="poster-canvas"

@@ -1,3 +1,14 @@
+import { useState as useReactState } from "react";
+import type { Editor as TiptapEditor } from "@tiptap/react";
+import { RichTextEditor } from "./text/RichTextEditor";
+import { TextPanel } from "./panels/TextPanel";
+import {
+  captureSelection,
+  restoreSelection,
+  applyTextStyle,
+  type InlineStylePatch,
+} from "./text/selection";
+import { BottomSheet } from "@fastposter/ui";
 import {
   useEffect,
   useRef,
@@ -39,6 +50,38 @@ export function Editor({
   onOverflowChange,
   renderEditing,
 }: EditorProps) {
+  const textSelection = useRef<{ from: number; to: number } | null>(null);
+  const [activeEditor, setActiveEditor] = useReactState<TiptapEditor | null>(
+    null,
+  );
+  const [, selectionChanged] = useReactState(0);
+  const [mobile, setMobile] = useReactState(
+    () => window.matchMedia("(max-width:680px)").matches,
+  );
+  const [sheet, setSheet] = useReactState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width:680px)");
+    const change = () => setMobile(media.matches);
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, []);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const update = () =>
+      window.document.documentElement.style.setProperty(
+        "--editor-viewport-height",
+        `${viewport.height}px`,
+      );
+    update();
+    viewport.addEventListener("resize", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      window.document.documentElement.style.removeProperty(
+        "--editor-viewport-height",
+      );
+    };
+  }, []);
   const callback = useRef(onChange);
   callback.current = onChange;
   const emitted = useRef(document);
@@ -115,6 +158,80 @@ export function Editor({
       setUploading(false);
     }
   }
+  function apply(patch: InlineStylePatch) {
+    if (!selected) return;
+    if (patch.fontId) {
+      const family = availableFonts.find(
+        (f) => f.assetId === patch.fontId,
+      )?.family;
+      const additions = availableFonts
+        .filter(
+          (f) =>
+            f.family === family &&
+            !state.document.fonts.some(
+              (existing) => existing.assetId === f.assetId,
+            ),
+        )
+        .map(({ assetId, version, family, weight, style }) => ({
+          assetId,
+          version,
+          family,
+          weight,
+          style,
+        }));
+      if (additions.length) {
+        if (state.document.fonts.length + additions.length > 100) {
+          setError("字体引用已达上限");
+          return;
+        }
+        store.transact((d) => ({ ...d, fonts: [...d.fonts, ...additions] }));
+      }
+    }
+    if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
+      store.commit();
+      store.begin();
+      if (textSelection.current)
+        restoreSelection(activeEditor, textSelection.current);
+      if (patch.fontWeight !== undefined) activeEditor.commands.unsetBold();
+      activeEditor.commands.setMark("textStyle", patch);
+      store.commit();
+      selectionChanged((v) => v + 1);
+    } else {
+      store.transact((d) => ({
+        ...d,
+        textBlocks: d.textBlocks.map((b) =>
+          b.id === selected.id
+            ? {
+                ...b,
+                defaultStyle: { ...b.defaultStyle, ...patch },
+                content: applyTextStyle(
+                  b.content,
+                  { kind: "block", from: 0, to: 0 },
+                  patch,
+                ),
+              }
+            : b,
+        ),
+      }));
+    }
+  }
+  const panel = selected ? (
+    <TextPanel
+      block={selected}
+      editor={state.mode === "edit" ? activeEditor : null}
+      fonts={availableFonts}
+      apply={apply}
+      update={(change) => {
+        store.commit();
+        store.transact((d) => ({
+          ...d,
+          textBlocks: d.textBlocks.map((b) =>
+            b.id === selected.id ? change(b) : b,
+          ),
+        }));
+      }}
+    />
+  ) : null;
   return (
     <div className="poster-editor">
       <div className="editor-commandbar">
@@ -201,7 +318,26 @@ export function Editor({
           store={store}
           state={state}
           renderEditing={
-            renderEditing ? (b) => renderEditing(b, store) : undefined
+            renderEditing
+              ? (b) => renderEditing(b, store)
+              : (b) => (
+                  <RichTextEditor
+                    block={b}
+                    store={store}
+                    onReady={(editor) => {
+                      setActiveEditor(editor);
+                      textSelection.current = editor
+                        ? captureSelection(editor)
+                        : null;
+                    }}
+                    onSelection={(selection) => {
+                      if (selection) textSelection.current = selection;
+                      else if (activeEditor?.isFocused)
+                        textSelection.current = captureSelection(activeEditor);
+                      selectionChanged((v) => v + 1);
+                    }}
+                  />
+                )
           }
         />
         <aside className="editor-properties">
@@ -231,7 +367,7 @@ export function Editor({
                   <Trash2 size={15} />
                 </Button>
               </div>
-              {renderEditing && (
+              {true && (
                 <Button
                   onClick={() =>
                     store.setMode(state.mode === "edit" ? "select" : "edit")
@@ -240,6 +376,7 @@ export function Editor({
                   {state.mode === "edit" ? "完成文字编辑" : "编辑文字"}
                 </Button>
               )}
+              {!mobile && panel}
               <h3>位置与大小</h3>
               <div className="geometry-fields">
                 {(["x", "y", "width"] as const).map((field) => (
@@ -305,6 +442,14 @@ export function Editor({
       <div className="mobile-block-actions">
         {selected && (
           <>
+            <Button
+              onClick={() =>
+                store.setMode(state.mode === "edit" ? "select" : "edit")
+              }
+            >
+              {state.mode === "edit" ? "完成文字编辑" : "编辑文字"}
+            </Button>
+            <Button onClick={() => setSheet(true)}>文字设置</Button>
             <Button aria-label="复制文字块" onClick={store.duplicateSelected}>
               <Copy size={16} />
             </Button>
@@ -314,6 +459,11 @@ export function Editor({
           </>
         )}
       </div>
+      {mobile && sheet && selected && (
+        <BottomSheet title="文字设置" onClose={() => setSheet(false)}>
+          {panel}
+        </BottomSheet>
+      )}
       {pending && (
         <Dialog title="更换不同尺寸的背景" onClose={() => setPending(null)}>
           <p>

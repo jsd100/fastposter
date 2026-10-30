@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fixture from "../../../tests/fixtures/documents/valid-mixed.json";
 import { parseDocument } from "@fastposter/poster-schema";
 import {
+  pinchView,
   resizeTextWidth,
   screenToDocument,
   replaceBackground,
@@ -79,4 +80,15 @@ describe("one history for geometry and text", () => {
     expect(history.cancel()).toEqual({ x: 1 });
     expect(history.canUndo).toBe(false);
   });
+});
+it("pinch changes only the view and keeps midpoint anchored", () => {
+  expect(
+    pinchView(
+      { x: 0, y: 0, scale: 1 },
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 20, y: 10 },
+      { x: 220, y: 10 },
+    ),
+  ).toEqual({ x: 20, y: 10, scale: 2 });
 });

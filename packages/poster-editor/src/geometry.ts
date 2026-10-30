@@ -69,3 +69,30 @@ export function replaceBackground(
     }),
   };
 }
+export function pinchView(
+  view: ViewTransform,
+  startA: Point,
+  startB: Point,
+  currentA: Point,
+  currentB: Point,
+): ViewTransform {
+  const startDistance = Math.hypot(startB.x - startA.x, startB.y - startA.y);
+  if (startDistance < 1) return view;
+  const scale = clamp(
+    (view.scale *
+      Math.hypot(currentB.x - currentA.x, currentB.y - currentA.y)) /
+      startDistance,
+    0.02,
+    3,
+  );
+  const start = { x: (startA.x + startB.x) / 2, y: (startA.y + startB.y) / 2 },
+    current = {
+      x: (currentA.x + currentB.x) / 2,
+      y: (currentA.y + currentB.y) / 2,
+    };
+  return {
+    scale,
+    x: current.x - ((start.x - view.x) * scale) / view.scale,
+    y: current.y - ((start.y - view.y) * scale) / view.scale,
+  };
+}
