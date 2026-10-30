@@ -51,6 +51,9 @@ func (g *Gateway) uploadMultipart(ctx context.Context, r *app.RequestContext, ac
 		body = bytes.NewReader(r.Request.Body())
 	}
 	maxBytes := assets.MaxImageBytes
+	if action == "UploadFont" {
+		maxBytes = 20 << 20
+	}
 	if action == "ImportTemplate" || action == "AdminImportTemplate" {
 		maxBytes = 80 << 20
 	}

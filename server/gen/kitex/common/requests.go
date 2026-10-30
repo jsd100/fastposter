@@ -1097,3 +1097,32 @@ var fieldIDToName_FontUploadInput = map[int16]string{
 	3: "style",
 	4: "license",
 }
+
+type FontCheckInput struct {
+	Document string `thrift:"document,1,required" frugal:"1,required,string" json:"document"`
+}
+
+func NewFontCheckInput() *FontCheckInput {
+	return &FontCheckInput{}
+}
+
+func (p *FontCheckInput) InitDefault() {
+}
+
+func (p *FontCheckInput) GetDocument() (v string) {
+	return p.Document
+}
+func (p *FontCheckInput) SetDocument(val string) {
+	p.Document = val
+}
+
+func (p *FontCheckInput) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("FontCheckInput(%+v)", *p)
+}
+
+var fieldIDToName_FontCheckInput = map[int16]string{
+	1: "document",
+}

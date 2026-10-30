@@ -530,11 +530,12 @@ var fieldIDToName_AssetCall = map[int16]string{
 }
 
 type CatalogCall struct {
-	Context *CallContext   `thrift:"context,1,required" frugal:"1,required,CallContext" json:"context"`
-	Action  string         `thrift:"action,2,required" frugal:"2,required,string" json:"action"`
-	Query   *CatalogQuery  `thrift:"query,3,optional" frugal:"3,optional,CatalogQuery" json:"query,omitempty"`
-	Input   *ResourceInput `thrift:"input,4,optional" frugal:"4,optional,ResourceInput" json:"input,omitempty"`
-	Id      *string        `thrift:"id,5,optional" frugal:"5,optional,string" json:"id,omitempty"`
+	Context   *CallContext    `thrift:"context,1,required" frugal:"1,required,CallContext" json:"context"`
+	Action    string          `thrift:"action,2,required" frugal:"2,required,string" json:"action"`
+	Query     *CatalogQuery   `thrift:"query,3,optional" frugal:"3,optional,CatalogQuery" json:"query,omitempty"`
+	Input     *ResourceInput  `thrift:"input,4,optional" frugal:"4,optional,ResourceInput" json:"input,omitempty"`
+	Id        *string         `thrift:"id,5,optional" frugal:"5,optional,string" json:"id,omitempty"`
+	FontCheck *FontCheckInput `thrift:"fontCheck,6,optional" frugal:"6,optional,FontCheckInput" json:"fontCheck,omitempty"`
 }
 
 func NewCatalogCall() *CatalogCall {
@@ -583,6 +584,15 @@ func (p *CatalogCall) GetId() (v string) {
 	}
 	return *p.Id
 }
+
+var CatalogCall_FontCheck_DEFAULT *FontCheckInput
+
+func (p *CatalogCall) GetFontCheck() (v *FontCheckInput) {
+	if !p.IsSetFontCheck() {
+		return CatalogCall_FontCheck_DEFAULT
+	}
+	return p.FontCheck
+}
 func (p *CatalogCall) SetContext(val *CallContext) {
 	p.Context = val
 }
@@ -597,6 +607,9 @@ func (p *CatalogCall) SetInput(val *ResourceInput) {
 }
 func (p *CatalogCall) SetId(val *string) {
 	p.Id = val
+}
+func (p *CatalogCall) SetFontCheck(val *FontCheckInput) {
+	p.FontCheck = val
 }
 
 func (p *CatalogCall) IsSetContext() bool {
@@ -615,6 +628,10 @@ func (p *CatalogCall) IsSetId() bool {
 	return p.Id != nil
 }
 
+func (p *CatalogCall) IsSetFontCheck() bool {
+	return p.FontCheck != nil
+}
+
 func (p *CatalogCall) String() string {
 	if p == nil {
 		return "<nil>"
@@ -628,6 +645,7 @@ var fieldIDToName_CatalogCall = map[int16]string{
 	3: "query",
 	4: "input",
 	5: "id",
+	6: "fontCheck",
 }
 
 type TemplateCall struct {

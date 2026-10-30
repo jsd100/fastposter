@@ -6,6 +6,7 @@ import (
 	"fastposter/server/gen/kitex/core/coreservice"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
+	"fastposter/server/internal/catalog"
 	"fastposter/server/internal/exports"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
@@ -16,6 +17,7 @@ import (
 	"github.com/cloudwego/kitex/client"
 	kserver "github.com/cloudwego/kitex/server"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -43,6 +45,9 @@ func TestBrowserStack(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	if _, e = accounts.CreateAdmin(context.Background(), "admin-e2e", "fastposter-test-only-password"); e != nil {
+		t.Fatal(e)
+	}
 	images := assets.NewService(db, store, &assets.Normalizer{MagickPath: "magick", ProfilePath: filepath.Join(root, "assets/color/sRGB.icc"), PolicyDir: filepath.Join(root, "deploy/imagemagick")}, t.TempDir())
 	if e = images.BootstrapFonts(context.Background(), root); e != nil {
 		t.Fatal(e)
@@ -51,7 +56,7 @@ func TestBrowserStack(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	coreServer := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.FontCatalogAdapter(accounts, images), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, kserver.WithListener(rl))
+	coreServer := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, catalog.NewService(db, store, images)), AdminFunc: transport.AdminAdapter(accounts, catalog.NewService(db, store, images)), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, kserver.WithListener(rl))
 	go coreServer.Run()
 	defer coreServer.Stop()
 	rpc, e := coreservice.NewClient("browser.core", client.WithHostPorts(rl.Addr().String()), client.WithRPCTimeout(75*time.Second))
@@ -63,10 +68,21 @@ func TestBrowserStack(t *testing.T) {
 		t.Fatal(e)
 	}
 	h := hserver.New(hserver.WithListener(hl), hserver.WithStreamBody(true), hserver.WithMaxRequestBodySize(82<<20))
-	g := transport.Gateway{RPC: rpc, Store: store, AllowedOrigins: []string{"http://127.0.0.1:15173"}}
+	g := transport.Gateway{RPC: rpc, Store: store, AllowedOrigins: []string{"http://127.0.0.1:15173", "http://127.0.0.1:15174"}}
 	g.BindUploads()
 	g.Register(h)
 	h.GET("/api/v1/health", func(ctx context.Context, r *app.RequestContext) {
+		probe := http.Client{Timeout: 250 * time.Millisecond}
+		response, err := probe.Get("http://127.0.0.1:15174/admin/")
+		if err != nil {
+			r.Status(503)
+			return
+		}
+		response.Body.Close()
+		if response.StatusCode != 200 {
+			r.Status(503)
+			return
+		}
 		_, e := rpc.Ping(ctx, &core.PingRequest{RequestId: "browser-health"})
 		if e != nil {
 			r.Status(503)
@@ -99,6 +115,25 @@ func TestBrowserStack(t *testing.T) {
 		case <-done:
 		case <-time.After(3 * time.Second):
 			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+	}()
+	adminCmd := exec.Command("pnpm", "exec", "vite", "apps/admin", "--host", "127.0.0.1", "--port", "15174", "--strictPort", "--config", "apps/admin/vite.config.ts")
+	adminCmd.Dir = root
+	adminCmd.Env = append(os.Environ(), "API_PROXY=http://127.0.0.1:18080")
+	adminCmd.Stdout = os.Stdout
+	adminCmd.Stderr = os.Stderr
+	adminCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if e = adminCmd.Start(); e != nil {
+		t.Fatal(e)
+	}
+	adminDone := make(chan error, 1)
+	go func() { adminDone <- adminCmd.Wait() }()
+	defer func() {
+		syscall.Kill(-adminCmd.Process.Pid, syscall.SIGTERM)
+		select {
+		case <-adminDone:
+		case <-time.After(3 * time.Second):
+			syscall.Kill(-adminCmd.Process.Pid, syscall.SIGKILL)
 		}
 	}()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

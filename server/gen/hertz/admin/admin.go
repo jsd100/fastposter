@@ -16,7 +16,7 @@ type AdminHTTP interface {
 
 	AdminUser(ctx context.Context, request *common.AdminUserInput) (r *common.AdminUserReply, err error)
 
-	AdminProjects(ctx context.Context, request *common.ListQuery) (r *common.ProjectListReply, err error)
+	AdminProjects(ctx context.Context, request *common.ListQuery) (r *common.AdminProjectListReply, err error)
 
 	AdminJobs(ctx context.Context, request *common.ListQuery) (r *common.JobsReply, err error)
 
@@ -86,7 +86,7 @@ func (p *AdminHTTPClient) AdminUser(ctx context.Context, request *common.AdminUs
 	}
 	return _result.GetSuccess(), nil
 }
-func (p *AdminHTTPClient) AdminProjects(ctx context.Context, request *common.ListQuery) (r *common.ProjectListReply, err error) {
+func (p *AdminHTTPClient) AdminProjects(ctx context.Context, request *common.ListQuery) (r *common.AdminProjectListReply, err error) {
 	var _args AdminHTTPAdminProjectsArgs
 	_args.Request = request
 	var _result AdminHTTPAdminProjectsResult
@@ -373,7 +373,7 @@ func (p *adminHTTPProcessorAdminProjects) Process(ctx context.Context, seqId int
 	iprot.ReadMessageEnd()
 	var err2 error
 	result := AdminHTTPAdminProjectsResult{}
-	var retval *common.ProjectListReply
+	var retval *common.AdminProjectListReply
 	if retval, err2 = p.handler.AdminProjects(ctx, args.Request); err2 != nil {
 		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing AdminProjects: "+err2.Error())
 		oprot.WriteMessageBegin("AdminProjects", thrift.EXCEPTION, seqId)
@@ -1767,7 +1767,7 @@ func (p *AdminHTTPAdminProjectsArgs) String() string {
 }
 
 type AdminHTTPAdminProjectsResult struct {
-	Success *common.ProjectListReply `thrift:"success,0,optional"`
+	Success *common.AdminProjectListReply `thrift:"success,0,optional"`
 }
 
 func NewAdminHTTPAdminProjectsResult() *AdminHTTPAdminProjectsResult {
@@ -1777,9 +1777,9 @@ func NewAdminHTTPAdminProjectsResult() *AdminHTTPAdminProjectsResult {
 func (p *AdminHTTPAdminProjectsResult) InitDefault() {
 }
 
-var AdminHTTPAdminProjectsResult_Success_DEFAULT *common.ProjectListReply
+var AdminHTTPAdminProjectsResult_Success_DEFAULT *common.AdminProjectListReply
 
-func (p *AdminHTTPAdminProjectsResult) GetSuccess() (v *common.ProjectListReply) {
+func (p *AdminHTTPAdminProjectsResult) GetSuccess() (v *common.AdminProjectListReply) {
 	if !p.IsSetSuccess() {
 		return AdminHTTPAdminProjectsResult_Success_DEFAULT
 	}
@@ -1851,7 +1851,7 @@ ReadStructEndError:
 }
 
 func (p *AdminHTTPAdminProjectsResult) ReadField0(iprot thrift.TProtocol) error {
-	_field := common.NewProjectListReply()
+	_field := common.NewAdminProjectListReply()
 	if err := _field.Read(iprot); err != nil {
 		return err
 	}

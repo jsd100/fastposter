@@ -25,6 +25,7 @@ var GeneratedRoutes = []RouteSpec{
 	{"ChangePassword", "POST", "/api/v1/auth/password"},
 	{"ListCatalog", "GET", "/api/v1/catalog/:kind"},
 	{"ListFonts", "GET", "/api/v1/fonts"},
+	{"CheckFonts", "POST", "/api/v1/fonts/check"},
 	{"CreateExport", "POST", "/api/v1/exports"},
 	{"GetExport", "GET", "/api/v1/exports/:id"},
 	{"DownloadExport", "GET", "/api/v1/exports/:id/download"},

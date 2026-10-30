@@ -138,5 +138,9 @@ func (s *Service) BootstrapFonts(ctx context.Context, root string) error {
 			return e
 		}
 	}
+	if _, e = conn.ExecContext(ctx, "INSERT IGNORE INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) SELECT 'resource',resource_id,asset_id,asset_version FROM resource_versions WHERE asset_id IS NOT NULL AND asset_version IS NOT NULL"); e != nil {
+		return e
+	}
+
 	return nil
 }

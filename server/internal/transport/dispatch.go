@@ -62,6 +62,12 @@ func (g *Gateway) dispatch(ctx context.Context, r *app.RequestContext, name stri
 			return badInput(c, e)
 		}
 		return g.RPC.Catalog(ctx, &common.CatalogCall{Context: c, Action: name, Query: input})
+	case "CheckFonts":
+		input, e := bindInput[common.FontCheckInput](r)
+		if e != nil {
+			return badInput(c, e)
+		}
+		return g.RPC.Catalog(ctx, &common.CatalogCall{Context: c, Action: name, FontCheck: input})
 	case "ListFonts":
 		return g.RPC.Catalog(ctx, &common.CatalogCall{Context: c, Action: name})
 	case "AdminSaveResource":

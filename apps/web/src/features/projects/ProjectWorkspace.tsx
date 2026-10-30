@@ -1,3 +1,4 @@
+import { BackgroundPicker } from "../catalog/BackgroundPicker";
 import { ExportControls } from "../export/ExportDialog";
 import { useProjectAutosave } from "../editor/useProjectAutosave";
 import { SaveStatus } from "../editor/SaveStatus";
@@ -45,10 +46,13 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
   const cache = useQueryClient();
   const auto = useProjectAutosave(user!.id, initial);
   const doc = auto.state.document;
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [overflow, setOverflow] = useState(false),
     [readyFonts, setReadyFonts] = useState<FontSource[]>([]);
+  const [fontsBusy, setFontsBusy] = useState(false),
+    [glyphError, setGlyphError] = useState("");
   const files = useRef<HTMLInputElement>(null);
   const resolver = useRef<
     ((value: BackgroundAsset | undefined) => void) | null
@@ -77,17 +81,52 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
           ...f,
           url: `/api/v1/assets/${f.assetId}/versions/${f.version}`,
         });
-    loadFonts(sources)
+    const needed = initialFonts.length
+      ? sources.filter((f) =>
+          initialFonts.some(
+            (ref) => ref.assetId === f.assetId && ref.version === f.version,
+          ),
+        )
+      : sources.filter((f) => f.family === "Noto Sans SC");
+    setFontsBusy(true);
+    loadFonts(needed)
       .then(() => {
-        if (active) setReadyFonts(sources);
+        if (active) {
+          setReadyFonts(sources);
+          setFontsBusy(false);
+        }
       })
       .catch((e) => {
-        if (active) setError(errorMessage(e));
+        if (active) {
+          setError(errorMessage(e));
+          setFontsBusy(false);
+        }
       });
     return () => {
       active = false;
     };
   }, [fontQuery.data, initialFonts]);
+  const documentValue = JSON.stringify(doc);
+  useEffect(() => {
+    if (!auto.ready || !doc.textBlocks.length) {
+      setGlyphError("");
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(() => {
+      request(routes.CheckFonts, { document: documentValue })
+        .then(() => {
+          if (active) setGlyphError("");
+        })
+        .catch((e) => {
+          if (active) setGlyphError(errorMessage(e));
+        });
+    }, 500);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [documentValue, auto.ready]);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
       if (auto.state.status !== "saved") {
@@ -137,6 +176,12 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
     return new Promise<BackgroundAsset | undefined>((resolve) => {
       resolver.current = resolve;
       files.current?.click();
+    });
+  }
+  function library() {
+    return new Promise<BackgroundAsset | undefined>((resolve) => {
+      resolver.current = resolve;
+      setLibraryOpen(true);
     });
   }
   async function importFile(file: File | undefined) {
@@ -226,11 +271,12 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
           projectId={initial.id}
           userId={user!.id}
           flush={auto.flush}
-          overflow={overflow}
+          overflow={overflow || !!glyphError}
           blocked={
             auto.state.status === "blocked" ||
             auto.state.status === "conflict" ||
-            !readyFonts.length
+            !readyFonts.length ||
+            fontsBusy
           }
         />
       </header>
@@ -243,6 +289,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       {auto.state.status === "error" && Boolean(auto.state.error) && (
         <Status tone="error">{errorMessage(auto.state.error)}</Status>
       )}
+      {glyphError && <Status tone="error">{glyphError}</Status>}
       {auto.draftError && <Status tone="error">{auto.draftError}</Status>}
       {auto.state.status === "offline" && (
         <Status>连接恢复后可点击保存重试。</Status>
@@ -282,8 +329,23 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         onInteractionChange={auto.setInteraction}
         availableFonts={readyFonts}
         onAssetRequest={background}
+        onBackgroundLibraryRequest={library}
         onOverflowChange={setOverflow}
       />
+      {libraryOpen && (
+        <BackgroundPicker
+          onClose={() => {
+            resolver.current?.(undefined);
+            resolver.current = null;
+            setLibraryOpen(false);
+          }}
+          onChoose={(asset) => {
+            resolver.current?.(asset);
+            resolver.current = null;
+            setLibraryOpen(false);
+          }}
+        />
+      )}
       <input
         ref={files}
         type="file"

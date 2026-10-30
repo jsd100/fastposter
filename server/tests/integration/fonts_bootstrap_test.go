@@ -40,6 +40,10 @@ func TestBuiltinFontsBootstrapIsImmutableAndReadable(t *testing.T) {
 		}
 		r.Close()
 	}
+	var references int
+	if e = db.QueryRow("SELECT COUNT(*) FROM asset_refs WHERE owner_kind='resource'").Scan(&references); e != nil || references != 4 {
+		t.Fatalf("builtin resource refs %d %v", references, e)
+	}
 	var users int
 	db.QueryRow("SELECT COUNT(*) FROM users WHERE disabled=0").Scan(&users)
 	if users != 0 {

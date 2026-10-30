@@ -47,6 +47,27 @@ func AssetsAdapter(accounts *auth.Service, service *assets.Service) func(context
 		switch call.Action {
 		case "AbortUpload":
 			return response(c, nil, service.EndStage(ctx, p, storage.Key(call.GetStagedKey()), false)), nil
+		case "UploadFont":
+			if e := auth.RequireAdmin(p); e != nil {
+				return response(c, nil, e), nil
+			}
+			input := call.Font
+			if input == nil {
+				return response(c, nil, domain.E("INVALID_INPUT", "缺少字体属性")), nil
+			}
+			key := storage.Key(call.GetStagedKey())
+			r, e := service.ClaimStage(ctx, p, key, "fonts")
+			if e != nil {
+				return response(c, nil, e), nil
+			}
+			asset, e := service.UploadFont(ctx, p, call.GetFilename(), input.Family, int(input.Weight), input.Style, input.GetLicense(), r)
+			r.Close()
+			service.EndStage(context.WithoutCancel(ctx), p, key, e == nil)
+			reply := response(c, nil, e)
+			if e == nil {
+				reply.Data.Asset = PublicAsset(asset)
+			}
+			return reply, nil
 		case "UploadImage":
 			key := storage.Key(call.GetStagedKey())
 			r, e := service.ClaimStage(ctx, p, key, "images")

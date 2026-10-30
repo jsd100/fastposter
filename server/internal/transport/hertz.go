@@ -83,7 +83,7 @@ func errorStatus(code string) int {
 		return 409
 	case "PAYLOAD_TOO_LARGE":
 		return 413
-	case "INVALID_INPUT", "RESET_INVALID", "MISSING_FONT", "OVERFLOW", "INVALID_IMAGE", "UNSUPPORTED_IMAGE", "IMAGE_LIMIT", "IMAGE_PROCESSING_FAILED":
+	case "INVALID_INPUT", "RESET_INVALID", "MISSING_FONT", "OVERFLOW", "INVALID_IMAGE", "UNSUPPORTED_IMAGE", "IMAGE_LIMIT", "IMAGE_PROCESSING_FAILED", "INVALID_FONT", "MISSING_GLYPH":
 		return 422
 	case "RATE_LIMITED":
 		return 429
@@ -141,6 +141,57 @@ func (g *Gateway) write(ctx context.Context, r *app.RequestContext, route string
 		}
 		r.Response.Header.Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": name}))
 		r.Response.SetBodyStream(file, -1)
+		return
+	}
+	switch route {
+	case "ListCatalog", "AdminResources":
+		items := reply.Data.Resources
+		if items == nil {
+			items = []*common.ResourceDTO{}
+		}
+		r.JSON(200, &common.CatalogReply{RequestId: c.RequestId, Resources: items, Total: reply.Data.GetTotal()})
+		return
+	case "ListProjects":
+		items := reply.Data.Projects
+		if items == nil {
+			items = []*common.ProjectDTO{}
+		}
+		r.JSON(200, &common.ProjectListReply{RequestId: c.RequestId, Projects: items, Total: reply.Data.GetTotal()})
+		return
+	case "ListFonts":
+		items := reply.Data.Fonts
+		if items == nil {
+			items = []*common.FontDTO{}
+		}
+		r.JSON(200, &common.FontsReply{RequestId: c.RequestId, Fonts: items})
+		return
+	case "AdminUsers":
+		items := reply.Data.Users
+		if items == nil {
+			items = []*common.UserDTO{}
+		}
+		r.JSON(200, &common.UsersReply{RequestId: c.RequestId, Users: items, Total: reply.Data.GetTotal()})
+		return
+	case "AdminJobs":
+		items := reply.Data.Jobs
+		if items == nil {
+			items = []*common.JobDTO{}
+		}
+		r.JSON(200, &common.JobsReply{RequestId: c.RequestId, Jobs: items, Total: reply.Data.GetTotal()})
+		return
+	case "AdminAudit":
+		items := reply.Data.Audit
+		if items == nil {
+			items = []*common.AuditDTO{}
+		}
+		r.JSON(200, &common.AuditReply{RequestId: c.RequestId, Audit: items, Total: reply.Data.GetTotal()})
+		return
+	}
+	if route == "AdminProjects" {
+		if reply.Data.MetadataProjects == nil {
+			reply.Data.MetadataProjects = []*common.ProjectMetadataDTO{}
+		}
+		r.JSON(200, &common.AdminProjectListReply{RequestId: c.RequestId, Projects: reply.Data.MetadataProjects, Total: reply.Data.GetTotal()})
 		return
 	}
 	r.JSON(200, reply.Data)

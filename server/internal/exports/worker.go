@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fastposter/server/internal/document"
 	"fastposter/server/internal/domain"
+	"fastposter/server/internal/fontfile"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
 	"fmt"
@@ -124,6 +125,16 @@ func (w *Worker) Render(ctx context.Context, snapshot projects.RenderSnapshot) (
 			return "", "", 0, domain.E("MISSING_FONT", "字体文件缺失或校验失败，请联系管理员")
 		}
 		render.Fonts = append(render.Fonts, ResolvedFont{AssetID: f.AssetID, Version: f.Version, Path: path, Weight: f.Weight, Style: f.Style})
+	}
+	if e = fontfile.CheckDocument(snapshot.Document, func(ref document.FontRef) ([]byte, error) {
+		for _, font := range render.Fonts {
+			if font.AssetID == ref.AssetID && font.Version == ref.Version {
+				return os.ReadFile(font.Path)
+			}
+		}
+		return nil, domain.E("MISSING_FONT", "缺少字体文件")
+	}); e != nil {
+		return "", "", 0, e
 	}
 	text, report, e := w.Renderer.RenderText(ctx, render)
 	if e != nil {

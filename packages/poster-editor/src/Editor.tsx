@@ -39,6 +39,7 @@ export type EditorProps = {
   onChange: (doc: PosterDocument) => void;
   availableFonts?: FontSource[];
   onAssetRequest?: () => Promise<BackgroundAsset | undefined>;
+  onBackgroundLibraryRequest?: () => Promise<BackgroundAsset | undefined>;
   onOverflowChange?: (overflow: boolean) => void;
   onInteractionChange?: (busy: boolean) => void;
   renderEditing?: (block: TextBlock, store: EditorStore) => ReactNode;
@@ -48,6 +49,7 @@ export function Editor({
   onChange,
   availableFonts = [],
   onAssetRequest,
+  onBackgroundLibraryRequest,
   onOverflowChange,
   onInteractionChange,
   renderEditing,
@@ -144,12 +146,12 @@ export function Editor({
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [store]);
-  async function background() {
-    if (!onAssetRequest || uploading) return;
+  async function background(request = onAssetRequest) {
+    if (!request || uploading) return;
     setUploading(true);
     setError("");
     try {
-      const asset = await onAssetRequest();
+      const asset = await request();
       if (asset) {
         if (
           asset.width !== state.document.canvas.width ||
@@ -263,6 +265,14 @@ export function Editor({
           </Button>
         </div>
         <div className="command-group">
+          {onBackgroundLibraryRequest && (
+            <Button
+              disabled={uploading}
+              onClick={() => void background(onBackgroundLibraryRequest)}
+            >
+              背景库
+            </Button>
+          )}
           <Button
             aria-label="撤销"
             title="撤销 Ctrl/⌘ Z"

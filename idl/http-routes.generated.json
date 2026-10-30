@@ -253,6 +253,16 @@
     "bodyFields": []
   },
   {
+    "name": "CheckFonts",
+    "method": "POST",
+    "path": "/api/v1/fonts/check",
+    "pathFields": [],
+    "queryFields": [],
+    "bodyFields": [
+      "document"
+    ]
+  },
+  {
     "name": "CreateExport",
     "method": "POST",
     "path": "/api/v1/exports",

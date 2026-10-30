@@ -1,3 +1,4 @@
+import { fontFamilies, fontWeights } from "./font-options";
 import type { Editor } from "@tiptap/react";
 import type { TextBlock, InlineStyle } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
@@ -36,17 +37,7 @@ export function TextPanel({
             ),
           ),
         } as InlineStyle);
-  const families = fonts.filter(
-    (f, i) =>
-      f.style === "normal" &&
-      f.weight === 400 &&
-      fonts.findIndex(
-        (other) =>
-          other.family === f.family &&
-          other.style === "normal" &&
-          other.weight === 400,
-      ) === i,
-  );
+  const families = fontFamilies(fonts);
   const activeFamily = fonts.find((f) => f.assetId === current.fontId)?.family;
   const italicAvailable = fonts.some(
     (f) => f.family === activeFamily && f.style === "italic",
@@ -64,8 +55,11 @@ export function TextPanel({
         字体
         <select
           aria-label="文字字体"
-          value={current.fontId ?? ""}
-          onChange={(e) => apply({ fontId: e.target.value })}
+          value={families.find((f) => f.family === activeFamily)?.assetId ?? ""}
+          onChange={(e) => {
+            const face = fonts.find((f) => f.assetId === e.target.value);
+            if (face) apply({ fontId: face.assetId, fontWeight: face.weight });
+          }}
         >
           <option value="" disabled>
             混合
@@ -73,6 +67,28 @@ export function TextPanel({
           {families.map((f) => (
             <option key={f.assetId} value={f.assetId}>
               {f.family === "Noto Sans SC" ? "思源黑体" : f.family}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="panel-field">
+        字重
+        <select
+          aria-label="文字字重"
+          value={current.fontWeight ?? ""}
+          onChange={(e) => {
+            const face = fontWeights(fonts, activeFamily).find(
+              (f) => f.weight === Number(e.target.value),
+            );
+            if (face) apply({ fontId: face.assetId, fontWeight: face.weight });
+          }}
+        >
+          <option value="" disabled>
+            混合
+          </option>
+          {fontWeights(fonts, activeFamily).map((face) => (
+            <option key={face.assetId} value={face.weight}>
+              {face.weight}
             </option>
           ))}
         </select>

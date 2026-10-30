@@ -321,6 +321,154 @@ var fieldIDToName_ProjectDTO = map[int16]string{
 	9: "previewUrl",
 }
 
+type ProjectMetadataDTO struct {
+	Id        string  `thrift:"id,1,required" frugal:"1,required,string" json:"id"`
+	OwnerId   string  `thrift:"ownerId,2,required" frugal:"2,required,string" json:"ownerId"`
+	Title     string  `thrift:"title,3,required" frugal:"3,required,string" json:"title"`
+	Revision  string  `thrift:"revision,4,required" frugal:"4,required,string" json:"revision"`
+	Width     int32   `thrift:"width,5,required" frugal:"5,required,i32" json:"width"`
+	Height    int32   `thrift:"height,6,required" frugal:"6,required,i32" json:"height"`
+	UpdatedAt string  `thrift:"updatedAt,7,required" frugal:"7,required,string" json:"updatedAt"`
+	DeletedAt *string `thrift:"deletedAt,8,optional" frugal:"8,optional,string" json:"deletedAt,omitempty"`
+}
+
+func NewProjectMetadataDTO() *ProjectMetadataDTO {
+	return &ProjectMetadataDTO{}
+}
+
+func (p *ProjectMetadataDTO) InitDefault() {
+}
+
+func (p *ProjectMetadataDTO) GetId() (v string) {
+	return p.Id
+}
+
+func (p *ProjectMetadataDTO) GetOwnerId() (v string) {
+	return p.OwnerId
+}
+
+func (p *ProjectMetadataDTO) GetTitle() (v string) {
+	return p.Title
+}
+
+func (p *ProjectMetadataDTO) GetRevision() (v string) {
+	return p.Revision
+}
+
+func (p *ProjectMetadataDTO) GetWidth() (v int32) {
+	return p.Width
+}
+
+func (p *ProjectMetadataDTO) GetHeight() (v int32) {
+	return p.Height
+}
+
+func (p *ProjectMetadataDTO) GetUpdatedAt() (v string) {
+	return p.UpdatedAt
+}
+
+var ProjectMetadataDTO_DeletedAt_DEFAULT string
+
+func (p *ProjectMetadataDTO) GetDeletedAt() (v string) {
+	if !p.IsSetDeletedAt() {
+		return ProjectMetadataDTO_DeletedAt_DEFAULT
+	}
+	return *p.DeletedAt
+}
+func (p *ProjectMetadataDTO) SetId(val string) {
+	p.Id = val
+}
+func (p *ProjectMetadataDTO) SetOwnerId(val string) {
+	p.OwnerId = val
+}
+func (p *ProjectMetadataDTO) SetTitle(val string) {
+	p.Title = val
+}
+func (p *ProjectMetadataDTO) SetRevision(val string) {
+	p.Revision = val
+}
+func (p *ProjectMetadataDTO) SetWidth(val int32) {
+	p.Width = val
+}
+func (p *ProjectMetadataDTO) SetHeight(val int32) {
+	p.Height = val
+}
+func (p *ProjectMetadataDTO) SetUpdatedAt(val string) {
+	p.UpdatedAt = val
+}
+func (p *ProjectMetadataDTO) SetDeletedAt(val *string) {
+	p.DeletedAt = val
+}
+
+func (p *ProjectMetadataDTO) IsSetDeletedAt() bool {
+	return p.DeletedAt != nil
+}
+
+func (p *ProjectMetadataDTO) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectMetadataDTO(%+v)", *p)
+}
+
+var fieldIDToName_ProjectMetadataDTO = map[int16]string{
+	1: "id",
+	2: "ownerId",
+	3: "title",
+	4: "revision",
+	5: "width",
+	6: "height",
+	7: "updatedAt",
+	8: "deletedAt",
+}
+
+type AdminProjectListReply struct {
+	RequestId string                `thrift:"requestId,1,required" frugal:"1,required,string" json:"requestId"`
+	Projects  []*ProjectMetadataDTO `thrift:"projects,2,required" frugal:"2,required,list<ProjectMetadataDTO>" json:"projects"`
+	Total     int32                 `thrift:"total,3,required" frugal:"3,required,i32" json:"total"`
+}
+
+func NewAdminProjectListReply() *AdminProjectListReply {
+	return &AdminProjectListReply{}
+}
+
+func (p *AdminProjectListReply) InitDefault() {
+}
+
+func (p *AdminProjectListReply) GetRequestId() (v string) {
+	return p.RequestId
+}
+
+func (p *AdminProjectListReply) GetProjects() (v []*ProjectMetadataDTO) {
+	return p.Projects
+}
+
+func (p *AdminProjectListReply) GetTotal() (v int32) {
+	return p.Total
+}
+func (p *AdminProjectListReply) SetRequestId(val string) {
+	p.RequestId = val
+}
+func (p *AdminProjectListReply) SetProjects(val []*ProjectMetadataDTO) {
+	p.Projects = val
+}
+func (p *AdminProjectListReply) SetTotal(val int32) {
+	p.Total = val
+}
+
+func (p *AdminProjectListReply) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("AdminProjectListReply(%+v)", *p)
+}
+
+var fieldIDToName_AdminProjectListReply = map[int16]string{
+	1: "requestId",
+	2: "projects",
+	3: "total",
+}
+
 type AssetDTO struct {
 	Id         string  `thrift:"id,1,required" frugal:"1,required,string" json:"id"`
 	Version    string  `thrift:"version,2,required" frugal:"2,required,string" json:"version"`
@@ -1658,21 +1806,22 @@ var fieldIDToName_AdminUserReply = map[int16]string{
 }
 
 type PublicPayload struct {
-	RequestId  string         `thrift:"requestId,1,required" frugal:"1,required,string" json:"requestId"`
-	User       *UserDTO       `thrift:"user,2,optional" frugal:"2,optional,UserDTO" json:"user,omitempty"`
-	Project    *ProjectDTO    `thrift:"project,3,optional" frugal:"3,optional,ProjectDTO" json:"project,omitempty"`
-	Projects   []*ProjectDTO  `thrift:"projects,4,optional" frugal:"4,optional,list<ProjectDTO>" json:"projects,omitempty"`
-	Asset      *AssetDTO      `thrift:"asset,5,optional" frugal:"5,optional,AssetDTO" json:"asset,omitempty"`
-	Resources  []*ResourceDTO `thrift:"resources,6,optional" frugal:"6,optional,list<ResourceDTO>" json:"resources,omitempty"`
-	Fonts      []*FontDTO     `thrift:"fonts,7,optional" frugal:"7,optional,list<FontDTO>" json:"fonts,omitempty"`
-	Resource   *ResourceDTO   `thrift:"resource,8,optional" frugal:"8,optional,ResourceDTO" json:"resource,omitempty"`
-	Job        *JobDTO        `thrift:"job,9,optional" frugal:"9,optional,JobDTO" json:"job,omitempty"`
-	Users      []*UserDTO     `thrift:"users,10,optional" frugal:"10,optional,list<UserDTO>" json:"users,omitempty"`
-	Overview   *OverviewDTO   `thrift:"overview,11,optional" frugal:"11,optional,OverviewDTO" json:"overview,omitempty"`
-	Jobs       []*JobDTO      `thrift:"jobs,12,optional" frugal:"12,optional,list<JobDTO>" json:"jobs,omitempty"`
-	Audit      []*AuditDTO    `thrift:"audit,13,optional" frugal:"13,optional,list<AuditDTO>" json:"audit,omitempty"`
-	Total      *int32         `thrift:"total,14,optional" frugal:"14,optional,i32" json:"total,omitempty"`
-	ResetToken *string        `thrift:"resetToken,15,optional" frugal:"15,optional,string" json:"resetToken,omitempty"`
+	RequestId        string                `thrift:"requestId,1,required" frugal:"1,required,string" json:"requestId"`
+	User             *UserDTO              `thrift:"user,2,optional" frugal:"2,optional,UserDTO" json:"user,omitempty"`
+	Project          *ProjectDTO           `thrift:"project,3,optional" frugal:"3,optional,ProjectDTO" json:"project,omitempty"`
+	Projects         []*ProjectDTO         `thrift:"projects,4,optional" frugal:"4,optional,list<ProjectDTO>" json:"projects,omitempty"`
+	Asset            *AssetDTO             `thrift:"asset,5,optional" frugal:"5,optional,AssetDTO" json:"asset,omitempty"`
+	Resources        []*ResourceDTO        `thrift:"resources,6,optional" frugal:"6,optional,list<ResourceDTO>" json:"resources,omitempty"`
+	Fonts            []*FontDTO            `thrift:"fonts,7,optional" frugal:"7,optional,list<FontDTO>" json:"fonts,omitempty"`
+	Resource         *ResourceDTO          `thrift:"resource,8,optional" frugal:"8,optional,ResourceDTO" json:"resource,omitempty"`
+	Job              *JobDTO               `thrift:"job,9,optional" frugal:"9,optional,JobDTO" json:"job,omitempty"`
+	Users            []*UserDTO            `thrift:"users,10,optional" frugal:"10,optional,list<UserDTO>" json:"users,omitempty"`
+	Overview         *OverviewDTO          `thrift:"overview,11,optional" frugal:"11,optional,OverviewDTO" json:"overview,omitempty"`
+	Jobs             []*JobDTO             `thrift:"jobs,12,optional" frugal:"12,optional,list<JobDTO>" json:"jobs,omitempty"`
+	Audit            []*AuditDTO           `thrift:"audit,13,optional" frugal:"13,optional,list<AuditDTO>" json:"audit,omitempty"`
+	Total            *int32                `thrift:"total,14,optional" frugal:"14,optional,i32" json:"total,omitempty"`
+	ResetToken       *string               `thrift:"resetToken,15,optional" frugal:"15,optional,string" json:"resetToken,omitempty"`
+	MetadataProjects []*ProjectMetadataDTO `thrift:"metadataProjects,16,optional" frugal:"16,optional,list<ProjectMetadataDTO>" json:"metadataProjects,omitempty"`
 }
 
 func NewPublicPayload() *PublicPayload {
@@ -1811,6 +1960,15 @@ func (p *PublicPayload) GetResetToken() (v string) {
 	}
 	return *p.ResetToken
 }
+
+var PublicPayload_MetadataProjects_DEFAULT []*ProjectMetadataDTO
+
+func (p *PublicPayload) GetMetadataProjects() (v []*ProjectMetadataDTO) {
+	if !p.IsSetMetadataProjects() {
+		return PublicPayload_MetadataProjects_DEFAULT
+	}
+	return p.MetadataProjects
+}
 func (p *PublicPayload) SetRequestId(val string) {
 	p.RequestId = val
 }
@@ -1855,6 +2013,9 @@ func (p *PublicPayload) SetTotal(val *int32) {
 }
 func (p *PublicPayload) SetResetToken(val *string) {
 	p.ResetToken = val
+}
+func (p *PublicPayload) SetMetadataProjects(val []*ProjectMetadataDTO) {
+	p.MetadataProjects = val
 }
 
 func (p *PublicPayload) IsSetUser() bool {
@@ -1913,6 +2074,10 @@ func (p *PublicPayload) IsSetResetToken() bool {
 	return p.ResetToken != nil
 }
 
+func (p *PublicPayload) IsSetMetadataProjects() bool {
+	return p.MetadataProjects != nil
+}
+
 func (p *PublicPayload) String() string {
 	if p == nil {
 		return "<nil>"
@@ -1936,4 +2101,5 @@ var fieldIDToName_PublicPayload = map[int16]string{
 	13: "audit",
 	14: "total",
 	15: "resetToken",
+	16: "metadataProjects",
 }

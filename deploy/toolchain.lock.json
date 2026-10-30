@@ -36,7 +36,9 @@
     "github.com/apache/thrift": "v0.13.0",
     "prettier": "3.9.10",
     "golang.org/x/image": "v0.47.0",
-    "golang.org/x/term": "v0.47.0"
+    "golang.org/x/term": "v0.47.0",
+    "github.com/tdewolff/font": "v0.0.0-20261010204837-88a7f6b56918",
+    "@tiptap/pm": "3.32.1"
   },
   "compatibility": "Go build and Kitex generation passed; frontend typecheck and all 8 workspace builds passed",
   "toolReportedVersions": {

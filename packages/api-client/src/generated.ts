@@ -39,6 +39,21 @@ export interface ProjectDTO {
   deletedAt?: string;
   previewUrl?: string;
 }
+export interface ProjectMetadataDTO {
+  id: string;
+  ownerId: string;
+  title: string;
+  revision: string;
+  width: number;
+  height: number;
+  updatedAt: string;
+  deletedAt?: string;
+}
+export interface AdminProjectListReply {
+  requestId: string;
+  projects: ProjectMetadataDTO[];
+  total: number;
+}
 export interface AssetDTO {
   id: string;
   version: string;
@@ -177,6 +192,7 @@ export interface PublicPayload {
   audit?: AuditDTO[];
   total?: number;
   resetToken?: string;
+  metadataProjects?: ProjectMetadataDTO[];
 }
 export interface IDRequest {
   id: string;
@@ -264,6 +280,9 @@ export interface FontUploadInput {
   style: string;
   license?: string;
 }
+export interface FontCheckInput {
+  document: string;
+}
 export const routes = {
   AdminOverview: {
     name: "AdminOverview",
@@ -296,7 +315,7 @@ export const routes = {
     pathFields: [],
     queryFields: ["page", "pageSize", "keyword", "userId"],
     bodyFields: [],
-  } as Route<ListQuery, ProjectListReply>,
+  } as Route<ListQuery, AdminProjectListReply>,
   AdminJobs: {
     name: "AdminJobs",
     method: "GET",
@@ -448,6 +467,14 @@ export const routes = {
     queryFields: [],
     bodyFields: [],
   } as Route<EmptyRequest, FontsReply>,
+  CheckFonts: {
+    name: "CheckFonts",
+    method: "POST",
+    path: "/api/v1/fonts/check",
+    pathFields: [],
+    queryFields: [],
+    bodyFields: ["document"],
+  } as Route<FontCheckInput, EmptyReply>,
   CreateExport: {
     name: "CreateExport",
     method: "POST",
