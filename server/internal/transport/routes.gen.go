@@ -40,4 +40,5 @@ var GeneratedRoutes = []RouteSpec{
 	{"ApplyTemplate", "POST", "/api/v1/templates/:id/apply"},
 	{"ImportTemplate", "POST", "/api/v1/templates/import"},
 	{"ExportTemplate", "GET", "/api/v1/projects/:id/template"},
+	{"AdminExportTemplate", "GET", "/api/v1/admin/templates/:id/package"},
 }

@@ -212,8 +212,29 @@ func (s *Service) authorize(ctx context.Context, p auth.Principal, a AssetVersio
 	if allowed > 0 {
 		return true, nil
 	}
+	e = s.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM asset_refs ref JOIN resources r ON ((ref.owner_kind='resource-version' AND ref.owner_id=CONCAT(r.id,':',r.current_version) AND r.published=1) OR (ref.owner_kind='resource' AND ref.owner_id=r.id AND ?='admin')) WHERE r.deleted_at IS NULL AND ref.asset_id=? AND ref.asset_version=?", p.Role, a.ID, a.Version).Scan(&allowed)
+	if e != nil {
+		return false, e
+	}
+	if allowed > 0 {
+		return true, nil
+	}
 	e = s.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM asset_refs ref JOIN projects p ON ref.owner_kind IN ('project','project-history') AND ref.owner_id=p.id WHERE p.owner_id=? AND p.deleted_at IS NULL AND ref.asset_id=? AND ref.asset_version=?", p.UserID, a.ID, a.Version).Scan(&allowed)
 	return allowed > 0, e
+}
+func (s *Service) GetVersion(ctx context.Context, p auth.Principal, id, version string) (AssetVersion, error) {
+	a, e := s.get(ctx, id, version)
+	if e != nil {
+		return a, e
+	}
+	ok, e := s.authorize(ctx, p, a)
+	if e != nil {
+		return AssetVersion{}, e
+	}
+	if !ok {
+		return AssetVersion{}, domain.E("NOT_FOUND", "素材不存在或无权访问")
+	}
+	return a, nil
 }
 func (s *Service) Get(ctx context.Context, p auth.Principal, id string) (AssetVersion, error) {
 	a, e := s.get(ctx, id, "")

@@ -83,7 +83,7 @@ func errorStatus(code string) int {
 		return 409
 	case "PAYLOAD_TOO_LARGE":
 		return 413
-	case "INVALID_INPUT", "RESET_INVALID", "MISSING_FONT", "OVERFLOW", "INVALID_IMAGE", "UNSUPPORTED_IMAGE", "IMAGE_LIMIT", "IMAGE_PROCESSING_FAILED", "INVALID_FONT", "MISSING_GLYPH":
+	case "INVALID_INPUT", "RESET_INVALID", "MISSING_FONT", "OVERFLOW", "INVALID_IMAGE", "UNSUPPORTED_IMAGE", "IMAGE_LIMIT", "IMAGE_PROCESSING_FAILED", "INVALID_FONT", "MISSING_GLYPH", "INVALID_TEMPLATE":
 		return 422
 	case "RATE_LIMITED":
 		return 429
@@ -114,7 +114,7 @@ func (g *Gateway) write(ctx context.Context, r *app.RequestContext, route string
 			r.JSON(503, &common.APIError{Code: "NOT_READY", Message: "文件服务未初始化", RequestId: c.RequestId})
 			return
 		}
-		allowed := route == "ReadAsset" || route == "DownloadExport" || route == "PreviewExport" || route == "ExportTemplate"
+		allowed := route == "ReadAsset" || route == "DownloadExport" || route == "PreviewExport" || route == "ExportTemplate" || route == "AdminExportTemplate"
 		if !allowed {
 			r.JSON(500, &common.APIError{Code: "INTERNAL", Message: "文件响应类型不匹配", RequestId: c.RequestId})
 			return

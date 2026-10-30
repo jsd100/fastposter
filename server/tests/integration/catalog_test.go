@@ -87,3 +87,19 @@ func TestCatalogAdminStatsCountActualStorage(t *testing.T) {
 		t.Fatalf("storage bytes %d %d %v", o.StorageBytes, actual, e)
 	}
 }
+func TestCatalogDeletesUnreferencedResourceVersionWithoutDeletingFile(t *testing.T) {
+	p, db, _ := projectService(t)
+	ctx := context.Background()
+	admin := auth.Principal{UserID: "u1", Role: "admin"}
+	c := catalog.NewService(db, p.Store, assets.NewService(db, p.Store, nil, t.TempDir()))
+	r, e := c.Save(ctx, admin, catalog.ResourceInput{Kind: "background", Title: "unused", AssetID: "bg-1"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = c.Delete(ctx, admin, r.ID); e != nil {
+		t.Fatal("own resource-version refs blocked unreferenced metadata deletion", e)
+	}
+	if _, e = c.Get(ctx, admin, r.ID, true); e == nil {
+		t.Fatal("deleted resource still listed")
+	}
+}

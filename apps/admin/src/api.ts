@@ -1,1 +1,1 @@
-export { request, errorMessage } from "../../web/src/api";
+export { request, errorMessage, download } from "../../web/src/api";

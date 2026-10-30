@@ -11,6 +11,7 @@ import (
 	"fastposter/server/internal/exports"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
+	"fastposter/server/internal/templates"
 	"fastposter/server/internal/transport"
 	"github.com/cloudwego/kitex/server"
 	"github.com/redis/go-redis/v9"
@@ -60,7 +61,10 @@ func main() {
 	if e = images.BootstrapFonts(context.Background(), root); e != nil {
 		log.Fatal("builtin font initialization failed")
 	}
-	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, catalog.NewService(db, store, images)), AdminFunc: transport.AdminAdapter(accounts, catalog.NewService(db, store, images)), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, server.WithServiceAddr(addr))
+	posters := projects.NewService(db, store)
+	library := catalog.NewService(db, store, images)
+	portable := templates.NewService(db, store, posters, images, library, filepath.Join(c.AbsoluteDataDir, ".work"))
+	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, library), AdminFunc: transport.AdminAdapter(accounts, library), ProjectsFunc: transport.ProjectsAdapter(accounts, posters), TemplatesFunc: transport.TemplatesAdapter(accounts, portable), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, server.WithServiceAddr(addr))
 	if e = s.Run(); e != nil {
 		log.Fatal(e)
 	}

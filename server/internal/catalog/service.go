@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
+	"fastposter/server/internal/document"
 	"fastposter/server/internal/domain"
 	"fastposter/server/internal/storage"
 	"strconv"
@@ -29,9 +30,10 @@ type Resource struct {
 	Published                                                                                                     bool
 }
 type Service struct {
-	DB     *sql.DB
-	Store  storage.FileStore
-	Assets *assets.Service
+	DB                *sql.DB
+	Store             storage.FileStore
+	Assets            *assets.Service
+	TemplateValidator func(context.Context, auth.Principal, document.Document) ([]document.AssetRef, error)
 }
 
 func NewService(db *sql.DB, store storage.FileStore, images *assets.Service) *Service {
@@ -250,8 +252,21 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 			}
 		}
 	}
+	var templateRefs []document.AssetRef
 	if input.Kind == "template" {
-		return Resource{}, domain.E("NOT_READY", "模板依赖服务尚未初始化")
+		if s.TemplateValidator == nil {
+			return Resource{}, domain.E("NOT_READY", "模板依赖服务尚未初始化")
+		}
+		doc, err := document.Parse([]byte(input.Document))
+		if err != nil {
+			return Resource{}, domain.E("INVALID_INPUT", "模板文档无效")
+		}
+		templateRefs, e = s.TemplateValidator(ctx, p, doc)
+		if e != nil {
+			return Resource{}, e
+		}
+		input.AssetID = doc.Background.AssetID
+		assetVersion = doc.Background.Version
 	}
 
 	if input.Kind == "copy" && strings.TrimSpace(input.Body) == "" {
@@ -278,6 +293,17 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 	if input.AssetID != "" {
 		if _, e = tx.ExecContext(ctx, "INSERT IGNORE INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('resource',?,?,?)", id, input.AssetID, assetVersion); e != nil {
 			return Resource{}, e
+		}
+	}
+	refs := templateRefs
+	if input.AssetID != "" {
+		refs = append(refs, document.AssetRef{AssetID: input.AssetID, Version: assetVersion})
+	}
+	for _, ref := range refs {
+		for _, owner := range []struct{ kind, id string }{{"resource", id}, {"resource-version", id + ":" + strconv.FormatUint(version, 10)}} {
+			if _, e = tx.ExecContext(ctx, "INSERT IGNORE INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES(?,?,?,?)", owner.kind, owner.id, ref.AssetID, ref.Version); e != nil {
+				return Resource{}, e
+			}
 		}
 	}
 	if _, e = tx.ExecContext(ctx, "INSERT INTO admin_audit_logs(id,actor_id,action,target_id,result) VALUES(?,?,?,?,'success')", domain.ID(), p.UserID, "resource.save", id); e != nil {
@@ -323,7 +349,7 @@ func (s *Service) Delete(ctx context.Context, p auth.Principal, id string) error
 		return catalogMissing()
 	}
 	var count int
-	e = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM resource_versions v JOIN asset_refs ref ON ref.asset_id=v.asset_id AND ref.asset_version=v.asset_version WHERE v.resource_id=? AND NOT(ref.owner_kind='resource' AND ref.owner_id=?)", id, id).Scan(&count)
+	e = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM resource_versions v JOIN asset_refs ref ON ref.asset_id=v.asset_id AND ref.asset_version=v.asset_version WHERE v.resource_id=? AND NOT((ref.owner_kind='resource' AND ref.owner_id=?) OR (ref.owner_kind='resource-version' AND SUBSTRING_INDEX(ref.owner_id,':',1)=?))", id, id, id).Scan(&count)
 	if e != nil {
 		return e
 	}

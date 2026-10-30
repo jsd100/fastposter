@@ -10,6 +10,7 @@ import (
 	"fastposter/server/internal/exports"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
+	"fastposter/server/internal/templates"
 	"fastposter/server/internal/testutil"
 	"fastposter/server/internal/transport"
 	"github.com/cloudwego/hertz/pkg/app"
@@ -52,11 +53,14 @@ func TestBrowserStack(t *testing.T) {
 	if e = images.BootstrapFonts(context.Background(), root); e != nil {
 		t.Fatal(e)
 	}
+	posters := projects.NewService(db, store)
+	library := catalog.NewService(db, store, images)
+	portable := templates.NewService(db, store, posters, images, library, t.TempDir())
 	rl, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
 		t.Fatal(e)
 	}
-	coreServer := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, catalog.NewService(db, store, images)), AdminFunc: transport.AdminAdapter(accounts, catalog.NewService(db, store, images)), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, kserver.WithListener(rl))
+	coreServer := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, library), AdminFunc: transport.AdminAdapter(accounts, library), ProjectsFunc: transport.ProjectsAdapter(accounts, posters), TemplatesFunc: transport.TemplatesAdapter(accounts, portable), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, kserver.WithListener(rl))
 	go coreServer.Run()
 	defer coreServer.Stop()
 	rpc, e := coreservice.NewClient("browser.core", client.WithHostPorts(rl.Addr().String()), client.WithRPCTimeout(75*time.Second))

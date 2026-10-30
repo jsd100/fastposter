@@ -587,4 +587,12 @@ export const routes = {
     queryFields: [],
     bodyFields: [],
   } as Route<IDRequest, EmptyReply>,
+  AdminExportTemplate: {
+    name: "AdminExportTemplate",
+    method: "GET",
+    path: "/api/v1/admin/templates/:id/package",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: [],
+  } as Route<IDRequest, EmptyReply>,
 };

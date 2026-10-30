@@ -14,8 +14,8 @@ import { loadFonts, type FontSource } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
 import { Status, Button } from "@fastposter/ui";
-import { ArrowLeft, Save } from "lucide-react";
-import { request, errorMessage } from "../../api";
+import { ArrowLeft, Save, Package } from "lucide-react";
+import { request, errorMessage, download } from "../../api";
 import { Link } from "../../router";
 import { useSession } from "../auth/Session";
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
@@ -49,6 +49,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [packBusy, setPackBusy] = useState(false),
     [overflow, setOverflow] = useState(false),
     [readyFonts, setReadyFonts] = useState<FontSource[]>([]);
   const [fontsBusy, setFontsBusy] = useState(false),
@@ -145,8 +146,23 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       setError(errorMessage(e));
     }
   }
-  async function copyLocal() {
-    setBusy(true);
+  async function exportPackage() {
+    if (packBusy) return;
+    setPackBusy(true);
+    setError("");
+    try {
+      await auto.flush();
+      await download(
+        `/api/v1/projects/${initial.id}/template`,
+        `${auto.title || "FastPoster"}.zip`,
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setPackBusy(false);
+    }
+  }
+  async function copyLocal() {    setBusy(true);
     setError("");
     try {
       const r = await request(routes.CreateProject, {
@@ -266,6 +282,17 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         >
           <Save size={15} />
           保存
+        </Button>
+        <Button
+          aria-label="导出模板包"
+          busy={packBusy}
+          disabled={
+            auto.state.status === "blocked" || auto.state.status === "conflict"
+          }
+          onClick={() => void exportPackage()}
+        >
+          <Package size={15} />
+          模板包
         </Button>
         <ExportControls
           projectId={initial.id}

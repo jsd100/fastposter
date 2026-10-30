@@ -17,6 +17,7 @@ import {
   AuditPage,
 } from "./features/Metadata";
 import { ResourcesPage } from "./features/Resources";
+import { TemplatesPage } from "./features/templates/TemplateList";
 import { navigate, usePath } from "./router";
 import { errorMessage } from "./api";
 import "./styles.css";
@@ -112,6 +113,8 @@ function AdminApp() {
         <ProjectsPage />
       ) : path === "/admin/backgrounds" ? (
         <ResourcesPage key="background" kind="background" />
+      ) : path === "/admin/templates" ? (
+        <TemplatesPage />
       ) : path === "/admin/fonts" ? (
         <ResourcesPage key="font" kind="font" />
       ) : path === "/admin/jobs" ? (

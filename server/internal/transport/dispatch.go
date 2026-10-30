@@ -85,7 +85,7 @@ func (g *Gateway) dispatch(ctx context.Context, r *app.RequestContext, name stri
 			return badInput(c, e)
 		}
 		return g.RPC.Templates(ctx, &common.TemplateCall{Context: c, Action: name, Id: &input.Id, Version: &input.Version})
-	case "ExportTemplate":
+	case "ExportTemplate", "AdminExportTemplate":
 		id := r.Param("id")
 		return g.RPC.Templates(ctx, &common.TemplateCall{Context: c, Action: name, Id: &id})
 	case "CreateExport":

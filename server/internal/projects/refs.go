@@ -56,6 +56,12 @@ func (s *Service) resolveRefs(ctx context.Context, tx *sql.Tx, p auth.Principal,
 				return out, e
 			}
 			if allowed == 0 {
+				e = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM asset_refs ref JOIN resources r ON ((ref.owner_kind='resource-version' AND ref.owner_id=CONCAT(r.id,':',r.current_version) AND r.published=1) OR (ref.owner_kind='resource' AND ref.owner_id=r.id AND ?='admin')) WHERE r.deleted_at IS NULL AND ref.asset_id=? AND ref.asset_version=?", p.Role, ref.AssetID, ref.Version).Scan(&allowed)
+				if e != nil {
+					return out, e
+				}
+			}
+			if allowed == 0 {
 				e = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM asset_refs ref JOIN projects p ON ref.owner_id=p.id WHERE ref.owner_kind IN ('project','project-history') AND p.owner_id=? AND p.deleted_at IS NULL AND ref.asset_id=? AND ref.asset_version=?", p.UserID, ref.AssetID, ref.Version).Scan(&allowed)
 				if e != nil {
 					return out, e
@@ -146,4 +152,26 @@ func (s *Service) ResolveSnapshot(ctx context.Context, p auth.Principal, id, rev
 		return RenderSnapshot{}, e
 	}
 	return out, nil
+}
+
+func (s *Service) ValidateDocument(ctx context.Context, p auth.Principal, d document.Document) (RenderSnapshot, error) {
+	if e := auth.RequireUsable(p); e != nil {
+		return RenderSnapshot{}, e
+	}
+	if e := document.Validate(d); e != nil {
+		return RenderSnapshot{}, domain.E("INVALID_INPUT", "模板文档无效")
+	}
+	tx, e := s.DB.BeginTx(ctx, nil)
+	if e != nil {
+		return RenderSnapshot{}, e
+	}
+	defer tx.Rollback()
+	snapshot, e := s.resolveRefs(ctx, tx, p, d)
+	if e != nil {
+		return RenderSnapshot{}, e
+	}
+	if e = tx.Commit(); e != nil {
+		return RenderSnapshot{}, e
+	}
+	return snapshot, nil
 }

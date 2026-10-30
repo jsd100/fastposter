@@ -18,11 +18,13 @@ import {
   ArrowRight,
   Settings2,
   Plus,
+  LayoutTemplate,
 } from "lucide-react";
 import { errorMessage, request } from "../../api";
 import { Link, navigate } from "../../router";
 import { useSession } from "../auth/Session";
 import { ProjectListView, type ProjectAction } from "./ProjectList";
+import { TemplatePicker } from "../templates/TemplatePicker";
 export function ProjectsPage() {
   const { user, logout } = useSession();
   const cache = useQueryClient();
@@ -40,7 +42,8 @@ export function ProjectsPage() {
       project: ProjectDTO;
     } | null>(null),
     [name, setName] = useState(""),
-    [dragging, setDragging] = useState(false);
+    [dragging, setDragging] = useState(false),
+    [templatesOpen, setTemplatesOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const id = setTimeout(() => {
@@ -263,14 +266,20 @@ export function ProjectsPage() {
                   : "每一张画面，都从一个想法开始。"}
               </p>
             </div>
-            <Button
-              variant="primary"
-              onClick={() => fileInput.current?.click()}
-              disabled={uploading}
-            >
-              <Plus size={18} />
-              新建海报
-            </Button>
+            <div className="workspace-title-actions">
+              <Button onClick={() => setTemplatesOpen(true)}>
+                <LayoutTemplate size={17} />
+                模板库
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => fileInput.current?.click()}
+                disabled={uploading}
+              >
+                <Plus size={18} />
+                新建海报
+              </Button>
+            </div>
           </div>
           <input
             ref={fileInput}
@@ -408,6 +417,16 @@ export function ProjectsPage() {
             </div>
           </form>
         </Dialog>
+      )}
+      {templatesOpen && (
+        <TemplatePicker
+          onClose={() => setTemplatesOpen(false)}
+          onApplied={(id) => {
+            setTemplatesOpen(false);
+            void refresh();
+            navigate(`/projects/${id}/edit`);
+          }}
+        />
       )}
     </div>
   );
