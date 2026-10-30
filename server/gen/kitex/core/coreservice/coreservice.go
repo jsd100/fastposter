@@ -5,6 +5,7 @@ package coreservice
 import (
 	"context"
 	"errors"
+	common "fastposter/server/gen/kitex/common"
 	core "fastposter/server/gen/kitex/core"
 	client "github.com/cloudwego/kitex/client"
 	kitex "github.com/cloudwego/kitex/pkg/serviceinfo"
@@ -17,6 +18,55 @@ var serviceMethods = map[string]kitex.MethodInfo{
 		pingHandler,
 		newCoreServicePingArgs,
 		newCoreServicePingResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
+	"Auth": kitex.NewMethodInfo(
+		authHandler,
+		newCoreServiceAuthArgs,
+		newCoreServiceAuthResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
+	"Projects": kitex.NewMethodInfo(
+		projectsHandler,
+		newCoreServiceProjectsArgs,
+		newCoreServiceProjectsResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
+	"Assets": kitex.NewMethodInfo(
+		assetsHandler,
+		newCoreServiceAssetsArgs,
+		newCoreServiceAssetsResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
+	"Catalog": kitex.NewMethodInfo(
+		catalogHandler,
+		newCoreServiceCatalogArgs,
+		newCoreServiceCatalogResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
+	"Templates": kitex.NewMethodInfo(
+		templatesHandler,
+		newCoreServiceTemplatesArgs,
+		newCoreServiceTemplatesResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
+	"Exports": kitex.NewMethodInfo(
+		exportsHandler,
+		newCoreServiceExportsArgs,
+		newCoreServiceExportsResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
+	"Admin": kitex.NewMethodInfo(
+		adminHandler,
+		newCoreServiceAdminArgs,
+		newCoreServiceAdminResult,
 		false,
 		kitex.WithStreamingMode(kitex.StreamingNone),
 	),
@@ -104,6 +154,132 @@ func newCoreServicePingResult() interface{} {
 	return core.NewCoreServicePingResult()
 }
 
+func authHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*core.CoreServiceAuthArgs)
+	realResult := result.(*core.CoreServiceAuthResult)
+	success, err := handler.(core.CoreService).Auth(ctx, realArg.Request)
+	if err != nil {
+		return err
+	}
+	realResult.Success = success
+	return nil
+}
+func newCoreServiceAuthArgs() interface{} {
+	return core.NewCoreServiceAuthArgs()
+}
+
+func newCoreServiceAuthResult() interface{} {
+	return core.NewCoreServiceAuthResult()
+}
+
+func projectsHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*core.CoreServiceProjectsArgs)
+	realResult := result.(*core.CoreServiceProjectsResult)
+	success, err := handler.(core.CoreService).Projects(ctx, realArg.Request)
+	if err != nil {
+		return err
+	}
+	realResult.Success = success
+	return nil
+}
+func newCoreServiceProjectsArgs() interface{} {
+	return core.NewCoreServiceProjectsArgs()
+}
+
+func newCoreServiceProjectsResult() interface{} {
+	return core.NewCoreServiceProjectsResult()
+}
+
+func assetsHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*core.CoreServiceAssetsArgs)
+	realResult := result.(*core.CoreServiceAssetsResult)
+	success, err := handler.(core.CoreService).Assets(ctx, realArg.Request)
+	if err != nil {
+		return err
+	}
+	realResult.Success = success
+	return nil
+}
+func newCoreServiceAssetsArgs() interface{} {
+	return core.NewCoreServiceAssetsArgs()
+}
+
+func newCoreServiceAssetsResult() interface{} {
+	return core.NewCoreServiceAssetsResult()
+}
+
+func catalogHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*core.CoreServiceCatalogArgs)
+	realResult := result.(*core.CoreServiceCatalogResult)
+	success, err := handler.(core.CoreService).Catalog(ctx, realArg.Request)
+	if err != nil {
+		return err
+	}
+	realResult.Success = success
+	return nil
+}
+func newCoreServiceCatalogArgs() interface{} {
+	return core.NewCoreServiceCatalogArgs()
+}
+
+func newCoreServiceCatalogResult() interface{} {
+	return core.NewCoreServiceCatalogResult()
+}
+
+func templatesHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*core.CoreServiceTemplatesArgs)
+	realResult := result.(*core.CoreServiceTemplatesResult)
+	success, err := handler.(core.CoreService).Templates(ctx, realArg.Request)
+	if err != nil {
+		return err
+	}
+	realResult.Success = success
+	return nil
+}
+func newCoreServiceTemplatesArgs() interface{} {
+	return core.NewCoreServiceTemplatesArgs()
+}
+
+func newCoreServiceTemplatesResult() interface{} {
+	return core.NewCoreServiceTemplatesResult()
+}
+
+func exportsHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*core.CoreServiceExportsArgs)
+	realResult := result.(*core.CoreServiceExportsResult)
+	success, err := handler.(core.CoreService).Exports(ctx, realArg.Request)
+	if err != nil {
+		return err
+	}
+	realResult.Success = success
+	return nil
+}
+func newCoreServiceExportsArgs() interface{} {
+	return core.NewCoreServiceExportsArgs()
+}
+
+func newCoreServiceExportsResult() interface{} {
+	return core.NewCoreServiceExportsResult()
+}
+
+func adminHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*core.CoreServiceAdminArgs)
+	realResult := result.(*core.CoreServiceAdminResult)
+	success, err := handler.(core.CoreService).Admin(ctx, realArg.Request)
+	if err != nil {
+		return err
+	}
+	realResult.Success = success
+	return nil
+}
+func newCoreServiceAdminArgs() interface{} {
+	return core.NewCoreServiceAdminArgs()
+}
+
+func newCoreServiceAdminResult() interface{} {
+	return core.NewCoreServiceAdminResult()
+}
+
 type kClient struct {
 	c client.Client
 }
@@ -119,6 +295,76 @@ func (p *kClient) Ping(ctx context.Context, request *core.PingRequest) (r *core.
 	_args.Request = request
 	var _result core.CoreServicePingResult
 	if err = p.c.Call(ctx, "Ping", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) Auth(ctx context.Context, request *common.AuthCall) (r *common.RPCReply, err error) {
+	var _args core.CoreServiceAuthArgs
+	_args.Request = request
+	var _result core.CoreServiceAuthResult
+	if err = p.c.Call(ctx, "Auth", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) Projects(ctx context.Context, request *common.ProjectCall) (r *common.RPCReply, err error) {
+	var _args core.CoreServiceProjectsArgs
+	_args.Request = request
+	var _result core.CoreServiceProjectsResult
+	if err = p.c.Call(ctx, "Projects", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) Assets(ctx context.Context, request *common.AssetCall) (r *common.RPCReply, err error) {
+	var _args core.CoreServiceAssetsArgs
+	_args.Request = request
+	var _result core.CoreServiceAssetsResult
+	if err = p.c.Call(ctx, "Assets", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) Catalog(ctx context.Context, request *common.CatalogCall) (r *common.RPCReply, err error) {
+	var _args core.CoreServiceCatalogArgs
+	_args.Request = request
+	var _result core.CoreServiceCatalogResult
+	if err = p.c.Call(ctx, "Catalog", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) Templates(ctx context.Context, request *common.TemplateCall) (r *common.RPCReply, err error) {
+	var _args core.CoreServiceTemplatesArgs
+	_args.Request = request
+	var _result core.CoreServiceTemplatesResult
+	if err = p.c.Call(ctx, "Templates", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) Exports(ctx context.Context, request *common.ExportCall) (r *common.RPCReply, err error) {
+	var _args core.CoreServiceExportsArgs
+	_args.Request = request
+	var _result core.CoreServiceExportsResult
+	if err = p.c.Call(ctx, "Exports", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) Admin(ctx context.Context, request *common.AdminCall) (r *common.RPCReply, err error) {
+	var _args core.CoreServiceAdminArgs
+	_args.Request = request
+	var _result core.CoreServiceAdminResult
+	if err = p.c.Call(ctx, "Admin", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil

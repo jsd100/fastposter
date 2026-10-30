@@ -1,0 +1,42 @@
+// Code generated from Thrift. DO NOT EDIT.
+package transport
+
+type RouteSpec struct{ Name, Method, Path string }
+
+var GeneratedRoutes = []RouteSpec{
+	{"AdminOverview", "GET", "/api/v1/admin/overview"},
+	{"AdminUsers", "GET", "/api/v1/admin/users"},
+	{"AdminUser", "POST", "/api/v1/admin/users/:id"},
+	{"AdminProjects", "GET", "/api/v1/admin/projects"},
+	{"AdminJobs", "GET", "/api/v1/admin/jobs"},
+	{"AdminAudit", "GET", "/api/v1/admin/audit"},
+	{"AdminResources", "GET", "/api/v1/admin/resources/:kind"},
+	{"AdminSaveResource", "POST", "/api/v1/admin/resources"},
+	{"AdminDeleteResource", "DELETE", "/api/v1/admin/resources/:id"},
+	{"UploadFont", "POST", "/api/v1/admin/fonts/upload"},
+	{"AdminImportTemplate", "POST", "/api/v1/admin/templates/import"},
+	{"UploadImage", "POST", "/api/v1/assets/images"},
+	{"GetAsset", "GET", "/api/v1/assets/:id"},
+	{"ReadAsset", "GET", "/api/v1/assets/:id/versions/:version"},
+	{"Register", "POST", "/api/v1/auth/register"},
+	{"Login", "POST", "/api/v1/auth/login"},
+	{"Logout", "POST", "/api/v1/auth/logout"},
+	{"Me", "GET", "/api/v1/auth/me"},
+	{"ChangePassword", "POST", "/api/v1/auth/password"},
+	{"ListCatalog", "GET", "/api/v1/catalog/:kind"},
+	{"ListFonts", "GET", "/api/v1/fonts"},
+	{"CreateExport", "POST", "/api/v1/exports"},
+	{"GetExport", "GET", "/api/v1/exports/:id"},
+	{"DownloadExport", "GET", "/api/v1/exports/:id/download"},
+	{"PreviewExport", "GET", "/api/v1/exports/:id/preview"},
+	{"ListProjects", "GET", "/api/v1/projects"},
+	{"CreateProject", "POST", "/api/v1/projects"},
+	{"GetProject", "GET", "/api/v1/projects/:id"},
+	{"SaveProject", "PUT", "/api/v1/projects/:id"},
+	{"DeleteProject", "DELETE", "/api/v1/projects/:id"},
+	{"CloneProject", "POST", "/api/v1/projects/:id/clone"},
+	{"RestoreProject", "POST", "/api/v1/projects/:id/restore"},
+	{"ApplyTemplate", "POST", "/api/v1/templates/:id/apply"},
+	{"ImportTemplate", "POST", "/api/v1/templates/import"},
+	{"ExportTemplate", "GET", "/api/v1/projects/:id/template"},
+}

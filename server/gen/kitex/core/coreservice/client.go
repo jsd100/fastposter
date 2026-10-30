@@ -4,6 +4,7 @@ package coreservice
 
 import (
 	"context"
+	common "fastposter/server/gen/kitex/common"
 	core "fastposter/server/gen/kitex/core"
 	client "github.com/cloudwego/kitex/client"
 	callopt "github.com/cloudwego/kitex/client/callopt"
@@ -12,6 +13,13 @@ import (
 // Client is designed to provide IDL-compatible methods with call-option parameter for kitex framework.
 type Client interface {
 	Ping(ctx context.Context, request *core.PingRequest, callOptions ...callopt.Option) (r *core.PingResponse, err error)
+	Auth(ctx context.Context, request *common.AuthCall, callOptions ...callopt.Option) (r *common.RPCReply, err error)
+	Projects(ctx context.Context, request *common.ProjectCall, callOptions ...callopt.Option) (r *common.RPCReply, err error)
+	Assets(ctx context.Context, request *common.AssetCall, callOptions ...callopt.Option) (r *common.RPCReply, err error)
+	Catalog(ctx context.Context, request *common.CatalogCall, callOptions ...callopt.Option) (r *common.RPCReply, err error)
+	Templates(ctx context.Context, request *common.TemplateCall, callOptions ...callopt.Option) (r *common.RPCReply, err error)
+	Exports(ctx context.Context, request *common.ExportCall, callOptions ...callopt.Option) (r *common.RPCReply, err error)
+	Admin(ctx context.Context, request *common.AdminCall, callOptions ...callopt.Option) (r *common.RPCReply, err error)
 }
 
 // NewClient creates a client for the service defined in IDL.
@@ -46,4 +54,39 @@ type kCoreServiceClient struct {
 func (p *kCoreServiceClient) Ping(ctx context.Context, request *core.PingRequest, callOptions ...callopt.Option) (r *core.PingResponse, err error) {
 	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
 	return p.kClient.Ping(ctx, request)
+}
+
+func (p *kCoreServiceClient) Auth(ctx context.Context, request *common.AuthCall, callOptions ...callopt.Option) (r *common.RPCReply, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.Auth(ctx, request)
+}
+
+func (p *kCoreServiceClient) Projects(ctx context.Context, request *common.ProjectCall, callOptions ...callopt.Option) (r *common.RPCReply, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.Projects(ctx, request)
+}
+
+func (p *kCoreServiceClient) Assets(ctx context.Context, request *common.AssetCall, callOptions ...callopt.Option) (r *common.RPCReply, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.Assets(ctx, request)
+}
+
+func (p *kCoreServiceClient) Catalog(ctx context.Context, request *common.CatalogCall, callOptions ...callopt.Option) (r *common.RPCReply, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.Catalog(ctx, request)
+}
+
+func (p *kCoreServiceClient) Templates(ctx context.Context, request *common.TemplateCall, callOptions ...callopt.Option) (r *common.RPCReply, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.Templates(ctx, request)
+}
+
+func (p *kCoreServiceClient) Exports(ctx context.Context, request *common.ExportCall, callOptions ...callopt.Option) (r *common.RPCReply, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.Exports(ctx, request)
+}
+
+func (p *kCoreServiceClient) Admin(ctx context.Context, request *common.AdminCall, callOptions ...callopt.Option) (r *common.RPCReply, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.Admin(ctx, request)
 }

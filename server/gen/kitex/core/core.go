@@ -4,6 +4,7 @@ package core
 
 import (
 	"context"
+	"fastposter/server/gen/kitex/common"
 	"fmt"
 )
 
@@ -76,6 +77,20 @@ var fieldIDToName_PingResponse = map[int16]string{
 
 type CoreService interface {
 	Ping(ctx context.Context, request *PingRequest) (r *PingResponse, err error)
+
+	Auth(ctx context.Context, request *common.AuthCall) (r *common.RPCReply, err error)
+
+	Projects(ctx context.Context, request *common.ProjectCall) (r *common.RPCReply, err error)
+
+	Assets(ctx context.Context, request *common.AssetCall) (r *common.RPCReply, err error)
+
+	Catalog(ctx context.Context, request *common.CatalogCall) (r *common.RPCReply, err error)
+
+	Templates(ctx context.Context, request *common.TemplateCall) (r *common.RPCReply, err error)
+
+	Exports(ctx context.Context, request *common.ExportCall) (r *common.RPCReply, err error)
+
+	Admin(ctx context.Context, request *common.AdminCall) (r *common.RPCReply, err error)
 }
 
 type CoreServicePingArgs struct {
@@ -151,5 +166,537 @@ func (p *CoreServicePingResult) String() string {
 }
 
 var fieldIDToName_CoreServicePingResult = map[int16]string{
+	0: "success",
+}
+
+type CoreServiceAuthArgs struct {
+	Request *common.AuthCall `thrift:"request,1" frugal:"1,default,common.AuthCall" json:"request"`
+}
+
+func NewCoreServiceAuthArgs() *CoreServiceAuthArgs {
+	return &CoreServiceAuthArgs{}
+}
+
+func (p *CoreServiceAuthArgs) InitDefault() {
+}
+
+var CoreServiceAuthArgs_Request_DEFAULT *common.AuthCall
+
+func (p *CoreServiceAuthArgs) GetRequest() (v *common.AuthCall) {
+	if !p.IsSetRequest() {
+		return CoreServiceAuthArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+func (p *CoreServiceAuthArgs) SetRequest(val *common.AuthCall) {
+	p.Request = val
+}
+
+func (p *CoreServiceAuthArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *CoreServiceAuthArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceAuthArgs(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceAuthArgs = map[int16]string{
+	1: "request",
+}
+
+type CoreServiceAuthResult struct {
+	Success *common.RPCReply `thrift:"success,0,optional" frugal:"0,optional,common.RPCReply" json:"success,omitempty"`
+}
+
+func NewCoreServiceAuthResult() *CoreServiceAuthResult {
+	return &CoreServiceAuthResult{}
+}
+
+func (p *CoreServiceAuthResult) InitDefault() {
+}
+
+var CoreServiceAuthResult_Success_DEFAULT *common.RPCReply
+
+func (p *CoreServiceAuthResult) GetSuccess() (v *common.RPCReply) {
+	if !p.IsSetSuccess() {
+		return CoreServiceAuthResult_Success_DEFAULT
+	}
+	return p.Success
+}
+func (p *CoreServiceAuthResult) SetSuccess(x interface{}) {
+	p.Success = x.(*common.RPCReply)
+}
+
+func (p *CoreServiceAuthResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *CoreServiceAuthResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceAuthResult(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceAuthResult = map[int16]string{
+	0: "success",
+}
+
+type CoreServiceProjectsArgs struct {
+	Request *common.ProjectCall `thrift:"request,1" frugal:"1,default,common.ProjectCall" json:"request"`
+}
+
+func NewCoreServiceProjectsArgs() *CoreServiceProjectsArgs {
+	return &CoreServiceProjectsArgs{}
+}
+
+func (p *CoreServiceProjectsArgs) InitDefault() {
+}
+
+var CoreServiceProjectsArgs_Request_DEFAULT *common.ProjectCall
+
+func (p *CoreServiceProjectsArgs) GetRequest() (v *common.ProjectCall) {
+	if !p.IsSetRequest() {
+		return CoreServiceProjectsArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+func (p *CoreServiceProjectsArgs) SetRequest(val *common.ProjectCall) {
+	p.Request = val
+}
+
+func (p *CoreServiceProjectsArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *CoreServiceProjectsArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceProjectsArgs(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceProjectsArgs = map[int16]string{
+	1: "request",
+}
+
+type CoreServiceProjectsResult struct {
+	Success *common.RPCReply `thrift:"success,0,optional" frugal:"0,optional,common.RPCReply" json:"success,omitempty"`
+}
+
+func NewCoreServiceProjectsResult() *CoreServiceProjectsResult {
+	return &CoreServiceProjectsResult{}
+}
+
+func (p *CoreServiceProjectsResult) InitDefault() {
+}
+
+var CoreServiceProjectsResult_Success_DEFAULT *common.RPCReply
+
+func (p *CoreServiceProjectsResult) GetSuccess() (v *common.RPCReply) {
+	if !p.IsSetSuccess() {
+		return CoreServiceProjectsResult_Success_DEFAULT
+	}
+	return p.Success
+}
+func (p *CoreServiceProjectsResult) SetSuccess(x interface{}) {
+	p.Success = x.(*common.RPCReply)
+}
+
+func (p *CoreServiceProjectsResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *CoreServiceProjectsResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceProjectsResult(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceProjectsResult = map[int16]string{
+	0: "success",
+}
+
+type CoreServiceAssetsArgs struct {
+	Request *common.AssetCall `thrift:"request,1" frugal:"1,default,common.AssetCall" json:"request"`
+}
+
+func NewCoreServiceAssetsArgs() *CoreServiceAssetsArgs {
+	return &CoreServiceAssetsArgs{}
+}
+
+func (p *CoreServiceAssetsArgs) InitDefault() {
+}
+
+var CoreServiceAssetsArgs_Request_DEFAULT *common.AssetCall
+
+func (p *CoreServiceAssetsArgs) GetRequest() (v *common.AssetCall) {
+	if !p.IsSetRequest() {
+		return CoreServiceAssetsArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+func (p *CoreServiceAssetsArgs) SetRequest(val *common.AssetCall) {
+	p.Request = val
+}
+
+func (p *CoreServiceAssetsArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *CoreServiceAssetsArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceAssetsArgs(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceAssetsArgs = map[int16]string{
+	1: "request",
+}
+
+type CoreServiceAssetsResult struct {
+	Success *common.RPCReply `thrift:"success,0,optional" frugal:"0,optional,common.RPCReply" json:"success,omitempty"`
+}
+
+func NewCoreServiceAssetsResult() *CoreServiceAssetsResult {
+	return &CoreServiceAssetsResult{}
+}
+
+func (p *CoreServiceAssetsResult) InitDefault() {
+}
+
+var CoreServiceAssetsResult_Success_DEFAULT *common.RPCReply
+
+func (p *CoreServiceAssetsResult) GetSuccess() (v *common.RPCReply) {
+	if !p.IsSetSuccess() {
+		return CoreServiceAssetsResult_Success_DEFAULT
+	}
+	return p.Success
+}
+func (p *CoreServiceAssetsResult) SetSuccess(x interface{}) {
+	p.Success = x.(*common.RPCReply)
+}
+
+func (p *CoreServiceAssetsResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *CoreServiceAssetsResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceAssetsResult(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceAssetsResult = map[int16]string{
+	0: "success",
+}
+
+type CoreServiceCatalogArgs struct {
+	Request *common.CatalogCall `thrift:"request,1" frugal:"1,default,common.CatalogCall" json:"request"`
+}
+
+func NewCoreServiceCatalogArgs() *CoreServiceCatalogArgs {
+	return &CoreServiceCatalogArgs{}
+}
+
+func (p *CoreServiceCatalogArgs) InitDefault() {
+}
+
+var CoreServiceCatalogArgs_Request_DEFAULT *common.CatalogCall
+
+func (p *CoreServiceCatalogArgs) GetRequest() (v *common.CatalogCall) {
+	if !p.IsSetRequest() {
+		return CoreServiceCatalogArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+func (p *CoreServiceCatalogArgs) SetRequest(val *common.CatalogCall) {
+	p.Request = val
+}
+
+func (p *CoreServiceCatalogArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *CoreServiceCatalogArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceCatalogArgs(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceCatalogArgs = map[int16]string{
+	1: "request",
+}
+
+type CoreServiceCatalogResult struct {
+	Success *common.RPCReply `thrift:"success,0,optional" frugal:"0,optional,common.RPCReply" json:"success,omitempty"`
+}
+
+func NewCoreServiceCatalogResult() *CoreServiceCatalogResult {
+	return &CoreServiceCatalogResult{}
+}
+
+func (p *CoreServiceCatalogResult) InitDefault() {
+}
+
+var CoreServiceCatalogResult_Success_DEFAULT *common.RPCReply
+
+func (p *CoreServiceCatalogResult) GetSuccess() (v *common.RPCReply) {
+	if !p.IsSetSuccess() {
+		return CoreServiceCatalogResult_Success_DEFAULT
+	}
+	return p.Success
+}
+func (p *CoreServiceCatalogResult) SetSuccess(x interface{}) {
+	p.Success = x.(*common.RPCReply)
+}
+
+func (p *CoreServiceCatalogResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *CoreServiceCatalogResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceCatalogResult(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceCatalogResult = map[int16]string{
+	0: "success",
+}
+
+type CoreServiceTemplatesArgs struct {
+	Request *common.TemplateCall `thrift:"request,1" frugal:"1,default,common.TemplateCall" json:"request"`
+}
+
+func NewCoreServiceTemplatesArgs() *CoreServiceTemplatesArgs {
+	return &CoreServiceTemplatesArgs{}
+}
+
+func (p *CoreServiceTemplatesArgs) InitDefault() {
+}
+
+var CoreServiceTemplatesArgs_Request_DEFAULT *common.TemplateCall
+
+func (p *CoreServiceTemplatesArgs) GetRequest() (v *common.TemplateCall) {
+	if !p.IsSetRequest() {
+		return CoreServiceTemplatesArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+func (p *CoreServiceTemplatesArgs) SetRequest(val *common.TemplateCall) {
+	p.Request = val
+}
+
+func (p *CoreServiceTemplatesArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *CoreServiceTemplatesArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceTemplatesArgs(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceTemplatesArgs = map[int16]string{
+	1: "request",
+}
+
+type CoreServiceTemplatesResult struct {
+	Success *common.RPCReply `thrift:"success,0,optional" frugal:"0,optional,common.RPCReply" json:"success,omitempty"`
+}
+
+func NewCoreServiceTemplatesResult() *CoreServiceTemplatesResult {
+	return &CoreServiceTemplatesResult{}
+}
+
+func (p *CoreServiceTemplatesResult) InitDefault() {
+}
+
+var CoreServiceTemplatesResult_Success_DEFAULT *common.RPCReply
+
+func (p *CoreServiceTemplatesResult) GetSuccess() (v *common.RPCReply) {
+	if !p.IsSetSuccess() {
+		return CoreServiceTemplatesResult_Success_DEFAULT
+	}
+	return p.Success
+}
+func (p *CoreServiceTemplatesResult) SetSuccess(x interface{}) {
+	p.Success = x.(*common.RPCReply)
+}
+
+func (p *CoreServiceTemplatesResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *CoreServiceTemplatesResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceTemplatesResult(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceTemplatesResult = map[int16]string{
+	0: "success",
+}
+
+type CoreServiceExportsArgs struct {
+	Request *common.ExportCall `thrift:"request,1" frugal:"1,default,common.ExportCall" json:"request"`
+}
+
+func NewCoreServiceExportsArgs() *CoreServiceExportsArgs {
+	return &CoreServiceExportsArgs{}
+}
+
+func (p *CoreServiceExportsArgs) InitDefault() {
+}
+
+var CoreServiceExportsArgs_Request_DEFAULT *common.ExportCall
+
+func (p *CoreServiceExportsArgs) GetRequest() (v *common.ExportCall) {
+	if !p.IsSetRequest() {
+		return CoreServiceExportsArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+func (p *CoreServiceExportsArgs) SetRequest(val *common.ExportCall) {
+	p.Request = val
+}
+
+func (p *CoreServiceExportsArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *CoreServiceExportsArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceExportsArgs(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceExportsArgs = map[int16]string{
+	1: "request",
+}
+
+type CoreServiceExportsResult struct {
+	Success *common.RPCReply `thrift:"success,0,optional" frugal:"0,optional,common.RPCReply" json:"success,omitempty"`
+}
+
+func NewCoreServiceExportsResult() *CoreServiceExportsResult {
+	return &CoreServiceExportsResult{}
+}
+
+func (p *CoreServiceExportsResult) InitDefault() {
+}
+
+var CoreServiceExportsResult_Success_DEFAULT *common.RPCReply
+
+func (p *CoreServiceExportsResult) GetSuccess() (v *common.RPCReply) {
+	if !p.IsSetSuccess() {
+		return CoreServiceExportsResult_Success_DEFAULT
+	}
+	return p.Success
+}
+func (p *CoreServiceExportsResult) SetSuccess(x interface{}) {
+	p.Success = x.(*common.RPCReply)
+}
+
+func (p *CoreServiceExportsResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *CoreServiceExportsResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceExportsResult(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceExportsResult = map[int16]string{
+	0: "success",
+}
+
+type CoreServiceAdminArgs struct {
+	Request *common.AdminCall `thrift:"request,1" frugal:"1,default,common.AdminCall" json:"request"`
+}
+
+func NewCoreServiceAdminArgs() *CoreServiceAdminArgs {
+	return &CoreServiceAdminArgs{}
+}
+
+func (p *CoreServiceAdminArgs) InitDefault() {
+}
+
+var CoreServiceAdminArgs_Request_DEFAULT *common.AdminCall
+
+func (p *CoreServiceAdminArgs) GetRequest() (v *common.AdminCall) {
+	if !p.IsSetRequest() {
+		return CoreServiceAdminArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+func (p *CoreServiceAdminArgs) SetRequest(val *common.AdminCall) {
+	p.Request = val
+}
+
+func (p *CoreServiceAdminArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *CoreServiceAdminArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceAdminArgs(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceAdminArgs = map[int16]string{
+	1: "request",
+}
+
+type CoreServiceAdminResult struct {
+	Success *common.RPCReply `thrift:"success,0,optional" frugal:"0,optional,common.RPCReply" json:"success,omitempty"`
+}
+
+func NewCoreServiceAdminResult() *CoreServiceAdminResult {
+	return &CoreServiceAdminResult{}
+}
+
+func (p *CoreServiceAdminResult) InitDefault() {
+}
+
+var CoreServiceAdminResult_Success_DEFAULT *common.RPCReply
+
+func (p *CoreServiceAdminResult) GetSuccess() (v *common.RPCReply) {
+	if !p.IsSetSuccess() {
+		return CoreServiceAdminResult_Success_DEFAULT
+	}
+	return p.Success
+}
+func (p *CoreServiceAdminResult) SetSuccess(x interface{}) {
+	p.Success = x.(*common.RPCReply)
+}
+
+func (p *CoreServiceAdminResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *CoreServiceAdminResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CoreServiceAdminResult(%+v)", *p)
+}
+
+var fieldIDToName_CoreServiceAdminResult = map[int16]string{
 	0: "success",
 }
