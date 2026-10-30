@@ -12,25 +12,26 @@
     "contracts:generate": "go run ./tools/contractgen"
   },
   "dependencies": {
-    "react": "19.3.1",
-    "react-dom": "19.3.1",
+    "@tanstack/react-query": "5.105.0",
+    "@tiptap/extension-text-style": "3.32.1",
     "@tiptap/react": "3.32.1",
     "@tiptap/starter-kit": "3.32.1",
-    "@tiptap/extension-text-style": "3.32.1",
+    "lucide-react": "1.64.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "zod": "4.6.7",
-    "zustand": "5.0.16",
-    "@tanstack/react-query": "5.105.0",
-    "lucide-react": "1.64.0"
+    "zustand": "5.0.16"
   },
   "devDependencies": {
-    "vite": "8.3.5",
-    "typescript": "7.0.2",
-    "@vitejs/plugin-react": "6.1.2",
-    "vitest": "5.0.5",
     "@playwright/test": "1.64.1",
-    "turbo": "2.11.10",
     "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0"
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "prettier": "3.9.10",
+    "turbo": "2.11.10",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   },
   "type": "module"
 }

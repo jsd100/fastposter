@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "files": {
+    "NotoSansSC-VF.ttf": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+    "Inter-VF.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+  },
+  "sources": {
+    "NotoSansSC-VF.ttf": "https://github.com/google/fonts/tree/main/ofl/notosanssc",
+    "Inter-VF.ttf": "https://github.com/google/fonts/tree/main/ofl/inter"
+  },
+  "licenses": [
+    "OFL.txt",
+    "Inter-OFL.txt"
+  ]
+}

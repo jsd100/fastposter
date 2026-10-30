@@ -7,5 +7,6 @@
   "scripts": {
     "build": "tsc --noEmit -p tsconfig.json",
     "test": "pnpm -w exec vitest run packages/ui"
-  }
+  },
+  "dependencies": {}
 }

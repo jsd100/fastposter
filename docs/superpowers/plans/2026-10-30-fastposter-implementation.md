@@ -57,7 +57,7 @@
 | `server/cmd/{gateway,core,export-worker,admin-cli,migrate}/` | 启动、管理员初始化与迁移命令 |
 | `server/migrations/` | MySQL up/down SQL，版本跟踪 |
 | `tools/{contractgen,doctor,dev}/` | 契约派生、本机环境检查、原生进程管理 |
-| `tests/{fixtures,integration,e2e}/` | 共享样例、真实 MySQL/RPC/文件集成、用户流程 |
+| `tests/{fixtures,e2e}/` 与 `server/tests/integration/` | 共享样例、真实 MySQL/RPC/文件集成、用户流程 |
 | `deploy/{local.env.example,local.md,backup.md}` | 不含凭据的配置、本机运行、备份恢复 |
 | `docs/verification/` | 实测环境、容量结果和人工移动设备验收记录 |
 
@@ -109,12 +109,12 @@ Task 1 在安装任何依赖前先记录实际可用稳定版本，并完成最�
 
 ### Task 4: 富文本渲染与原尺寸导出验证
 
-**Files:** Create `packages/poster-renderer/src/{PosterFrame,RichText,FontRegistry,layout}.tsx`, `packages/poster-renderer/src/layout.test.ts`, `apps/renderer/src/main.tsx`, `server/internal/exports/{renderer,compose}.go`, `server/internal/exports/compose_test.go`, `tests/integration/render_test.go`, `tests/fixtures/render/`, `docs/verification/render-capacity.md`。
+**Files:** Create `packages/poster-renderer/src/{PosterFrame,RichText,FontRegistry,layout}.tsx`, `packages/poster-renderer/src/layout.test.ts`, `apps/renderer/src/main.tsx`, `server/internal/exports/{renderer,compose}.go`, `server/internal/exports/compose_test.go`, `server/tests/integration/render_test.go`, `tests/fixtures/render/`, `docs/verification/render-capacity.md`。
 
 **Interfaces:** Consumes Task 2 文档和 Task 3 文件接口；Produces `PosterFrame({document,backgroundUrl,transparentTextOnly})`、`measureLayout(root:HTMLElement):LayoutReport`、字体/图片加载完成且连续两帧布局稳定的 readiness；Go `Renderer.RenderText(ctx context.Context,snapshot RenderSnapshot)(image.Image,LayoutReport,error)`、`Compose(background image.Image,text image.Image)(image.Image,error)`；RenderSnapshot 含 Document、精确字体依赖和 rendererVersion。
 
 - [ ] **Step 1:** 写 `TestComposePreservesUncoveredPixelsAndAlpha`，断言未覆盖像素与背景 RGBA 一致、输出 W/H 一致；`TestRenderMixedChineseFonts` 验证混合字号换行与高度、字体缺失返回错误；`TestRender4000x6000` 验证文件解码尺寸为 4000×6000，DPR/视口变化不改变输出。
-- [ ] **Step 2:** 运行 `go test ./server/internal/exports -run TestCompose -v`、`FASTPOSTER_RENDER_TEST=1 go test ./tests/integration -run TestRender -v`，先确认失败；缺 Chrome/字体必须显式跳过并记录，不能当通过。
+- [ ] **Step 2:** 运行 `go test ./server/internal/exports -run TestCompose -v`、`FASTPOSTER_RENDER_TEST=1 go test ./server/tests/integration -run TestRender -v`，先确认失败；缺 Chrome/字体必须显式跳过并记录，不能当通过。
 - [ ] **Step 3:** 内置并记录一套可再分发中文字体的正常/粗体文件与授权；实现共享 DOM 和透明页面、字体就绪、chromedp 驱动、Go alpha 合成。内部 renderer 只读本次任务授权的受控资源，禁用任意网络请求；禁止 OS 字体静默 fallback。不实现完整编辑器或业务后台。
 - [ ] **Step 4:** 重跑 Step 2；补测 8192×4800 与 4800×8192 的允许边界、超界拒绝、透明背景、无文字、阴影边缘与固定版本重复像素 hash；记录 Chrome/Go/字体版本、机器配置、峰值 RSS/耗时。达标后才进入完整业务；不达标不得降采样掩盖。
 - [ ] **Step 5:** 提交 `feat: verify shared rich text rendering and native size export`。
@@ -135,48 +135,48 @@ Task 1 在安装任何依赖前先记录实际可用稳定版本，并完成最�
 
 ### Task 6: MySQL schema、事务与隔离测试库
 
-**Files:** Create `server/migrations/000001_initial.{up,down}.sql`, `server/internal/app/mysql.go`, `server/internal/testutil/mysql.go`, `server/cmd/migrate/main.go`, `tests/integration/mysql_test.go`。
+**Files:** Create `server/migrations/000001_initial.{up,down}.sql`, `server/internal/app/mysql.go`, `server/internal/testutil/mysql.go`, `server/cmd/migrate/main.go`, `server/tests/integration/mysql_test.go`。
 
 **Interfaces:** Produces `OpenMySQL(ctx context.Context,dsn string)(*sql.DB,error)`；`testutil.MySQL(t *testing.T)(*sql.DB,func())` 仅允许显式 `FASTPOSTER_TEST_MYSQL_DSN` 指向以 `fastposter_test_` 开头的独立数据库；迁移 CLI `go run ./server/cmd/migrate -direction up|down`，生产 down 需显式参数，不在启动时自动执行破坏性迁移。
 
 - [ ] **Step 1:** `TestMigrationRoundTripAndEmojiJSON` 断言 utf8mb4 文字/JSON 恢复；`TestRefuseNonTestSchema` 验证不能用 root 业务库清表；`TestConcurrentRevisionCAS` 两次相同 revision 仅一次成功；`TestQueueClaimSkipsLockedRows` 两事务不会领同一任务。
-- [ ] **Step 2:** 在配置的独立测试库运行 `go test ./tests/integration -run 'TestMigration|TestRefuse|TestConcurrentRevision|TestQueueClaim' -v`，确认失败；没有配置时记录阻塞，不用 mock 冒充真实 SQL 验证。
+- [ ] **Step 2:** 在配置的独立测试库运行 `go test ./server/tests/integration -run 'TestMigration|TestRefuse|TestConcurrentRevision|TestQueueClaim' -v`，确认失败；没有配置时记录阻塞，不用 mock 冒充真实 SQL 验证。
 - [ ] **Step 3:** 实现设计实体和索引，JSON 文档、不可变快照、会话、引用关系、任务 lease_token/lease_until/attempts、幂等唯一键、管理审计。用 database/sql 事务和 MySQL SQL，不用 JSONB/RETURNING；mysql driver `parseTime=true`、UTC、合理池大小。
 - [ ] **Step 4:** 重跑 Step 2，验证迁移重复 up 幂等，MySQL 8.4 兼容 SQL；只检查用户数据库服务不创建/替换服务，不向其现有表写数据。
 - [ ] **Step 5:** 提交 `feat: persist poster data and jobs with MySQL`。
 
 ### Task 7: 用户、会话、管理员初始化与限流
 
-**Files:** Create `server/internal/auth/{service,repository,session,limiter}.go`, `server/internal/auth/service_test.go`, `server/internal/transport/{identity,csrf}.go`, `server/cmd/admin-cli/main.go`, `tests/integration/auth_test.go`。
+**Files:** Create `server/internal/auth/{service,repository,session,limiter}.go`, `server/internal/auth/service_test.go`, `server/internal/transport/{identity,csrf}.go`, `server/cmd/admin-cli/main.go`, `server/tests/integration/auth_test.go`。
 
 **Interfaces:** `auth.Service.Register(ctx,username,password)(User,error)`、`Login(ctx,username,password)(SessionToken,error)`、`ResolveSession(ctx,token)(Principal,error)`、`Revoke(ctx,sessionID) error`；`Principal{UserID string,Role string}` 只从服务端会话产生；`Limiter.Allow(ctx,key string)(bool,error)` 有界本地或 Redis 实现。
 
 - [ ] **Step 1:** `TestPasswordHashAndUniformLoginError` 不存明文、不泄露用户名存在性；`TestDisableRevokesAllSessions`；`TestRoleCannotBeChosenAtRegister`；`TestRedisOutageUsesBoundedLimiter`；HTTP 集成测试跨源写请求拒绝、cookie HttpOnly，生产 Secure、注销后访问 401。
-- [ ] **Step 2:** 运行 `go test ./server/internal/auth ./server/internal/transport -v`、`go test ./tests/integration -run TestAuth -v`，确认失败。
+- [ ] **Step 2:** 运行 `go test ./server/internal/auth ./server/internal/transport -v`、`go test ./server/tests/integration -run TestAuth -v`，确认失败。
 - [ ] **Step 3:** 使用 Argon2id 的带参数/盐散列和随机会话，数据库只存会话 token hash；管理员 CLI 通过交互输入/安全 stdin 设置密码，不写命令行参数/日志。密码重置撤销会话，签发一次性改密流程，user/admin 检查放 core 内再验证。
 - [ ] **Step 4:** 重跑 Step 2，验证 Redis 未配置/故障时已有会话、保存与导出不受阻；用户禁用后不能凭旧 cookie/RPC userId 继续访问。
 - [ ] **Step 5:** 提交 `feat: add account sessions and server side authorization`。
 
 ### Task 8: 图片校验、标准化、上传和授权读取
 
-**Files:** Create `server/internal/assets/{probe,normalize,service,repository,http}.go`, `server/internal/assets/normalize_test.go`, `tests/integration/assets_test.go`, `tests/fixtures/images/`, `deploy/imagemagick-policy.xml`。
+**Files:** Create `server/internal/assets/{probe,normalize,service,repository,http}.go`, `server/internal/assets/normalize_test.go`, `server/tests/integration/assets_test.go`, `tests/fixtures/images/`, `deploy/imagemagick-policy.xml`。
 
 **Interfaces:** Consumes FileStore、Principal；`assets.Service.Upload(ctx,p Principal,name string,src io.Reader)(AssetVersion,error)`、`AuthorizeRead(ctx,p Principal,assetID,version string)(storage.Key,error)`；`Probe(ctx,path string)(ImageMetadata,error)`；`Normalize(ctx,srcPath,dstPath string)(NormalizedImage,error)`。gateway 流式暂存共享目录，core 使用受控 staging key 校验登记，不接收前端绝对路径。
 
 - [ ] **Step 1:** `TestStaticFormatsAndEXIF`、`TestRejectAnimatedAndHighBitDepth`、`TestLimitsBeforeDecode` 覆盖 40 MiB/40MP/8192 双边界、伪扩展名、损坏和 ICC；`TestDBFailureLeavesNoAvailableAsset`、`TestAssetReadChecksOwnership`、`TestDiskFullReturnsUploadFailure`。
-- [ ] **Step 2:** `go test ./server/internal/assets -v` 和 `go test ./tests/integration -run TestAsset -v`，确认失败。
+- [ ] **Step 2:** `go test ./server/internal/assets -v` 和 `go test ./server/tests/integration -run TestAsset -v`，确认失败。
 - [ ] **Step 3:** 独立进程调用受限 ImageMagick，参数不经 shell，应用方向/ICC 后输出原尺寸 sRGB RGBA8 PNG，生成最长边 2048 预览；原字节保留 hash。先文件完整发布再事务登记 available/version/ref，失败标记孤立待回收；文件读取只能通过已授权版本，拒绝 Range/参数造成的越权。
 - [ ] **Step 4:** 重跑 Step 2，验证 private 文件浏览器响应不泄漏绝对路径，正确 Content-Type/下载名、超限 413/422、不存在和无权限行为一致。
 - [ ] **Step 5:** 提交 `feat: import and serve validated local background assets`。
 
 ### Task 9: 作品服务与版本冲突
 
-**Files:** Create `server/internal/projects/{service,repository,refs}.go`, `server/internal/projects/service_test.go`, `tests/integration/projects_test.go`。
+**Files:** Create `server/internal/projects/{service,repository,refs}.go`, `server/internal/projects/service_test.go`, `server/tests/integration/projects_test.go`。
 
 **Interfaces:** `projects.Service.Create(ctx,p,doc)(Project,error)`、`Save(ctx,p,id string,expectedRevision string,doc Document)(Project,error)`、`Get/List/Clone/SoftDelete/Restore`；Project `{id,ownerId,title,document,revision,updatedAt}`；`ResolveSnapshot(ctx,p,id,revision)(RenderSnapshot,error)` 输出锁定版本。
 
 - [ ] **Step 1:** `TestSaveRejectsStaleRevisionWithoutMutation`、`TestCannotReferenceOtherUsersAssets`、`TestCloneGetsIndependentID`、`TestDeleteRestoreWithin30Days`、`TestSnapshotImmutableAfterLaterSave`；引用增减与文档保存同一 DB 事务。
-- [ ] **Step 2:** `go test ./server/internal/projects -v` 和 `go test ./tests/integration -run TestProject -v`，确认失败。
+- [ ] **Step 2:** `go test ./server/internal/projects -v` 和 `go test ./server/tests/integration -run TestProject -v`，确认失败。
 - [ ] **Step 3:** 实现 MySQL CAS/冲突码、分页、软删除恢复、资源版本引用；几何/富文本使用 Go schema 校验；所有 public 版本与私有归属在 core 验证，客户端 ownerId 不可信。
 - [ ] **Step 4:** 重跑 Step 2，并发保存冲突返回 409、保留原文档；版本读回包含完整局部样式和背景原始尺寸。
 - [ ] **Step 5:** 提交 `feat: add versioned private poster projects`。
@@ -231,12 +231,12 @@ Task 1 在安装任何依赖前先记录实际可用稳定版本，并完成最�
 
 ### Task 14: 持久化导出任务、最终预览与下载
 
-**Files:** Create `server/internal/exports/{service,repository,worker,resources,http}.go`, `server/internal/exports/worker_test.go`, `server/cmd/export-worker/main.go`, `apps/web/src/features/export/{ExportDialog,useExport}.tsx`, `tests/integration/export_jobs_test.go`, `tests/e2e/export.spec.ts`。
+**Files:** Create `server/internal/exports/{service,repository,worker,resources,http}.go`, `server/internal/exports/worker_test.go`, `server/cmd/export-worker/main.go`, `apps/web/src/features/export/{ExportDialog,useExport}.tsx`, `server/tests/integration/export_jobs_test.go`, `tests/e2e/export.spec.ts`。
 
 **Interfaces:** Consumes ResolveSnapshot/Renderer/FileStore；`Create(ctx,p,projectID,revision,idempotencyKey)(Job,error)`；`Claim(ctx,workerID string,now time.Time)(Lease,error)`；`Renew/Complete/Fail(ctx,leaseToken string,...)` 通过 token+租期+状态条件更新；`Worker.Run(ctx) error`；最终 result 使用每次尝试唯一 key，不复用同一可写文件路径。
 
 - [ ] **Step 1:** `TestOneRunningTwoQueuedPerUser`；`TestStaleLeaseCannotPublishOrDeleteNewResult`；`TestCrashRecoveryAndMaxAttempts`；`TestExportSnapshotUnaffectedByLaterEdit`；`TestPrivateDownloadAndSevenDayExpiry`；e2e 导出前 flush、最终预览与下载同一结果散列。
-- [ ] **Step 2:** `go test ./server/internal/exports -v`、`go test ./tests/integration -run TestExport -v`、`pnpm exec playwright test tests/e2e/export.spec.ts`，确认失败。
+- [ ] **Step 2:** `go test ./server/internal/exports -v`、`go test ./server/tests/integration -run TestExport -v`、`pnpm exec playwright test tests/e2e/export.spec.ts`，确认失败。
 - [ ] **Step 3:** MySQL 领取短事务+lease fencing，任务执行不持数据库长锁；worker 按 30 秒租约周期内续期、120 秒超时、最多 2 次尝试；文件成功后只允许有效 token 发布 DB result，无效尝试文件延后 GC。轮询 queued/running/succeeded/failed，下载走所有者鉴权流，不公开目录。
 - [ ] **Step 4:** 重跑 Step 2 和 Task 4 渲染检查；kill/restart worker 后任务可恢复；缺字体/丢文件/磁盘满返回具体失败，不创建成功任务；运行中修改作品不改变本次输出。
 - [ ] **Step 5:** 提交 `feat: deliver durable native size PNG exports`。
@@ -245,12 +245,12 @@ Task 1 在安装任何依赖前先记录实际可用稳定版本，并完成最�
 
 ### Task 15: 公共背景、字体和后台基础
 
-**Files:** Create `server/internal/catalog/{backgrounds,fonts,versions,admin}.go`, `server/internal/catalog/service_test.go`, `apps/admin/src/{main,router,AdminLayout}.tsx`, `apps/admin/src/features/{overview,users,projects,backgrounds,fonts,jobs,audit}/`, `apps/web/src/features/catalog/{BackgroundPicker,FontPicker}.tsx`, `tests/integration/catalog_test.go`, `tests/e2e/admin-catalog.spec.ts`。
+**Files:** Create `server/internal/catalog/{backgrounds,fonts,versions,admin}.go`, `server/internal/catalog/service_test.go`, `apps/admin/src/{main,router,AdminLayout}.tsx`, `apps/admin/src/features/{overview,users,projects,backgrounds,fonts,jobs,audit}/`, `apps/web/src/features/catalog/{BackgroundPicker,FontPicker}.tsx`, `server/tests/integration/catalog_test.go`, `tests/e2e/admin-catalog.spec.ts`。
 
 **Interfaces:** `catalog.Service.ListPublished(ctx,kind,filter)`、`Publish/Unpublish(ctx,p,resourceID,version)`、`UploadFontFace(ctx,p,fontID,weight,style,src)(FontFace,error)`；admin routes `/admin/{overview,users,projects,backgrounds,fonts,jobs,audit}`，全部 core 检查 admin。公共资源既有 current published 指针，也有不可变版本访问授权，旧作品只读其已有依赖。
 
 - [ ] **Step 1:** `TestUnpublishKeepsReferencedVersionReadable`、`TestRejectDeletingReferencedFile`、`TestFontMissingWeightNotSynthesized`、`TestAdminProjectListContainsMetadataOnly`；e2e 管理员发布背景/字体→用户选用→下架→旧作品仍导出成功；普通用户伪造管理请求返回 403。
-- [ ] **Step 2:** `go test ./server/internal/catalog -v`、`go test ./tests/integration -run TestCatalog -v`、`pnpm exec playwright test tests/e2e/admin-catalog.spec.ts`，确认失败。
+- [ ] **Step 2:** `go test ./server/internal/catalog -v`、`go test ./server/tests/integration -run TestCatalog -v`、`pnpm exec playwright test tests/e2e/admin-catalog.spec.ts`，确认失败。
 - [ ] **Step 3:** 实现资源分类/排序/草稿/发布，字体格式解析与缺字提示、家族/字重/版本关联；后台基础导航、用户禁用/恢复/一次性改密、作品元数据、存储和任务统计、审计页。复用用户编辑核心，不允许后台代改私有作品正文。
 - [ ] **Step 4:** 重跑 Step 2，确认管理日志不包含密码/会话/私有文案；概览存储包含原图+标准化+预览+导出实际字节；管理员禁用的用户会话即时失效。
 - [ ] **Step 5:** 提交 `feat: manage shared backgrounds fonts and accounts`。
@@ -281,12 +281,12 @@ Task 1 在安装任何依赖前先记录实际可用稳定版本，并完成最�
 
 ### Task 18: 清理、磁盘状态和一致备份恢复
 
-**Files:** Create `server/internal/storage/{gc,health}.go`, `server/internal/storage/gc_test.go`, `server/cmd/maintenance/main.go`, `deploy/backup.md`, `deploy/local.md`, `tests/integration/recovery_test.go`。
+**Files:** Create `server/internal/storage/{gc,health}.go`, `server/internal/storage/gc_test.go`, `server/cmd/maintenance/main.go`, `deploy/backup.md`, `deploy/local.md`, `server/tests/integration/recovery_test.go`。
 
 **Interfaces:** `GC.Run(ctx,now time.Time)(GCReport,error)` 只删已到期且无引用文件；`maintenance backup/restore/check` 默认只做检查，备份流程先暂停本应用写入/worker、等待在途任务退出，再备份 MySQL 和 APP_DATA_DIR，恢复到独立实例验证。数据库已有其他库不受影响。
 
 - [ ] **Step 1:** `TestGCDoesNotDeleteActiveOrLeasedFiles`、`TestCollectsOrphanAfterGracePeriod`、`TestExpiresOnlyExportResultAfterSevenDays`、`TestSoftDeletedProjectRestoresWithin30Days`、`TestRestartUsesSameAbsoluteDataDir`；恢复测试验证原图 hash、作品 JSON、私有鉴权和可重新导出。
-- [ ] **Step 2:** `go test ./server/internal/storage -v`、`go test ./tests/integration -run 'TestRecovery|TestGC|TestRestart' -v`，确认失败。
+- [ ] **Step 2:** `go test ./server/internal/storage -v`、`go test ./server/tests/integration -run 'TestRecovery|TestGC|TestRestart' -v`，确认失败。
 - [ ] **Step 3:** 实现可观测清理与 dry-run、磁盘可写/剩余空间检查、过期结果和暂存孤儿回收；活动引用/租约文件排除，避免与上传/导出竞争。说明同机单根部署边界、迁移目录操作与备份恢复；不实现外部对象存储。
 - [ ] **Step 4:** 重跑 Step 2，用独立测试库和临时数据根进行备份恢复演练；数据库事务失败/磁盘不足/文件丢失都能定位，不能显示已保存或成功导出。
 - [ ] **Step 5:** 提交 `feat: add local storage maintenance and recovery`。
@@ -300,7 +300,7 @@ Task 1 在安装任何依赖前先记录实际可用稳定版本，并完成最�
 - [ ] **Step 1:** 写完整 e2e：注册→本机图片导入→混合字体文字→拖动调宽→自动保存→另一会话恢复→最终预览和 PNG 下载；后台发布资源→用户使用→下架后仍导出；用断网和过期租约注入验证无静默丢数据。
 - [ ] **Step 2:** 运行 `pnpm exec playwright test tests/e2e/full-flow.spec.ts`，确认尚未满足的全流程断言失败；失败若暴露设计问题，记录并修复所属任务，不能降低断言。
 - [ ] **Step 3:** 补齐装配、文档与生成漂移检查，移除已不用的演示路由和模拟返回；保留渲染 fixture 与容量测试入口。确认无 Postgres/S3/MinIO/Docker 运行要求和凭据占位误导。
-- [ ] **Step 4:** 依次运行 `pnpm verify`、`go test ./server/... ./tools/...`、配置真实独立 MySQL 的 `go test ./tests/integration -v`、`pnpm test:e2e`、容量测试；核对真实手机人工记录。未运行的项逐条标明原因，不声称全部通过。
+- [ ] **Step 4:** 依次运行 `pnpm verify`、`go test ./server/... ./tools/...`、配置真实独立 MySQL 的 `go test ./server/tests/integration -v`、`pnpm test:e2e`、容量测试；核对真实手机人工记录。未运行的项逐条标明原因，不声称全部通过。
 - [ ] **Step 5:** 提交 `docs: document and verify native FastPoster delivery`；交付启动说明、实际通过的检查、容量数据、人工验收缺口和剩余限制，不自动部署到公网。
 
 ## 自审映射

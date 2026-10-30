@@ -7,5 +7,8 @@
   "scripts": {
     "build": "tsc --noEmit -p tsconfig.json",
     "test": "pnpm -w exec vitest run packages/api-client"
+  },
+  "dependencies": {
+    "@fastposter/poster-schema": "workspace:*"
   }
 }

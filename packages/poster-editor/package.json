@@ -7,5 +7,10 @@
   "scripts": {
     "build": "tsc --noEmit -p tsconfig.json",
     "test": "pnpm -w exec vitest run packages/poster-editor"
+  },
+  "dependencies": {
+    "@fastposter/poster-schema": "workspace:*",
+    "@fastposter/poster-renderer": "workspace:*",
+    "@fastposter/ui": "workspace:*"
   }
 }
