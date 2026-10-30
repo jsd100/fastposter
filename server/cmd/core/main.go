@@ -55,7 +55,10 @@ func main() {
 		log.Fatal(e)
 	}
 	images := assets.NewService(db, store, &assets.Normalizer{MagickPath: c.MagickPath, ProfilePath: filepath.Join(root, "assets/color/sRGB.icc"), PolicyDir: filepath.Join(root, "deploy/imagemagick")}, filepath.Join(c.AbsoluteDataDir, ".work"))
-	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), Health: db.PingContext}, server.WithServiceAddr(addr))
+	if e = images.BootstrapFonts(context.Background(), root); e != nil {
+		log.Fatal("builtin font initialization failed")
+	}
+	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.FontCatalogAdapter(accounts, images), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), Health: db.PingContext}, server.WithServiceAddr(addr))
 	if e = s.Run(); e != nil {
 		log.Fatal(e)
 	}

@@ -1,0 +1,361 @@
+.poster-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.editor-commandbar {
+  height: 57px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid #e0e6da;
+  background: #fff;
+  gap: 8px;
+}
+.command-group {
+  display: flex;
+  gap: 8px;
+}
+.command-group .button {
+  padding: 0 11px;
+}
+.editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.editor-layers {
+  width: 190px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #e2e8da;
+  padding: 22px 13px;
+  display: flex;
+  flex-direction: column;
+}
+.editor-layers h2,
+.editor-properties h2 {
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.editor-layers h2 {
+  padding: 0 7px;
+}
+.editor-layers h2 > span {
+  margin-left: auto;
+  font-size: 9px;
+  color: #a1af93;
+}
+.layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow: auto;
+}
+.layer-item {
+  width: 100%;
+  border: 1px solid transparent;
+  padding: 11px 9px;
+  background: #fff;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #849377;
+  border-radius: 6px;
+  min-height: 44px;
+}
+.layer-item.selected {
+  background: #edf3e5;
+  border-color: #d6e3c9;
+  color: #48683a;
+}
+.layer-item > span {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 118px;
+}
+.background-layer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 9px;
+  font-size: 10px;
+  color: #a1ac95;
+  border-top: 1px solid #edf1e7;
+  margin-top: 5px;
+}
+.background-layer > span {
+  margin-left: auto;
+  font-size: 8px;
+}
+.layer-tip {
+  margin-top: auto;
+  padding: 20px 7px 0;
+  font-size: 9px;
+  color: #a6b09c;
+  line-height: 1.9;
+}
+.editor-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: #edf0e8;
+  background-image: radial-gradient(#d5ddcc 0.7px, transparent 0.7px);
+  background-size: 12px 12px;
+  touch-action: none;
+  isolation: isolate;
+}
+.poster-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+  background: #fff;
+  isolation: isolate;
+  box-shadow: 0 6px 24px #31442120;
+}
+.poster-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+.selection-outline {
+  position: absolute;
+  border: 1px solid #678c50;
+  pointer-events: none;
+  z-index: 100001;
+  box-sizing: border-box;
+}
+.selection-size {
+  position: absolute;
+  top: -21px;
+  left: 0;
+  font-size: 9px;
+  white-space: nowrap;
+  padding: 2px 5px;
+  background: #678c50;
+  color: white;
+  border-radius: 3px;
+  pointer-events: none;
+}
+.width-handle {
+  position: absolute;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  pointer-events: auto;
+  cursor: ew-resize;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.width-handle-left {
+  left: 0;
+}
+.width-handle-right {
+  left: 100%;
+}
+.width-handle > span {
+  width: 7px;
+  height: 18px;
+  background: white;
+  border: 1.5px solid #678c50;
+  border-radius: 2px;
+  box-shadow: 0 1px 4px #29451822;
+}
+.stage-caption {
+  position: absolute;
+  bottom: 17px;
+  left: 20px;
+  font-size: 9px;
+  color: #8d9d7f;
+  pointer-events: none;
+}
+.stage-caption > span {
+  display: block;
+  font-size: 8px;
+  margin-top: 5px;
+  color: #a4b099;
+}
+.stage-zoom {
+  position: absolute;
+  right: 17px;
+  bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  color: #8d9d7f;
+  background: white;
+  padding: 7px 10px;
+  border-radius: 5px;
+  border: 1px solid #dfe6d7;
+}
+.stage-zoom select {
+  border: 0;
+  background: none;
+  color: #667b56;
+  font-size: 10px;
+  outline: none;
+  min-height: 24px;
+}
+.editor-properties {
+  width: 250px;
+  flex-shrink: 0;
+  background: #fff;
+  border-left: 1px solid #e2e8da;
+  padding: 24px 20px;
+  overflow: auto;
+}
+.editor-properties h3 {
+  font-size: 10px;
+  font-weight: 550;
+  color: #839473;
+  margin: 25px 0 15px;
+}
+.selection-actions {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 18px;
+}
+.selection-actions .button {
+  padding: 0 10px;
+}
+.geometry-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px 10px;
+}
+.geometry-fields label {
+  position: relative;
+  font-size: 9px;
+  color: #97a487;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.geometry-fields input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #e0e7d7;
+  background: #fafcf7;
+  border-radius: 4px;
+  height: 33px;
+  padding: 0 19px 0 8px;
+  font-size: 11px;
+  color: #60764e;
+}
+.geometry-fields small {
+  position: absolute;
+  right: 6px;
+  bottom: 11px;
+  font-size: 8px;
+  color: #a9b69b;
+}
+.property-hint {
+  color: #a4af98;
+  font-size: 9px;
+  line-height: 1.8;
+  margin-top: 18px;
+}
+.properties-empty {
+  text-align: center;
+  color: #b5c1a7;
+  margin-top: 70px;
+}
+.properties-empty p {
+  font-size: 11px;
+  line-height: 1.9;
+  margin-top: 18px;
+}
+.overflow-notice {
+  background: #fff1df;
+  border-bottom: 1px solid #edddc9;
+  font-size: 10px;
+  color: #a58254;
+  padding: 10px 20px;
+}
+.mobile-block-actions {
+  display: none;
+}
+@media (max-width: 900px) {
+  .editor-layers {
+    width: 150px;
+  }
+  .editor-properties {
+    width: 220px;
+    padding: 20px 14px;
+  }
+  .layer-item > span {
+    max-width: 90px;
+  }
+}
+@media (max-width: 680px) {
+  .editor-layers,
+  .editor-properties {
+    display: none;
+  }
+  .editor-commandbar {
+    height: 57px;
+    padding: 0 12px;
+  }
+  .command-group {
+    gap: 5px;
+  }
+  .command-group .button {
+    padding: 0 9px;
+    font-size: 10px;
+  }
+  .stage-caption {
+    left: 12px;
+    bottom: 13px;
+  }
+  .stage-caption > span {
+    display: none;
+  }
+  .stage-zoom {
+    right: 10px;
+    bottom: 10px;
+    padding: 4px 6px;
+  }
+  .stage-zoom select {
+    min-height: 32px;
+  }
+  .mobile-block-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    background: white;
+    padding: 8px 12px;
+    min-height: 0;
+  }
+  .mobile-block-actions:empty {
+    display: none;
+  }
+  .width-handle > span {
+    width: 8px;
+    height: 22px;
+  }
+}
