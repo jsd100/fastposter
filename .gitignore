@@ -1,1 +1,14 @@
 .superpowers/
+.env
+.env.local
+var/
+.tools/
+.cache/
+node_modules/
+dist/
+.turbo/
+coverage/
+test-results/
+playwright-report/
+*.log
+.pnpm-store/

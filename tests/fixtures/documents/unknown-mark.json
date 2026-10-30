@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "canvas": {
+    "width": 1200,
+    "height": 1600
+  },
+  "background": {
+    "assetId": "bg-1",
+    "version": "1"
+  },
+  "fonts": [
+    {
+      "assetId": "font-1",
+      "version": "1",
+      "family": "Noto Sans SC",
+      "weight": 400,
+      "style": "normal"
+    }
+  ],
+  "textBlocks": [
+    {
+      "id": "text-1",
+      "x": 80,
+      "y": 120,
+      "width": 600,
+      "zIndex": 0,
+      "defaultStyle": {
+        "fontId": "font-1",
+        "fontSize": 72,
+        "color": "#234c3c",
+        "fontWeight": 400
+      },
+      "paragraphStyle": {
+        "align": "left",
+        "lineHeight": 1.4,
+        "letterSpacing": 0
+      },
+      "effects": {
+        "opacity": 1,
+        "padding": 0,
+        "backgroundColor": "#00000000",
+        "strokeWidth": 0,
+        "strokeColor": "#000000",
+        "shadowColor": "#00000000",
+        "shadowBlur": 0,
+        "shadowX": 0,
+        "shadowY": 0
+      },
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "把日子",
+                "marks": [
+                  {
+                    "type": "script"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "过成风景",
+                "marks": [
+                  {
+                    "type": "textStyle",
+                    "attrs": {
+                      "fontId": "font-1",
+                      "fontSize": 96,
+                      "color": "#c86445"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+  - packages/*
+storeDir: .cache/pnpm
+confirmModulesPurge: false
+minimumReleaseAgeExclude:
+  - lucide-react@1.64.0
