@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS admin_audit_logs;
+DROP TABLE IF EXISTS export_jobs;
+DROP TABLE IF EXISTS staged_uploads;
+DROP TABLE IF EXISTS resource_versions;
+DROP TABLE IF EXISTS resources;
+DROP TABLE IF EXISTS asset_refs;
+DROP TABLE IF EXISTS asset_versions;
+DROP TABLE IF EXISTS assets;
+DROP TABLE IF EXISTS project_revisions;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS password_reset_tokens;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS users;

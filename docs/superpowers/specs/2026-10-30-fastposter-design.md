@@ -243,7 +243,7 @@ HTTP 与 RPC 服务分别定义在 Thrift，include 公共业务 DTO。HTTP IDL 
 
 ### 9.3 持久化实体
 
-建议实体：users、sessions、projects、project_revisions、assets、asset_versions、project_asset_refs、font_families/font_faces、background_categories/backgrounds、templates/template_versions、copy_categories/copy_entries、export_jobs、admin_audit_logs。
+实施采用实体：users、sessions、password_reset_tokens、projects、project_revisions、assets、asset_versions、asset_refs、resources、resource_versions、staged_uploads、export_jobs、admin_audit_logs。背景、字体、模板、分类与文案在 resources/resource_versions 中按类型维护；各领域服务负责类型、分类深度、发布和依赖校验，文件与作品依赖仍通过不可变资产版本引用。
 
 作品存当前 MySQL JSON 文档与 revision；导出和模板发布保存不可变快照，不要求保存每个输入字符的永久历史。所有资源版本不可变，引用表维护活跃作品/模板/任务的依赖。软删除、过期结果和孤立上传在确认无引用后回收，不能通过后台下架破坏已有作品。
 
