@@ -32,7 +32,14 @@ func main() {
 		log.Fatal("local storage initialization failed")
 	}
 	defer store.Close()
-	gateway := transport.Gateway{RPC: rpc, Store: store, AllowedOrigins: c.AppOrigins, SecureCookies: c.CookieSecure}
+	health, e := storage.CheckHealth(context.Background(), c.AbsoluteDataDir)
+	if e != nil {
+		log.Fatal("data directory is not writable: ", e)
+	}
+	if health.FreeBytes < 512<<20 {
+		log.Printf("warning: only %d MiB free in %s", health.FreeBytes>>20, health.Path)
+	}
+	gateway := transport.Gateway{RPC: rpc, Store: store, AllowedOrigins: c.AppOrigins, SecureCookies: c.CookieSecure, Paused: func() bool { return storage.MaintenanceActive(c.AbsoluteDataDir) }}
 	gateway.BindUploads()
 	gateway.Register(h)
 	h.GET("/api/v1/health", func(ctx context.Context, r *app.RequestContext) {

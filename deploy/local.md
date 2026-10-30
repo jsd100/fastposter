@@ -20,6 +20,15 @@
 
 生产 HTTPS 配置必须设置 `COOKIE_SECURE=true`，并将 `APP_ORIGINS` 改为实际前端 HTTPS origin；本机默认允许 5173/5174/8080 的 localhost 和 127.0.0.1。修改配置后重启服务。
 
-APP_DATA_DIR 相对仓库根解析，默认 `var/data`，所有进程共享这一目录。私有文件只能经授权 HTTP 接口读取。
+APP_DATA_DIR 相对仓库根解析，默认 `var/data`，所有进程共享这一目录。私有文件只能经授权 HTTP 接口读取。网关、核心服务和导出 worker 启动时会检查该目录：不可写直接退出，剩余空间低于 512 MiB 记录警告。
 
-当前仍在实施阶段：账号、数据库迁移和管理员初始化可用，完整海报编辑流程尚未接入；health 路由验证 Hertz→Kitex 实际调用和数据库连接。
+日常健康检查、存储清理和备份恢复见 [backup.md](backup.md)。最常用的命令：
+
+```sh
+go run ./server/cmd/maintenance check             # 只读检查
+go run ./server/cmd/maintenance gc                # GC 试运行
+go run ./server/cmd/maintenance gc -apply         # 执行清理
+go run ./server/cmd/maintenance backup            # 暂停写入并备份 MySQL 和 APP_DATA_DIR
+```
+
+软删除作品 30 天内可恢复，导出结果保留 7 天，不要手工删除 APP_DATA_DIR 中的文件。备份目录必须位于 APP_DATA_DIR 之外；恢复只写入独立的数据库和数据目录，不影响其他库。

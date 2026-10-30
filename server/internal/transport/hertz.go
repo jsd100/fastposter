@@ -20,6 +20,7 @@ type Gateway struct {
 	Store          storage.FileStore
 	AllowedOrigins []string
 	SecureCookies  bool
+	Paused         func() bool
 	Upload         func(context.Context, *app.RequestContext, string, *common.CallContext) (*common.RPCReply, error)
 }
 
@@ -31,6 +32,10 @@ func (g *Gateway) Register(h *server.Hertz) {
 			rand.Read(b[:])
 			id := hex.EncodeToString(b[:])
 			r.Header("X-Request-Id", id)
+			if route.Method != "GET" && g.Paused != nil && g.Paused() {
+				r.JSON(503, &common.APIError{Code: "MAINTENANCE", Message: "系统维护中，暂时无法写入", RequestId: id})
+				return
+			}
 			peer := "local"
 			if addr := r.RemoteAddr(); addr != nil {
 				peer, _, _ = net.SplitHostPort(addr.String())

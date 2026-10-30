@@ -54,6 +54,13 @@ func main() {
 		log.Fatal("local storage initialization failed")
 	}
 	defer store.Close()
+	health, e := storage.CheckHealth(context.Background(), c.AbsoluteDataDir)
+	if e != nil {
+		log.Fatal("data directory is not writable: ", e)
+	}
+	if health.FreeBytes < 512<<20 {
+		log.Printf("warning: only %d MiB free in %s", health.FreeBytes>>20, health.Path)
+	}
 	root, e := os.Getwd()
 	if e != nil {
 		log.Fatal(e)

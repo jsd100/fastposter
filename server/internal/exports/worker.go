@@ -28,6 +28,7 @@ type Worker struct {
 	Renderer *Renderer
 	TempRoot string
 	ID       string
+	Paused   func() bool
 }
 
 func workerError(e error) error {
@@ -255,6 +256,14 @@ func (w *Worker) Run(ctx context.Context) error {
 	for {
 		if e := ctx.Err(); e != nil {
 			return nil
+		}
+		if w.Paused != nil && w.Paused() {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(time.Second):
+			}
+			continue
 		}
 		lease, e := w.Service.Claim(ctx, w.ID, time.Now().UTC())
 		if e != nil {
