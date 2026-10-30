@@ -1,6 +1,6 @@
 # FastPoster 图文海报项目设计
 
-日期：2026-10-30。状态：设计草案，待用户批准；不是实施计划。
+日期：2026-10-30。状态：整体设计已获用户认可；已按用户补充的本机环境约束修订存储与部署；不是实施计划。
 
 ## 1. 项目目标与决策来源
 
@@ -10,7 +10,9 @@
 
 用户明确确认：移动端采用底部设置面板 A；屏幕缩放只影响预览；拖拽文本框改变宽度、自动换行，字号不随拖拽改变；同块文字可局部设置字体、字号、颜色；支持登录、云端保存和跨设备编辑；后台按本文件列出的完整范围开展。
 
-以下属于设计者建议默认值，尚待随本文整体批准：首版画布保持背景原尺寸；具体样式清单、账号方式、文件支持边界、模板格式、后台权限边界、技术库、存储和部署方式。它们不是用户逐项指定的要求。
+以下最初属于设计者建议默认值，已随整体设计得到认可：首版画布保持背景原尺寸；具体样式清单、账号方式、文件支持边界、模板格式、后台权限边界与技术库。它们不是用户逐项指定的要求。
+
+用户补充约束：目前无法接入外部对象存储，本机已安装 MySQL 和 Redis。因此首版改为 MySQL + 本机文件系统，Redis 可用于限流；不依赖 PostgreSQL、S3、MinIO、云厂商账号或 Docker。文件存储保留接口边界以便将来迁移，但首版不实现外部对象存储适配器。已有 MySQL/Redis 的实际服务端版本、地址和授权需要在运行环境检查时验证，不从客户端版本推断。
 
 成功标准：手机能顺畅完成导入、输入、排版、保存和下载；局部富文本样式可恢复；导出不使用屏幕预览图片，不随设备缩放丢失分辨率；后台发布的资源能被普通用户实际使用。
 
@@ -111,7 +113,7 @@
 
 任务状态：queued → running → succeeded/failed。首版轮询状态，无需 WebSocket。成功提供缩略预览与原尺寸下载；失败展示原因，可重新提交。使用幂等 key 防重复点击；固定输入可复用未过期结果。每用户最多 1 个运行中任务、2 个排队任务；默认单 worker 并发 1、单任务 120 秒，租约 30 秒并续期，失效任务可重领，最多 2 次自动尝试。这些均为可配置运行默认值。
 
-PostgreSQL 保存任务、快照和执行租约，worker 通过事务领取任务，重启可恢复；首版不额外引入 Redis/消息队列。临时文件任务结束后清理。成功结果保留 7 天，可从作品再导出；到期仅删结果，不删作品。下载需鉴权或短期签名，并限制为任务所有者。
+MySQL（InnoDB）保存任务、快照和执行租约，worker 通过事务领取任务，重启可恢复。需要支持 JSON、事务及 SELECT ... FOR UPDATE SKIP LOCKED 的 MySQL 8.0+ 兼容服务；目标兼容 MySQL 8.4 LTS，实施时通过实际服务检查。Redis 不作为导出任务、作品或文件的唯一存储；不额外引入消息队列。临时文件任务结束后清理。成功结果保留 7 天，可从作品再导出；到期仅删结果，不删作品。下载经 Hertz 鉴权并限制为任务所有者，不提供本机目录的公开静态映射。
 
 ## 5. 模板、背景、文案和字体
 
@@ -165,7 +167,7 @@ apps/admin ─┘                                  │
                                                ▼
                                        Go core 业务服务
                                          │           │
-                                    PostgreSQL   S3 兼容存储
+                                      MySQL     本机文件目录
                                          ▲           ▲
                                          │           │
                                   Go export-worker ──┘
@@ -178,9 +180,19 @@ apps/admin ─┘                                  │
 
 Hertz 处理路由、请求绑定、会话提取、上传流和 HTTP 错误；core 执行授权、校验、事务和领域逻辑。gateway 向 core 传递从会话验证得出的身份上下文，不能信任客户端自填 userId/admin；core 对资源归属再校验。内部 RPC 不对公网暴露，部署网络限制调用来源。
 
-建议 PostgreSQL 保存结构化信息、JSONB 作品文档、版本快照、会话和任务。S3 兼容对象存储保存原始文件、标准化背景、缩略图、字体、模板附件和导出 PNG；本地开发可用 MinIO。生产提供 endpoint/bucket/credentials 配置，不绑定某个云厂商。首版对象上传经 gateway 流式接收、暂存后交 core 确认，二进制通过对象键传递，不塞进 Thrift 大字段。
+MySQL 保存结构化信息、JSON 作品文档、版本快照、可撤销会话和持久化任务；统一 InnoDB、utf8mb4 和 UTC 时间。保存文档通过带 expectedRevision 的条件更新处理冲突，不能依赖 PostgreSQL JSONB、RETURNING 或特定数据库锁语法。
 
-部署建议 Docker Compose：gateway、core、worker（包含 Chromium/图片转换工具）、PostgreSQL、开发对象存储。静态前端可由 gateway/反向代理提供，生产同源路径 /、/admin、/api；开发用 Vite proxy，避免跨域 Cookie 增加复杂度。首版服务寻址使用配置的固定地址，不引入注册中心/Kubernetes。
+本机文件系统保存原始上传、标准化背景、缩略图、字体、模板附件和导出 PNG。APP_DATA_DIR 指定持久化根目录，本地默认 `./var/data`；运行数据加入 Git 忽略。建议目录按 originals/normalized/previews/fonts/templates/exports/tmp 分区，文件名使用服务端生成的不透明键，数据库仅存相对键、尺寸、散列、大小及引用关系，不保存前端可控制的绝对路径。
+
+统一 FileStore 接口承担流式写入、读取、元信息和删除。gateway/core/worker 原生运行在同一台机器，共享同一个 APP_DATA_DIR 的绝对路径；二进制不塞入 Thrift 大字段。上传先写根目录内临时文件，校验成功后在同一文件系统内原子重命名，再登记数据库可用状态；数据库登记失败产生的孤立文件由清理任务回收。文件和数据库不假装处于同一个原子事务中。缺失文件和磁盘不足返回明确错误，不能标记保存或导出成功。
+
+私有素材与导出通过鉴权 HTTP 流式读取，支持合理的 Content-Type/Content-Disposition，不将 APP_DATA_DIR 直接暴露为静态资源目录。渲染器仅通过内部受控读取端点访问本任务锁定的文件；用户不能借 assetId 或路径读任意文件。FileStore 使用根目录约束并拒绝路径穿越、符号链接逃逸；客户端 URL 不包含绝对文件路径。
+
+Redis 首版仅可选用于登录限流等短期状态，不保存文件或权威作品数据。未配置 Redis 时可用单机内存限流；Redis 故障有有界内存降级，不影响已有会话与持久化任务恢复。为后续外部对象存储迁移保留相对键和 FileStore 边界，暂不开发 S3/OSS SDK、预签名上传或相关设置页面。
+
+默认原生本机开发部署：复用已有 MySQL 和 Redis，运行 Go gateway/core/worker 与 Vite 开发服务；不要求安装 Docker、MinIO 或新数据库服务。提供环境变量示例、数据库迁移、检查命令与一键启动/退出脚本，不写入实际数据库密码。gateway/core/worker 统一解析同一个 APP_DATA_DIR，启动时检查目录可读写与剩余磁盘空间。备份说明覆盖 MySQL 和文件目录的一致备份/恢复，单独备份数据库不能恢复背景图。
+
+静态前端可由 gateway/反向代理提供，生产同源路径 /、/admin、/api；开发用 Vite proxy。首版服务寻址使用配置固定地址。导出仍需要 Chrome/Chromium，图片标准化仍需要转换工具；两者是程序运行依赖而非额外存储服务，不能因换为本机文件而删除对应校验。部署脚本检测依赖并给出安装方式，不自动安装系统服务。容器化和多机存储部署留到后续。
 
 ## 8. React monorepo 与共享边界
 
@@ -197,7 +209,7 @@ packages/poster-renderer  字体、段落、富文本 DOM 与画布坐标规则
 packages/poster-editor    Tiptap 输入、选区、拖拽、历史和编辑面板
 packages/ui               共享 UI；建议 Radix + Tailwind
 packages/api-client       从 Thrift 派生的 HTTP DTO/路由元数据与请求封装
-idl/common.thrift         公共结构、错误和分页
+idl/common/*.thrift        公共结构、错误和分页
 idl/http/*.thrift         Hertz HTTP 注解、请求响应
 idl/rpc/*.thrift          Kitex RPC 服务
 server/cmd/gateway
@@ -205,7 +217,7 @@ server/cmd/core
 server/cmd/export-worker
 server/internal/*         领域、持久化、资源处理、渲染驱动
 server/gen/*              工具生成代码
-deploy/                   部署配置与镜像定义
+deploy/                   本机启动、环境示例与备份说明
 docs/                     设计、计划、运行说明
 ```
 
@@ -233,11 +245,11 @@ HTTP 与 RPC 服务分别定义在 Thrift，include 公共业务 DTO。HTTP IDL 
 
 建议实体：users、sessions、projects、project_revisions、assets、asset_versions、project_asset_refs、font_families/font_faces、background_categories/backgrounds、templates/template_versions、copy_categories/copy_entries、export_jobs、admin_audit_logs。
 
-作品存当前 JSONB 文档与 revision；导出和模板发布保存不可变快照，不要求保存每个输入字符的永久历史。所有资源版本不可变，引用表维护活跃作品/模板/任务的依赖。软删除、过期结果和孤立上传在确认无引用后回收，不能通过后台下架破坏已有作品。
+作品存当前 MySQL JSON 文档与 revision；导出和模板发布保存不可变快照，不要求保存每个输入字符的永久历史。所有资源版本不可变，引用表维护活跃作品/模板/任务的依赖。软删除、过期结果和孤立上传在确认无引用后回收，不能通过后台下架破坏已有作品。
 
 ## 10. 可靠性与实现边界
 
-用户上传文件在应用前检查真实格式、动画标志、颜色/位深、宽高和解码预算，转换使用可控内存和超时的进程；建议用固定版本 ImageMagick 处理 EXIF/ICC 转换，限制 coder 为允许的格式并禁用外部 delegate。具体调用方式和镜像版本由实现者确认，不能通过拼接文件名构造 shell 命令。
+用户上传文件在应用前检查真实格式、动画标志、颜色/位深、宽高和解码预算，转换使用可控内存和超时的进程；建议用版本已记录的 ImageMagick 处理 EXIF/ICC 转换，限制 coder 为允许的格式并禁用外部 delegate。具体调用方式和本机安装版本由实现者确认，不能通过拼接文件名构造 shell 命令。
 
 上传失败不创建可用素材；暂存文件用有期限状态清理。模板或作品引用素材须属于当前用户或可用公共版本。字体加载失败和缺字有可追溯错误。导出故障不影响已保存作品；worker 重启可继续领取任务。管理员下架不使旧作品丢字体/丢背景。
 
@@ -255,6 +267,7 @@ HTTP 与 RPC 服务分别定义在 Thrift，include 公共业务 DTO。HTTP IDL 
 8. 普通用户不能访问他人作品、素材或导出；不能通过修改请求获得管理员角色；禁用后会话失效。
 9. 后台发布背景、模板、文案和字体后，用户能完成实际使用；下架后已有作品仍可打开和导出；缺字体的模板包被明确拒绝。
 10. Thrift 一次修改能重新生成 Hertz/Kitex/前端契约；契约漂移检查、Go/前端构建、关键 API 集成与渲染回归通过。
+11. 在没有 PostgreSQL、对象存储和 Docker 的本机，仅使用配置的 MySQL、可选 Redis 与持久化文件目录，完成上传、重启后恢复、导出下载和备份恢复；磁盘不足、文件缺失、路径逃逸、写文件成功但数据库提交失败均不能造成越权或虚报成功。
 
 验证顺序建议：先验证富文本输入和排版/导出路线，再进入完整应用实施。当前仅设计，不声称这些检查已经通过。
 
@@ -271,5 +284,6 @@ HTTP 与 RPC 服务分别定义在 Thrift，include 公共业务 DTO。HTTP IDL 
 - [Tiptap TextStyleKit](https://tiptap.dev/docs/editor/extensions/functionality/text-style-kit)：包含字体、字号、颜色等局部样式基础；本项目仍需补充文档限制、块排版与双端渲染一致性。
 - [chromedp 项目](https://github.com/chromedp/chromedp) 与 [Chromium Page.captureScreenshot](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-captureScreenshot)：核实 Go 驱动浏览器及 PNG 捕获能力，不作为 40MP 性能或多浏览器像素一致性的证明。
 - [W3C PNG 规范](https://www.w3.org/TR/png/)：PNG 支持无损像素编码与 alpha；本项目的 sRGB/位深边界另由本设计限定。
+- [MySQL InnoDB 锁定读](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html)：SKIP LOCKED 可用于队列式表的并发领取；任务完成仍需租约与执行者标识校验，不能只靠领取时的行锁。
 
 编辑布局草图位于 `.superpowers/brainstorm/10246-1793327917/content/editor-layout.html`，仅用于讨论，不是产品实现。
