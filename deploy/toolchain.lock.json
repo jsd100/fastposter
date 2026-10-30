@@ -34,7 +34,9 @@
     "golang.org/x/crypto": "v0.58.0",
     "github.com/cloudwego/hertz/cmd/hz": "v0.9.8",
     "github.com/apache/thrift": "v0.13.0",
-    "prettier": "3.9.10"
+    "prettier": "3.9.10",
+    "golang.org/x/image": "v0.47.0",
+    "golang.org/x/term": "v0.47.0"
   },
   "compatibility": "Go build and Kitex generation passed; frontend typecheck and all 8 workspace builds passed",
   "toolReportedVersions": {

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policymap>
+ <policy domain="resource" name="memory" value="512MiB"/>
+ <policy domain="resource" name="map" value="1GiB"/>
+ <policy domain="resource" name="disk" value="2GiB"/>
+ <policy domain="resource" name="width" value="8192"/>
+ <policy domain="resource" name="height" value="8192"/>
+ <policy domain="resource" name="time" value="30"/>
+ <policy domain="resource" name="thread" value="2"/>
+ <policy domain="delegate" rights="none" pattern="*"/>
+ <policy domain="filter" rights="none" pattern="*"/>
+ <policy domain="path" rights="none" pattern="@*"/>
+ <policy domain="coder" rights="none" pattern="*"/>
+ <policy domain="coder" rights="read|write" pattern="{PNG,PNG32,JPEG,JPG,WEBP}"/>
+ <policy domain="coder" rights="read" pattern="{ICC,ICM}"/>
+</policymap>

@@ -83,11 +83,11 @@ func errorStatus(code string) int {
 		return 409
 	case "PAYLOAD_TOO_LARGE":
 		return 413
-	case "INVALID_INPUT", "RESET_INVALID", "MISSING_FONT", "OVERFLOW":
+	case "INVALID_INPUT", "RESET_INVALID", "MISSING_FONT", "OVERFLOW", "INVALID_IMAGE", "UNSUPPORTED_IMAGE", "IMAGE_LIMIT", "IMAGE_PROCESSING_FAILED":
 		return 422
 	case "RATE_LIMITED":
 		return 429
-	case "NOT_READY":
+	case "NOT_READY", "STORAGE_FULL":
 		return 503
 	default:
 		return 500

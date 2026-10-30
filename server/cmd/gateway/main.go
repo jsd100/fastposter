@@ -7,6 +7,7 @@ import (
 	"fastposter/internal/config"
 	"fastposter/server/gen/kitex/core"
 	"fastposter/server/gen/kitex/core/coreservice"
+	"fastposter/server/internal/storage"
 	"fastposter/server/internal/transport"
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -21,12 +22,18 @@ func main() {
 	if e != nil {
 		log.Fatal(e)
 	}
-	rpc, e := coreservice.NewClient("fastposter.core", client.WithHostPorts(c.CoreAddr), client.WithRPCTimeout(3*time.Second))
+	rpc, e := coreservice.NewClient("fastposter.core", client.WithHostPorts(c.CoreAddr), client.WithRPCTimeout(75*time.Second))
 	if e != nil {
 		log.Fatal(e)
 	}
-	h := server.Default(server.WithHostPorts(c.GatewayAddr), server.WithMaxRequestBodySize(82<<20))
-	gateway := transport.Gateway{RPC: rpc, AllowedOrigins: c.AppOrigins, SecureCookies: c.CookieSecure}
+	h := server.Default(server.WithHostPorts(c.GatewayAddr), server.WithMaxRequestBodySize(82<<20), server.WithStreamBody(true))
+	store, e := storage.NewLocal(c.AbsoluteDataDir)
+	if e != nil {
+		log.Fatal("local storage initialization failed")
+	}
+	defer store.Close()
+	gateway := transport.Gateway{RPC: rpc, Store: store, AllowedOrigins: c.AppOrigins, SecureCookies: c.CookieSecure}
+	gateway.BindUploads()
 	gateway.Register(h)
 	h.GET("/api/v1/health", func(ctx context.Context, r *app.RequestContext) {
 		var b [12]byte
