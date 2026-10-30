@@ -1,3 +1,4 @@
+import { drafts } from "../editor/drafts";
 import {
   createContext,
   useContext,
@@ -19,6 +20,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const cache = useQueryClient();
   const setUser = (value: UserDTO | null) => {
     cache.clear();
+    if (value) drafts.activate(value.id);
     updateUser(value);
   };
   useEffect(() => {
@@ -26,7 +28,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     apiClient
       .request(routes.Me, {})
       .then((r) => {
-        if (active) updateUser(r.user);
+        if (active) {
+          drafts.activate(r.user.id);
+          updateUser(r.user);
+        }
       })
       .catch(() => {
         if (active) updateUser(null);
@@ -44,9 +49,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [cache]);
   const logout = async () => {
     await apiClient.request(routes.Logout, {});
+    const previousUser = user?.id;
+    let cleanupError: unknown;
+    try {
+      if (previousUser) await drafts.clearUser(previousUser);
+    } catch (e) {
+      cleanupError = e;
+    }
     setUser(null);
     window.dispatchEvent(new Event("session-ended"));
     navigate("/login", true);
+    if (cleanupError) throw cleanupError;
   };
   return (
     <SessionContext.Provider value={{ user, setUser, logout }}>

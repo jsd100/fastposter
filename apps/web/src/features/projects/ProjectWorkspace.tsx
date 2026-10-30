@@ -1,3 +1,10 @@
+import { useProjectAutosave } from "../editor/useProjectAutosave";
+import { SaveStatus } from "../editor/SaveStatus";
+import { ConflictDialog } from "../editor/ConflictDialog";
+import { drafts } from "../editor/drafts";
+import { Dialog } from "@fastposter/ui";
+import { replaceBackground } from "@fastposter/poster-editor";
+import { navigate } from "../../router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, routes, type AssetReply } from "@fastposter/api-client";
@@ -35,15 +42,12 @@ import type { ProjectDTO } from "@fastposter/api-client";
 function Workspace({ initial }: { initial: ProjectDTO }) {
   const { user } = useSession();
   const cache = useQueryClient();
-  const [doc, setDoc] = useState(() =>
-      parseDocument(JSON.parse(initial.document)),
-    ),
-    [revision, setRevision] = useState(initial.revision),
-    [dirty, setDirty] = useState(false),
+  const auto = useProjectAutosave(user!.id, initial);
+  const doc = auto.state.document;
+  const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [readyFonts, setReadyFonts] = useState<FontSource[]>([]),
-    [overflow, setOverflow] = useState(false);
+    [overflow, setOverflow] = useState(false),
+    [readyFonts, setReadyFonts] = useState<FontSource[]>([]);
   const files = useRef<HTMLInputElement>(null);
   const resolver = useRef<
     ((value: BackgroundAsset | undefined) => void) | null
@@ -54,10 +58,8 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
     retry: false,
     staleTime: 60_000,
   });
-  const initialFonts = useMemo(
-    () => parseDocument(JSON.parse(initial.document)).fonts,
-    [initial.document],
-  );
+  const fontSignature = JSON.stringify(doc.fonts);
+  const initialFonts = useMemo(() => doc.fonts, [fontSignature]);
   useEffect(() => {
     if (!fontQuery.data) return;
     let active = true;
@@ -87,29 +89,33 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
   }, [fontQuery.data, initialFonts]);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
-      if (dirty) {
+      if (auto.state.status !== "saved") {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", unload);
     return () => window.removeEventListener("beforeunload", unload);
-  }, [dirty]);
+  }, [auto.state.status]);
   async function save() {
-    if (busy) return;
+    setError("");
+    try {
+      await auto.flush();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
+  async function copyLocal() {
     setBusy(true);
     setError("");
-    const current = doc;
     try {
-      const r = await request(routes.SaveProject, {
-        id: initial.id,
-        title: initial.title,
-        document: JSON.stringify(current),
-        expectedRevision: revision,
+      const r = await request(routes.CreateProject, {
+        title: auto.title.slice(0, 110) + " 本地副本",
+        document: JSON.stringify(doc),
       });
-      setRevision(r.project.revision);
-      if (current === doc) setDirty(false);
+      await drafts.delete(user!.id, initial.id);
       await cache.invalidateQueries({ queryKey: ["projects", user!.id] });
+      navigate(`/projects/${r.project.id}/edit`);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -138,6 +144,8 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       resolver.current = null;
       return;
     }
+    auto.setUploading(true, [{ name: file.name, file }]);
+    setError("");
     try {
       const form = new FormData();
       form.append("file", file);
@@ -145,15 +153,54 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         "/api/v1/assets/images",
         form,
       );
-      resolver.current?.(r.asset);
+      if (resolver.current) {
+        resolver.current(r.asset);
+        resolver.current = null;
+      } else {
+        auto.controller.update(
+          replaceBackground(auto.controller.getState().document, r.asset),
+        );
+      }
+      auto.setUploading(false, []);
     } catch (e) {
       setError(errorMessage(e));
-      resolver.current?.(undefined);
     } finally {
-      resolver.current = null;
       if (files.current) files.current.value = "";
     }
   }
+  if (!auto.ready)
+    return (
+      <main className="simple-page">
+        <Link href="/projects">返回作品</Link>
+        {auto.recovery ? (
+          <Dialog title="发现本地草稿" onClose={() => {}}>
+            <p>
+              本机有尚未确认的修改。恢复后若云端版本更新，会继续保留为冲突草稿。
+            </p>
+            <div className="dialog-actions">
+              <Button
+                onClick={() =>
+                  void auto.discard().catch((e) => setError(errorMessage(e)))
+                }
+              >
+                使用云端版本
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() =>
+                  void auto.restore().catch((e) => setError(errorMessage(e)))
+                }
+              >
+                恢复本地草稿
+              </Button>
+            </div>
+            {error && <Status tone="error">{error}</Status>}
+          </Dialog>
+        ) : (
+          <Status>正在检查本地草稿…</Status>
+        )}
+      </main>
+    );
   return (
     <main className="editor-workspace">
       <header className="editor-header">
@@ -161,14 +208,14 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
           <ArrowLeft size={18} />
           返回作品
         </Link>
-        <h1>{initial.title}</h1>
-        <span className="saved-label">
-          {busy ? "保存中…" : dirty ? "未保存" : "已保存"}
-        </span>
+        <h1>{auto.title}</h1>
+        <SaveStatus status={auto.state.status} />
         <Button
           aria-label="保存作品"
-          disabled={!dirty}
-          busy={busy}
+          disabled={
+            auto.state.status === "saved" || auto.state.status === "blocked"
+          }
+          busy={busy || auto.state.status === "saving"}
           onClick={() => void save()}
         >
           <Save size={15} />
@@ -181,12 +228,46 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       {!readyFonts.length && !error && !fontQuery.error && (
         <Status>正在载入字体…</Status>
       )}
+      {auto.state.status === "error" && Boolean(auto.state.error) && (
+        <Status tone="error">{errorMessage(auto.state.error)}</Status>
+      )}
+      {auto.draftError && <Status tone="error">{auto.draftError}</Status>}
+      {auto.state.status === "offline" && (
+        <Status>连接恢复后可点击保存重试。</Status>
+      )}
+      {auto.pendingFiles.current.length > 0 && (
+        <Status>
+          有未完成的背景图导入
+          <Button
+            onClick={() => void importFile(auto.pendingFiles.current[0].file)}
+          >
+            重试导入
+          </Button>
+          <Button
+            onClick={() => {
+              resolver.current?.(undefined);
+              resolver.current = null;
+              auto.setUploading(false, []);
+            }}
+          >
+            取消本次导入
+          </Button>
+        </Status>
+      )}
+      {auto.state.status === "conflict" && (
+        <ConflictDialog
+          busy={busy}
+          error={error}
+          onCopy={() => void copyLocal()}
+          onCloud={() =>
+            void auto.loadCloud().catch((e) => setError(errorMessage(e)))
+          }
+        />
+      )}
       <Editor
         document={doc}
-        onChange={(next) => {
-          setDoc(next);
-          setDirty(true);
-        }}
+        onChange={(next) => auto.controller.update(next)}
+        onInteractionChange={auto.setInteraction}
         availableFonts={readyFonts}
         onAssetRequest={background}
         onOverflowChange={setOverflow}

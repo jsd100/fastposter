@@ -40,6 +40,7 @@ export type EditorProps = {
   availableFonts?: FontSource[];
   onAssetRequest?: () => Promise<BackgroundAsset | undefined>;
   onOverflowChange?: (overflow: boolean) => void;
+  onInteractionChange?: (busy: boolean) => void;
   renderEditing?: (block: TextBlock, store: EditorStore) => ReactNode;
 };
 export function Editor({
@@ -48,6 +49,7 @@ export function Editor({
   availableFonts = [],
   onAssetRequest,
   onOverflowChange,
+  onInteractionChange,
   renderEditing,
 }: EditorProps) {
   const textSelection = useRef<{ from: number; to: number } | null>(null);
@@ -109,6 +111,10 @@ export function Editor({
       store.reset(document);
     }
   }, [document, store]);
+  useEffect(
+    () => onInteractionChange?.(state.inTransaction),
+    [state.inTransaction, onInteractionChange],
+  );
   useEffect(
     () => onOverflowChange?.(state.overflow),
     [state.overflow, onOverflowChange],

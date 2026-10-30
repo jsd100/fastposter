@@ -1024,3 +1024,4 @@ summary:focus-visible {
     transition: none !important;
   }
 }
+.conflict-actions{display:flex;flex-direction:column;gap:10px;margin-top:24px}

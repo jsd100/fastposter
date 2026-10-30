@@ -14,6 +14,7 @@ export type EditorState = {
   canUndo: boolean;
   canRedo: boolean;
   overflow: boolean;
+  inTransaction: boolean;
 };
 export function createEditorStore(
   initial: PosterDocument,
@@ -28,6 +29,7 @@ export function createEditorStore(
     canUndo: false,
     canRedo: false,
     overflow: false,
+    inTransaction: false,
   };
   const listeners = new Set<() => void>();
   function emit(docChanged = false) {
@@ -36,6 +38,7 @@ export function createEditorStore(
       document: history.value,
       canUndo: history.canUndo,
       canRedo: history.canRedo,
+      inTransaction: history.inTransaction,
     };
     for (const listener of listeners) listener();
     if (docChanged) onChange?.(state.document);
@@ -69,7 +72,10 @@ export function createEditorStore(
         emit();
       }
     },
-    begin: () => history.begin(),
+    begin: () => {
+      history.begin();
+      emit();
+    },
     update: (doc: PosterDocument) => {
       history.update(doc);
       emit(true);
