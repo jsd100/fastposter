@@ -13,6 +13,7 @@ var GeneratedRoutes = []RouteSpec{
 	{"AdminResources", "GET", "/api/v1/admin/resources/:kind"},
 	{"AdminSaveResource", "POST", "/api/v1/admin/resources"},
 	{"AdminDeleteResource", "DELETE", "/api/v1/admin/resources/:id"},
+	{"AdminMoveResource", "POST", "/api/v1/admin/resources/:id/move"},
 	{"UploadFont", "POST", "/api/v1/admin/fonts/upload"},
 	{"AdminImportTemplate", "POST", "/api/v1/admin/templates/import"},
 	{"UploadImage", "POST", "/api/v1/assets/images"},

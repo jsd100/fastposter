@@ -121,6 +121,18 @@
     "bodyFields": []
   },
   {
+    "name": "AdminMoveResource",
+    "method": "POST",
+    "path": "/api/v1/admin/resources/:id/move",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": [
+      "parentId"
+    ]
+  },
+  {
     "name": "UploadFont",
     "method": "POST",
     "path": "/api/v1/admin/fonts/upload",

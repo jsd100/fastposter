@@ -1033,6 +1033,53 @@ var fieldIDToName_ResourceInput = map[int16]string{
 	14: "license",
 }
 
+type MoveResourceInput struct {
+	Id       string  `thrift:"id,1,required" frugal:"1,required,string" json:"id"`
+	ParentId *string `thrift:"parentId,2,optional" frugal:"2,optional,string" json:"parentId,omitempty"`
+}
+
+func NewMoveResourceInput() *MoveResourceInput {
+	return &MoveResourceInput{}
+}
+
+func (p *MoveResourceInput) InitDefault() {
+}
+
+func (p *MoveResourceInput) GetId() (v string) {
+	return p.Id
+}
+
+var MoveResourceInput_ParentId_DEFAULT string
+
+func (p *MoveResourceInput) GetParentId() (v string) {
+	if !p.IsSetParentId() {
+		return MoveResourceInput_ParentId_DEFAULT
+	}
+	return *p.ParentId
+}
+func (p *MoveResourceInput) SetId(val string) {
+	p.Id = val
+}
+func (p *MoveResourceInput) SetParentId(val *string) {
+	p.ParentId = val
+}
+
+func (p *MoveResourceInput) IsSetParentId() bool {
+	return p.ParentId != nil
+}
+
+func (p *MoveResourceInput) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("MoveResourceInput(%+v)", *p)
+}
+
+var fieldIDToName_MoveResourceInput = map[int16]string{
+	1: "id",
+	2: "parentId",
+}
+
 type FontUploadInput struct {
 	Family  string  `thrift:"family,1,required" frugal:"1,required,string" json:"family"`
 	Weight  int32   `thrift:"weight,2,required" frugal:"2,required,i32" json:"weight"`

@@ -530,12 +530,13 @@ var fieldIDToName_AssetCall = map[int16]string{
 }
 
 type CatalogCall struct {
-	Context   *CallContext    `thrift:"context,1,required" frugal:"1,required,CallContext" json:"context"`
-	Action    string          `thrift:"action,2,required" frugal:"2,required,string" json:"action"`
-	Query     *CatalogQuery   `thrift:"query,3,optional" frugal:"3,optional,CatalogQuery" json:"query,omitempty"`
-	Input     *ResourceInput  `thrift:"input,4,optional" frugal:"4,optional,ResourceInput" json:"input,omitempty"`
-	Id        *string         `thrift:"id,5,optional" frugal:"5,optional,string" json:"id,omitempty"`
-	FontCheck *FontCheckInput `thrift:"fontCheck,6,optional" frugal:"6,optional,FontCheckInput" json:"fontCheck,omitempty"`
+	Context   *CallContext       `thrift:"context,1,required" frugal:"1,required,CallContext" json:"context"`
+	Action    string             `thrift:"action,2,required" frugal:"2,required,string" json:"action"`
+	Query     *CatalogQuery      `thrift:"query,3,optional" frugal:"3,optional,CatalogQuery" json:"query,omitempty"`
+	Input     *ResourceInput     `thrift:"input,4,optional" frugal:"4,optional,ResourceInput" json:"input,omitempty"`
+	Id        *string            `thrift:"id,5,optional" frugal:"5,optional,string" json:"id,omitempty"`
+	FontCheck *FontCheckInput    `thrift:"fontCheck,6,optional" frugal:"6,optional,FontCheckInput" json:"fontCheck,omitempty"`
+	Move      *MoveResourceInput `thrift:"move,7,optional" frugal:"7,optional,MoveResourceInput" json:"move,omitempty"`
 }
 
 func NewCatalogCall() *CatalogCall {
@@ -593,6 +594,15 @@ func (p *CatalogCall) GetFontCheck() (v *FontCheckInput) {
 	}
 	return p.FontCheck
 }
+
+var CatalogCall_Move_DEFAULT *MoveResourceInput
+
+func (p *CatalogCall) GetMove() (v *MoveResourceInput) {
+	if !p.IsSetMove() {
+		return CatalogCall_Move_DEFAULT
+	}
+	return p.Move
+}
 func (p *CatalogCall) SetContext(val *CallContext) {
 	p.Context = val
 }
@@ -610,6 +620,9 @@ func (p *CatalogCall) SetId(val *string) {
 }
 func (p *CatalogCall) SetFontCheck(val *FontCheckInput) {
 	p.FontCheck = val
+}
+func (p *CatalogCall) SetMove(val *MoveResourceInput) {
+	p.Move = val
 }
 
 func (p *CatalogCall) IsSetContext() bool {
@@ -632,6 +645,10 @@ func (p *CatalogCall) IsSetFontCheck() bool {
 	return p.FontCheck != nil
 }
 
+func (p *CatalogCall) IsSetMove() bool {
+	return p.Move != nil
+}
+
 func (p *CatalogCall) String() string {
 	if p == nil {
 		return "<nil>"
@@ -646,6 +663,7 @@ var fieldIDToName_CatalogCall = map[int16]string{
 	4: "input",
 	5: "id",
 	6: "fontCheck",
+	7: "move",
 }
 
 type TemplateCall struct {

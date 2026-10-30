@@ -1656,6 +1656,20 @@ func (p *CatalogCall) FastRead(buf []byte) (int, error) {
 					goto SkipFieldError
 				}
 			}
+		case 7:
+			if fieldTypeId == thrift.STRUCT {
+				l, err = p.FastReadField7(buf[offset:])
+				offset += l
+				if err != nil {
+					goto ReadFieldError
+				}
+			} else {
+				l, err = thrift.Binary.Skip(buf[offset:], fieldTypeId)
+				offset += l
+				if err != nil {
+					goto SkipFieldError
+				}
+			}
 		default:
 			l, err = thrift.Binary.Skip(buf[offset:], fieldTypeId)
 			offset += l
@@ -1761,6 +1775,18 @@ func (p *CatalogCall) FastReadField6(buf []byte) (int, error) {
 	return offset, nil
 }
 
+func (p *CatalogCall) FastReadField7(buf []byte) (int, error) {
+	offset := 0
+	_field := NewMoveResourceInput()
+	if l, err := _field.FastRead(buf[offset:]); err != nil {
+		return offset, err
+	} else {
+		offset += l
+	}
+	p.Move = _field
+	return offset, nil
+}
+
 func (p *CatalogCall) FastWrite(buf []byte) int {
 	return p.FastWriteNocopy(buf, nil)
 }
@@ -1774,6 +1800,7 @@ func (p *CatalogCall) FastWriteNocopy(buf []byte, w thrift.NocopyWriter) int {
 		offset += p.fastWriteField4(buf[offset:], w)
 		offset += p.fastWriteField5(buf[offset:], w)
 		offset += p.fastWriteField6(buf[offset:], w)
+		offset += p.fastWriteField7(buf[offset:], w)
 	}
 	offset += thrift.Binary.WriteFieldStop(buf[offset:])
 	return offset
@@ -1788,6 +1815,7 @@ func (p *CatalogCall) BLength() int {
 		l += p.field4Length()
 		l += p.field5Length()
 		l += p.field6Length()
+		l += p.field7Length()
 	}
 	l += thrift.Binary.FieldStopLength()
 	return l
@@ -1843,6 +1871,15 @@ func (p *CatalogCall) fastWriteField6(buf []byte, w thrift.NocopyWriter) int {
 	return offset
 }
 
+func (p *CatalogCall) fastWriteField7(buf []byte, w thrift.NocopyWriter) int {
+	offset := 0
+	if p.IsSetMove() {
+		offset += thrift.Binary.WriteFieldBegin(buf[offset:], thrift.STRUCT, 7)
+		offset += p.Move.FastWriteNocopy(buf[offset:], w)
+	}
+	return offset
+}
+
 func (p *CatalogCall) field1Length() int {
 	l := 0
 	l += thrift.Binary.FieldBeginLength()
@@ -1889,6 +1926,15 @@ func (p *CatalogCall) field6Length() int {
 	if p.IsSetFontCheck() {
 		l += thrift.Binary.FieldBeginLength()
 		l += p.FontCheck.BLength()
+	}
+	return l
+}
+
+func (p *CatalogCall) field7Length() int {
+	l := 0
+	if p.IsSetMove() {
+		l += thrift.Binary.FieldBeginLength()
+		l += p.Move.BLength()
 	}
 	return l
 }

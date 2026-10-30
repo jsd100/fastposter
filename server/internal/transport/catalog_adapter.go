@@ -5,6 +5,7 @@ import (
 	"fastposter/server/gen/kitex/common"
 	"fastposter/server/internal/auth"
 	"fastposter/server/internal/catalog"
+	"fastposter/server/internal/copy"
 	"fastposter/server/internal/domain"
 )
 
@@ -46,7 +47,7 @@ func publicResource(ctx context.Context, service *catalog.Service, p auth.Princi
 	}
 	return out, nil
 }
-func CatalogAdapter(accounts *auth.Service, service *catalog.Service) func(context.Context, *common.CatalogCall) (*common.RPCReply, error) {
+func CatalogAdapter(accounts *auth.Service, service *catalog.Service, copies *copy.Service) func(context.Context, *common.CatalogCall) (*common.RPCReply, error) {
 	return func(ctx context.Context, call *common.CatalogCall) (*common.RPCReply, error) {
 		c := call.Context
 		if c == nil {
@@ -65,7 +66,7 @@ func CatalogAdapter(accounts *auth.Service, service *catalog.Service) func(conte
 			}
 			return response(c, nil, service.CheckFonts(ctx, p, call.FontCheck.Document)), nil
 		}
-		admin := call.Action == "AdminResources" || call.Action == "AdminSaveResource" || call.Action == "AdminDeleteResource"
+		admin := call.Action == "AdminResources" || call.Action == "AdminSaveResource" || call.Action == "AdminDeleteResource" || call.Action == "AdminMoveResource"
 		if admin {
 			if e = auth.RequireAdmin(p); e != nil {
 				return response(c, nil, e), nil
@@ -107,6 +108,11 @@ func CatalogAdapter(accounts *auth.Service, service *catalog.Service) func(conte
 			return reply, nil
 		case "AdminDeleteResource":
 			return response(c, nil, service.Delete(ctx, p, call.GetId())), nil
+		case "AdminMoveResource":
+			if call.Move == nil {
+				return response(c, nil, domain.E("INVALID_INPUT", "缺少分类移动参数")), nil
+			}
+			return response(c, nil, copies.MoveCategory(ctx, p, call.Move.GetId(), call.Move.GetParentId())), nil
 		}
 		return response(c, nil, domain.E("INVALID_INPUT", "未知素材操作")), nil
 	}

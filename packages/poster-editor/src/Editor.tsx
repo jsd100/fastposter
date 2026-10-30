@@ -16,7 +16,12 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import type { PosterDocument, TextBlock } from "@fastposter/poster-schema";
+import type {
+  PosterDocument,
+  RichMark,
+  RichNode,
+  TextBlock,
+} from "@fastposter/poster-schema";
 import { Button, Dialog, Status } from "@fastposter/ui";
 import {
   Plus,
@@ -29,6 +34,7 @@ import {
   Image,
   Layers,
   Type,
+  FileText,
 } from "lucide-react";
 import { createEditorStore, type EditorStore } from "./store";
 import { Stage } from "./Stage";
@@ -40,6 +46,7 @@ export type EditorProps = {
   availableFonts?: FontSource[];
   onAssetRequest?: () => Promise<BackgroundAsset | undefined>;
   onBackgroundLibraryRequest?: () => Promise<BackgroundAsset | undefined>;
+  onCopyRequest?: () => Promise<string | undefined>;
   onOverflowChange?: (overflow: boolean) => void;
   onInteractionChange?: (busy: boolean) => void;
   renderEditing?: (block: TextBlock, store: EditorStore) => ReactNode;
@@ -50,6 +57,7 @@ export function Editor({
   availableFonts = [],
   onAssetRequest,
   onBackgroundLibraryRequest,
+  onCopyRequest,
   onOverflowChange,
   onInteractionChange,
   renderEditing,
@@ -106,7 +114,8 @@ export function Editor({
   );
   const [pending, setPending] = useState<BackgroundAsset | null>(null),
     [error, setError] = useState(""),
-    [uploading, setUploading] = useState(false);
+    [uploading, setUploading] = useState(false),
+    [copyBusy, setCopyBusy] = useState(false);
   useEffect(() => {
     if (document !== emitted.current) {
       emitted.current = document;
@@ -164,6 +173,55 @@ export function Editor({
       setError(e instanceof Error ? e.message : "导入失败");
     } finally {
       setUploading(false);
+    }
+  }
+  async function insertCopy() {
+    if (!onCopyRequest || copyBusy) return;
+    setCopyBusy(true);
+    setError("");
+    try {
+      const text = (await onCopyRequest())?.trim();
+      if (!text) return;
+      const block = state.document.textBlocks.find(
+        (b) => b.id === state.selectedId,
+      );
+      if (
+        state.mode === "edit" &&
+        activeEditor &&
+        !activeEditor.isDestroyed &&
+        block
+      ) {
+        const selection =
+          textSelection.current ?? captureSelection(activeEditor);
+        const max = activeEditor.state.doc.content.size;
+        const from = Math.max(0, Math.min(max, selection.from));
+        const to = Math.max(from, Math.min(max, selection.to));
+        if (to > from) {
+          const marks = marksAt(activeEditor.state.doc, block, from, to);
+          store.begin();
+          try {
+            activeEditor
+              .chain()
+              .focus()
+              .insertContentAt({ from, to }, copyContent(text, marks))
+              .run();
+            store.commit();
+          } catch (e) {
+            store.cancel();
+            throw e;
+          }
+          return;
+        }
+      }
+      if (state.document.textBlocks.length >= 100) {
+        setError("文字块数量已达上限");
+        return;
+      }
+      store.addText(availableFonts, text);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "插入文案失败");
+    } finally {
+      setCopyBusy(false);
     }
   }
   function apply(patch: InlineStylePatch) {
@@ -254,6 +312,16 @@ export function Editor({
             <Plus size={15} />
             添加文字
           </Button>
+          {onCopyRequest && (
+            <Button
+              disabled={!availableFonts.length}
+              busy={copyBusy}
+              onClick={() => void insertCopy()}
+            >
+              <FileText size={15} />
+              文案
+            </Button>
+          )}
           <Button
             aria-label="更换背景"
             disabled={!onAssetRequest}
@@ -505,4 +573,36 @@ export function Editor({
 }
 function plainText(node: TextBlock["content"]): string {
   return node.text ?? node.content?.map(plainText).join("") ?? "";
+}
+function marksAt(
+  doc: TiptapEditor["state"]["doc"],
+  block: TextBlock,
+  from: number,
+  to: number,
+): RichMark[] {
+  const style = { ...block.defaultStyle };
+  const extra: RichMark[] = [];
+  let captured = false;
+  doc.nodesBetween(from, to, (node) => {
+    if (captured || !node.isText) return;
+    captured = true;
+    const textStyle = node.marks.find((m) => m.type.name === "textStyle");
+    const attrs = textStyle?.attrs as Partial<typeof style> | undefined;
+    if (attrs?.fontId) style.fontId = attrs.fontId;
+    if (attrs?.fontSize) style.fontSize = attrs.fontSize;
+    if (attrs?.color) style.color = attrs.color;
+    if (attrs?.fontWeight) style.fontWeight = attrs.fontWeight;
+    for (const mark of node.marks)
+      if (mark.type.name !== "textStyle")
+        extra.push({ type: mark.type.name as RichMark["type"] });
+  });
+  return [{ type: "textStyle", attrs: style }, ...extra];
+}
+function copyContent(text: string, marks: RichMark[]): RichNode[] {
+  const content: RichNode[] = [];
+  text.split(/\r?\n/).forEach((line, index) => {
+    if (index) content.push({ type: "hardBreak" });
+    if (line) content.push({ type: "text", text: line, marks });
+  });
+  return content;
 }

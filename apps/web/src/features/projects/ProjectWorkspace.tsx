@@ -1,4 +1,5 @@
 import { BackgroundPicker } from "../catalog/BackgroundPicker";
+import { CopyPicker } from "../catalog/CopyPicker";
 import { ExportControls } from "../export/ExportDialog";
 import { useProjectAutosave } from "../editor/useProjectAutosave";
 import { SaveStatus } from "../editor/SaveStatus";
@@ -47,6 +48,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
   const auto = useProjectAutosave(user!.id, initial);
   const doc = auto.state.document;
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [packBusy, setPackBusy] = useState(false),
@@ -58,6 +60,9 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
   const resolver = useRef<
     ((value: BackgroundAsset | undefined) => void) | null
   >(null);
+  const copyResolver = useRef<((value: string | undefined) => void) | null>(
+    null,
+  );
   const fontQuery = useQuery({
     queryKey: ["fonts", user!.id],
     queryFn: () => request(routes.ListFonts, {}),
@@ -162,7 +167,8 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       setPackBusy(false);
     }
   }
-  async function copyLocal() {    setBusy(true);
+  async function copyLocal() {
+    setBusy(true);
     setError("");
     try {
       const r = await request(routes.CreateProject, {
@@ -198,6 +204,12 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
     return new Promise<BackgroundAsset | undefined>((resolve) => {
       resolver.current = resolve;
       setLibraryOpen(true);
+    });
+  }
+  function copyLibrary() {
+    return new Promise<string | undefined>((resolve) => {
+      copyResolver.current = resolve;
+      setCopyOpen(true);
     });
   }
   async function importFile(file: File | undefined) {
@@ -357,6 +369,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         availableFonts={readyFonts}
         onAssetRequest={background}
         onBackgroundLibraryRequest={library}
+        onCopyRequest={copyLibrary}
         onOverflowChange={setOverflow}
       />
       {libraryOpen && (
@@ -370,6 +383,20 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
             resolver.current?.(asset);
             resolver.current = null;
             setLibraryOpen(false);
+          }}
+        />
+      )}
+      {copyOpen && (
+        <CopyPicker
+          onClose={() => {
+            copyResolver.current?.(undefined);
+            copyResolver.current = null;
+            setCopyOpen(false);
+          }}
+          onChoose={(text) => {
+            copyResolver.current?.(text);
+            copyResolver.current = null;
+            setCopyOpen(false);
           }}
         />
       )}

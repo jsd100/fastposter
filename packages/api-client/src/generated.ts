@@ -274,6 +274,10 @@ export interface ResourceInput {
   style?: string;
   license?: string;
 }
+export interface MoveResourceInput {
+  id: string;
+  parentId?: string;
+}
 export interface FontUploadInput {
   family: string;
   weight: number;
@@ -371,6 +375,14 @@ export const routes = {
     queryFields: [],
     bodyFields: [],
   } as Route<IDRequest, EmptyReply>,
+  AdminMoveResource: {
+    name: "AdminMoveResource",
+    method: "POST",
+    path: "/api/v1/admin/resources/:id/move",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: ["parentId"],
+  } as Route<MoveResourceInput, EmptyReply>,
   UploadFont: {
     name: "UploadFont",
     method: "POST",

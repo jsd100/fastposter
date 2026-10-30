@@ -126,7 +126,7 @@ export function createEditorStore(
       state = { ...state, selectedId: null, mode: "select" };
       emit();
     },
-    addText: (fonts: FontRef[]) => {
+    addText: (fonts: FontRef[], text?: string) => {
       const d = history.value,
         font =
           fonts.find(
@@ -137,7 +137,7 @@ export function createEditorStore(
           ) ??
           fonts.find((f) => f.weight === 400 && f.style === "normal") ??
           fonts[0];
-      if (!font) return;
+      if (!font || d.textBlocks.length >= 100) return;
       const id = crypto.randomUUID();
       const size = Math.max(
         1,
@@ -149,6 +149,7 @@ export function createEditorStore(
       );
       const x = (d.canvas.width - width) / 2,
         y = Math.min(d.canvas.height - 1, d.canvas.height * 0.3);
+      const lines = (text ?? "把喜欢的风景，写成自己的故事。").split(/\r?\n/);
       const block: TextBlock = {
         id,
         x,
@@ -175,14 +176,10 @@ export function createEditorStore(
         },
         content: {
           type: "doc",
-          content: [
-            {
-              type: "paragraph",
-              content: [
-                { type: "text", text: "把喜欢的风景，写成自己的故事。" },
-              ],
-            },
-          ],
+          content: lines.map((line) => ({
+            type: "paragraph",
+            content: line ? [{ type: "text", text: line }] : [],
+          })),
         },
       };
       store.transact((doc) => ({

@@ -18,6 +18,7 @@ import {
 } from "./features/Metadata";
 import { ResourcesPage } from "./features/Resources";
 import { TemplatesPage } from "./features/templates/TemplateList";
+import { CopyPage } from "./features/copy/CopyPage";
 import { navigate, usePath } from "./router";
 import { errorMessage } from "./api";
 import "./styles.css";
@@ -115,6 +116,8 @@ function AdminApp() {
         <ResourcesPage key="background" kind="background" />
       ) : path === "/admin/templates" ? (
         <TemplatesPage />
+      ) : path === "/admin/copy" ? (
+        <CopyPage />
       ) : path === "/admin/fonts" ? (
         <ResourcesPage key="font" kind="font" />
       ) : path === "/admin/jobs" ? (
