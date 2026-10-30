@@ -8,8 +8,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "verify": "pnpm typecheck && pnpm test && pnpm build",
-    "contracts:generate": "go run ./tools/contractgen"
+    "test:server": "go test ./server/... ./tools/...",
+    "verify": "pnpm contracts:check && pnpm typecheck && pnpm test && pnpm build",
+    "contracts:generate": "go run ./tools/contractgen",
+    "contracts:check": "bash tools/check-generated.sh"
   },
   "dependencies": {
     "@tanstack/react-query": "5.105.0",

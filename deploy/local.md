@@ -12,7 +12,9 @@
 
 真实 MySQL 测试：`python3 tools/test-integration.py`。可设置 `FASTPOSTER_TEST_MYSQL_DSN`；默认只从名为 fastposter 的业务 DSN 派生 fastposter_test_integration，Go 测试再次强制检查前缀。测试用户需能在 fastposter_test_* 范围创建/删除测试自身生成的独立数据库，不能使用已有业务 schema 做清理。
 
-接口生成：先将 `deploy/toolchain.lock.json` 指定版本的 hz、kitex、thriftgo 安装到 `.tools/bin`，然后 `pnpm contracts:generate`。此命令从 Thrift 同时更新 Hertz 模型、Kitex 客户端/服务端、TypeScript DTO 和路由元数据；生成文件不手改。
+接口生成：先将 `deploy/toolchain.lock.json` 指定版本的 hz、kitex、thriftgo 安装到 `.tools/bin`，然后 `pnpm contracts:generate`。此命令从 Thrift 同时更新 Hertz 模型、Kitex 客户端/服务端、TypeScript DTO 和路由元数据；生成文件不手改。`pnpm contracts:check` 会重新生成并比较文件集合和 SHA-256，`pnpm verify` 已包含该检查。
+
+交付前检查：`pnpm verify`（契约、typecheck、单元、构建）、`pnpm test:server`、`python3 tools/test-integration.py --all-server`、`pnpm test:e2e`。实际通过记录和未完成的人工验收见 [../docs/verification/acceptance.md](../docs/verification/acceptance.md)。
 
 初始化管理员：`go run ./server/cmd/admin-cli -username admin`，在交互提示中隐藏输入密码。自动化可使用 `-password-stdin`，不要将密码放到命令行参数中。不会生成公开默认密码；普通网页注册始终只能创建 user。
 
