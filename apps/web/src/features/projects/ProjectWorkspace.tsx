@@ -1,3 +1,4 @@
+import { ExportControls } from "../export/ExportDialog";
 import { useProjectAutosave } from "../editor/useProjectAutosave";
 import { SaveStatus } from "../editor/SaveStatus";
 import { ConflictDialog } from "../editor/ConflictDialog";
@@ -30,7 +31,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
         <Status tone="error">{errorMessage(query.error)}</Status>
       </main>
     );
-  if (!query.data)
+  if (!query.data || query.isFetching)
     return (
       <main className="simple-page">
         <Status>正在打开作品…</Status>
@@ -221,6 +222,17 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
           <Save size={15} />
           保存
         </Button>
+        <ExportControls
+          projectId={initial.id}
+          userId={user!.id}
+          flush={auto.flush}
+          overflow={overflow}
+          blocked={
+            auto.state.status === "blocked" ||
+            auto.state.status === "conflict" ||
+            !readyFonts.length
+          }
+        />
       </header>
       {(error || fontQuery.error) && (
         <Status tone="error">{error || errorMessage(fontQuery.error)}</Status>

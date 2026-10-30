@@ -7,6 +7,7 @@ import (
 	"fastposter/server/internal/app"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
+	"fastposter/server/internal/exports"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/transport"
@@ -58,7 +59,7 @@ func main() {
 	if e = images.BootstrapFonts(context.Background(), root); e != nil {
 		log.Fatal("builtin font initialization failed")
 	}
-	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.FontCatalogAdapter(accounts, images), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), Health: db.PingContext}, server.WithServiceAddr(addr))
+	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.FontCatalogAdapter(accounts, images), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, server.WithServiceAddr(addr))
 	if e = s.Run(); e != nil {
 		log.Fatal(e)
 	}

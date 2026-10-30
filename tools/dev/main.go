@@ -29,6 +29,13 @@ func run() error {
 	if e = os.MkdirAll(bin, 0700); e != nil {
 		return e
 	}
+	rendererBuild := exec.CommandContext(ctx, "pnpm", "--filter", "@fastposter/renderer", "build")
+	rendererBuild.Dir = root
+	rendererBuild.Stdout = os.Stdout
+	rendererBuild.Stderr = os.Stderr
+	if e = rendererBuild.Run(); e != nil {
+		return e
+	}
 	for _, name := range []string{"core", "gateway", "export-worker"} {
 		cmd := exec.CommandContext(ctx, "go", "build", "-o", filepath.Join(bin, name), "./server/cmd/"+name)
 		cmd.Dir = root

@@ -130,3 +130,15 @@ test("logoutClearsOnlyOwnDraft", async ({ page }) => {
   expect(users).not.toContain(me.user.id);
   expect(users).toContain("other-test-user");
 });
+test("reopening from the list loads the latest cloud revision before mounting the editor", async ({
+  page,
+}) => {
+  await openPoster(page, "reopen");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "返回作品", exact: true }).click();
+  await page.getByRole("link", { name: "编辑 editor", exact: true }).click();
+  await expect(page.locator("[data-text-block]")).toHaveCount(1);
+  await expect(page.getByRole("dialog", { name: "发现本地草稿" })).toHaveCount(
+    0,
+  );
+});

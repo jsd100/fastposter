@@ -6,6 +6,7 @@ import (
 	"fastposter/server/gen/kitex/core/coreservice"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
+	"fastposter/server/internal/exports"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/testutil"
@@ -50,7 +51,7 @@ func TestBrowserStack(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	coreServer := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.FontCatalogAdapter(accounts, images), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), Health: db.PingContext}, kserver.WithListener(rl))
+	coreServer := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.FontCatalogAdapter(accounts, images), ProjectsFunc: transport.ProjectsAdapter(accounts, projects.NewService(db, store)), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, kserver.WithListener(rl))
 	go coreServer.Run()
 	defer coreServer.Stop()
 	rpc, e := coreservice.NewClient("browser.core", client.WithHostPorts(rl.Addr().String()), client.WithRPCTimeout(75*time.Second))
@@ -73,6 +74,12 @@ func TestBrowserStack(t *testing.T) {
 		}
 		r.JSON(200, map[string]string{"status": "ok"})
 	})
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+	worker := exports.Worker{Service: exports.NewService(db, store, projects.NewService(db, store)), Renderer: &exports.Renderer{ChromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: t.TempDir(), ID: "browser-worker"}
+	workerDone := make(chan struct{})
+	go func() { defer close(workerDone); worker.Run(workerCtx) }()
+	defer func() { workerCancel(); <-workerDone }()
 	go h.Run()
 	defer h.Close()
 	cmd := exec.Command("pnpm", "exec", "vite", "apps/web", "--host", "127.0.0.1", "--port", "15173", "--strictPort", "--config", "apps/web/vite.config.ts")
