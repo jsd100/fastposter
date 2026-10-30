@@ -14,6 +14,12 @@
 
 接口生成：先将 `deploy/toolchain.lock.json` 指定版本的 hz、kitex、thriftgo 安装到 `.tools/bin`，然后 `pnpm contracts:generate`。此命令从 Thrift 同时更新 Hertz 模型、Kitex 客户端/服务端、TypeScript DTO 和路由元数据；生成文件不手改。
 
+初始化管理员：`go run ./server/cmd/admin-cli -username admin`，在交互提示中隐藏输入密码。自动化可使用 `-password-stdin`，不要将密码放到命令行参数中。不会生成公开默认密码；普通网页注册始终只能创建 user。
+
+账号密码至少 8 个字符。登录会话保存 30 天，退出、禁用和密码重置可撤销；数据库只保存会话散列。Redis 只提供可选限流，故障时降级到有界内存实现，不影响数据库中的会话读取。
+
+生产 HTTPS 配置必须设置 `COOKIE_SECURE=true`，并将 `APP_ORIGINS` 改为实际前端 HTTPS origin；本机默认允许 5173/5174/8080 的 localhost 和 127.0.0.1。修改配置后重启服务。
+
 APP_DATA_DIR 相对仓库根解析，默认 `var/data`，所有进程共享这一目录。私有文件只能经授权 HTTP 接口读取。
 
-当前仍在实施阶段：数据库迁移、管理员初始化与完整编辑流程会在相应任务完成后补全；health 路由验证 Hertz→Kitex 实际调用。
+当前仍在实施阶段：账号、数据库迁移和管理员初始化可用，完整海报编辑流程尚未接入；health 路由验证 Hertz→Kitex 实际调用和数据库连接。

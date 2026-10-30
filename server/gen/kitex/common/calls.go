@@ -7,8 +7,9 @@ import (
 )
 
 type CallContext struct {
-	RequestId    string `thrift:"requestId,1,required" frugal:"1,required,string" json:"requestId"`
-	SessionToken string `thrift:"sessionToken,2,required" frugal:"2,required,string" json:"sessionToken"`
+	RequestId    string  `thrift:"requestId,1,required" frugal:"1,required,string" json:"requestId"`
+	SessionToken string  `thrift:"sessionToken,2,required" frugal:"2,required,string" json:"sessionToken"`
+	PeerIp       *string `thrift:"peerIp,3,optional" frugal:"3,optional,string" json:"peerIp,omitempty"`
 }
 
 func NewCallContext() *CallContext {
@@ -25,11 +26,27 @@ func (p *CallContext) GetRequestId() (v string) {
 func (p *CallContext) GetSessionToken() (v string) {
 	return p.SessionToken
 }
+
+var CallContext_PeerIp_DEFAULT string
+
+func (p *CallContext) GetPeerIp() (v string) {
+	if !p.IsSetPeerIp() {
+		return CallContext_PeerIp_DEFAULT
+	}
+	return *p.PeerIp
+}
 func (p *CallContext) SetRequestId(val string) {
 	p.RequestId = val
 }
 func (p *CallContext) SetSessionToken(val string) {
 	p.SessionToken = val
+}
+func (p *CallContext) SetPeerIp(val *string) {
+	p.PeerIp = val
+}
+
+func (p *CallContext) IsSetPeerIp() bool {
+	return p.PeerIp != nil
 }
 
 func (p *CallContext) String() string {
@@ -42,6 +59,7 @@ func (p *CallContext) String() string {
 var fieldIDToName_CallContext = map[int16]string{
 	1: "requestId",
 	2: "sessionToken",
+	3: "peerIp",
 }
 
 type RPCReply struct {

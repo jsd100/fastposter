@@ -7,6 +7,7 @@ import (
 )
 
 type CoreHandler struct {
+	Health        func(context.Context) error
 	AuthFunc      func(context.Context, *common.AuthCall) (*common.RPCReply, error)
 	ProjectsFunc  func(context.Context, *common.ProjectCall) (*common.RPCReply, error)
 	AssetsFunc    func(context.Context, *common.AssetCall) (*common.RPCReply, error)
@@ -16,6 +17,11 @@ type CoreHandler struct {
 	AdminFunc     func(context.Context, *common.AdminCall) (*common.RPCReply, error)
 }
 
-func (*CoreHandler) Ping(_ context.Context, r *core.PingRequest) (*core.PingResponse, error) {
+func (h *CoreHandler) Ping(ctx context.Context, r *core.PingRequest) (*core.PingResponse, error) {
+	if h.Health != nil {
+		if e := h.Health(ctx); e != nil {
+			return nil, e
+		}
+	}
 	return &core.PingResponse{RequestId: r.RequestId, Message: "pong"}, nil
 }

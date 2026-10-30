@@ -25,4 +25,8 @@ if not test_dsn:
         sys.exit("Set FASTPOSTER_TEST_MYSQL_DSN to an independent fastposter_test_* database")
 environment = dict(os.environ, FASTPOSTER_TEST_MYSQL_DSN=test_dsn)
 args = sys.argv[1:] or ["-v"]
-sys.exit(subprocess.call(["go", "test", "./server/tests/integration", *args], cwd=root, env=environment))
+package = "./server/tests/integration"
+if args[0:1] == ["--all-server"]:
+    package = "./server/..."
+    args = args[1:] or ["-v"]
+sys.exit(subprocess.call(["go", "test", package, *args], cwd=root, env=environment))

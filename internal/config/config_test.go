@@ -32,3 +32,10 @@ func TestInvalidPortAndRootRejected(t *testing.T) {
 		}
 	}
 }
+
+func TestCookieSecurityAndAllowedOrigins(t *testing.T) {
+	c, e := Load(map[string]string{"MYSQL_DSN": "u:p@tcp(localhost:3306)/fastposter", "COOKIE_SECURE": "true", "APP_ORIGINS": "https://poster.example"}, t.TempDir())
+	if e != nil || !c.CookieSecure || len(c.AppOrigins) != 1 || c.AppOrigins[0] != "https://poster.example" {
+		t.Fatalf("security config not applied: %+v %v", c, e)
+	}
+}
