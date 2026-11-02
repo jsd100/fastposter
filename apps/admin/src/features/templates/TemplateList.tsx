@@ -354,7 +354,11 @@ export function TemplatesPage() {
               <Button type="button" onClick={() => setNewCategory(false)}>
                 取消
               </Button>
-              <Button variant="primary" busy={busy === "category"}>
+              <Button
+                variant="primary"
+                busy={busy === "category"}
+                type="submit"
+              >
                 保存分类
               </Button>
             </div>

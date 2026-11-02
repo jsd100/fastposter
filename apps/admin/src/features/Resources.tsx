@@ -239,7 +239,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
               <Button type="button" onClick={() => setNewCategory(false)}>
                 取消
               </Button>
-              <Button variant="primary" busy={busy}>
+              <Button variant="primary" busy={busy} type="submit">
                 保存分类
               </Button>
             </div>

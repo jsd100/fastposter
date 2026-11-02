@@ -72,7 +72,7 @@ export function PasswordPage() {
           required
         />
         {error && <Status tone="error">{error}</Status>}
-        <Button variant="primary" busy={busy}>
+        <Button variant="primary" busy={busy} type="submit">
           更新密码
         </Button>
       </form>

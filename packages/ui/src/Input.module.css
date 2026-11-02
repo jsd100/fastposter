@@ -1,0 +1,53 @@
+.text {
+  width: 100%;
+  height: var(--fp-height-field);
+  border: 1px solid var(--fp-line);
+  background: var(--fp-surface-soft);
+  border-radius: var(--fp-radius-control);
+  padding: 0 12px;
+  outline: none;
+  color: var(--fp-field-ink);
+  font-size: 13px;
+  min-width: 0;
+}
+.text:focus {
+  border-color: var(--fp-focus-line);
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
+}
+.text:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 96px;
+  border: 1px solid var(--fp-line);
+  background: var(--fp-surface-soft);
+  border-radius: var(--fp-radius-control);
+  padding: 11px 12px;
+  outline: none;
+  color: var(--fp-ink);
+  font-size: 13px;
+  line-height: 1.7;
+  min-width: 0;
+  resize: vertical;
+  font-family: inherit;
+}
+.textarea:focus {
+  border-color: #88a471;
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
+}
+
+.compact {
+  height: 36px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+@media (pointer: coarse) {
+  .text,
+  .textarea {
+    font-size: 16px;
+  }
+}

@@ -1,0 +1,11 @@
+.status {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status {
+    transition: none;
+  }
+}
