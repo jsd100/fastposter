@@ -59,8 +59,13 @@ test("closing the export dialog mid-flight reopens the same job and unlocks the 
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(dialog).toHaveCount(0);
 
-  const watch = page.getByRole("button", { name: "导出 PNG", exact: true });
-  await expect(watch).toContainText("查看导出");
+  // The button's accessible name follows its visible text, so while a job runs it
+  // never claims to start a second export.
+  await expect(
+    page.getByRole("button", { name: "导出 PNG", exact: true }),
+  ).toHaveCount(0);
+  const watch = page.getByRole("button", { name: "查看导出", exact: true });
+  await expect(watch).toBeVisible();
   await watch.click();
   await expect(dialog.getByText("正在排队")).toBeVisible();
   release();
