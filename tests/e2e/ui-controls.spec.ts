@@ -238,3 +238,126 @@ test("editor number fields keep drafts, bounds and Escape without touching the d
   await expect(second).toHaveCSS("letter-spacing", "9px");
   await expect(block).toHaveCSS("letter-spacing", `${shown}px`);
 });
+
+test("select inside the template dialog closes before its parent and restores focus", async ({
+  page,
+}) => {
+  await account(page, "ui_dialog_nested_" + Date.now().toString(36));
+  const opener = page.getByRole("button", { name: "模板库", exact: true });
+  await opener.click();
+  const picker = page.getByRole("dialog", { name: "模板库" });
+  await expect(picker).toBeVisible();
+
+  const trigger = selectTrigger(page, "模板分类");
+  await trigger.click();
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  await expect(picker.locator("[data-fp-popup]")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(listbox).toHaveCount(0);
+  await expect(picker).toBeVisible();
+  await expect(trigger).toBeFocused();
+
+  await chooseOption(page, "模板分类", "全部分类");
+  await expect(picker).toBeVisible();
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(picker).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
+
+test("modal dialog traps focus, locks page scroll and restores both after closing", async ({
+  page,
+}) => {
+  await account(page, "ui_dialog_trap_" + Date.now().toString(36));
+  await page.setViewportSize({ width: 430, height: 900 });
+  await page.evaluate(() => {
+    const spacer = document.createElement("div");
+    spacer.id = "scroll-spacer";
+    spacer.style.height = "3000px";
+    document.body.append(spacer);
+  });
+  const opener = page.getByRole("button", { name: "模板库", exact: true });
+  await opener.click();
+  const picker = page.getByRole("dialog", { name: "模板库" });
+  await expect(picker).toBeVisible();
+
+  const placed = (await picker.boundingBox())!;
+  expect(Math.round(placed.width)).toBe(402);
+  expect(Math.round(placed.x)).toBe(14);
+  expect(placed.height).toBeLessThanOrEqual(900 - 36);
+  expect(Math.abs(placed.y - (900 - placed.height) / 2)).toBeLessThanOrEqual(2);
+
+  const locked = await page.evaluate(() => ({
+    overflowY:
+      document.body.style.overflowY || document.documentElement.style.overflowY,
+    scrollbar: document.body.style.scrollbarGutter || "",
+  }));
+  expect(locked.overflowY).toMatch(/hidden|clip/);
+
+  // Scripted scrolling moves the page, but a fixed popup must stay centred.
+  await page.evaluate(() => window.scrollTo(0, 400));
+  const scrolled = (await picker.boundingBox())!;
+  expect(
+    Math.abs(scrolled.y - (900 - scrolled.height) / 2),
+  ).toBeLessThanOrEqual(2);
+
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const active = document.activeElement;
+          const popup = document.querySelector("[data-fp-overlay]");
+          return !!active && !!popup && popup.contains(active);
+        }),
+      )
+      .toBe(true);
+  }
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press("Shift+Tab");
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const active = document.activeElement;
+          const popup = document.querySelector("[data-fp-overlay]");
+          return !!active && !!popup && popup.contains(active);
+        }),
+      )
+      .toBe(true);
+  }
+
+  const anchor = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(5, 5);
+  await page.mouse.wheel(0, 400);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.scrollY)).toBe(anchor);
+
+  await page.keyboard.press("Escape");
+  await expect(picker).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  expect(
+    await page.evaluate(() => ({
+      bodyOverflowY: document.body.style.overflowY,
+      bodyOverflowX: document.body.style.overflowX,
+      htmlOverflowY: document.documentElement.style.overflowY,
+      padding: document.body.style.paddingRight,
+      margin: document.body.style.marginRight,
+      gutter: document.documentElement.style.scrollbarGutter,
+    })),
+  ).toEqual({
+    bodyOverflowY: "",
+    bodyOverflowX: "",
+    htmlOverflowY: "",
+    padding: "",
+    margin: "",
+    gutter: "",
+  });
+
+  const restored = await page.evaluate(() => window.scrollY);
+  await page.mouse.wheel(0, 400);
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(restored);
+});

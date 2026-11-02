@@ -38,3 +38,38 @@ test("flushes latest edits and previews the exact native PNG available for downl
       .digest("hex"),
   ).toBe(createHash("sha256").update(body).digest("hex"));
 });
+
+test("closing the export dialog mid-flight reopens the same job and unlocks the page", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await openPoster(page, "export_reopen");
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/v1/exports/*", async (route) => {
+    if (route.request().method() === "GET") await gate;
+    await route.continue();
+  });
+  const opener = page.getByRole("button", { name: "导出 PNG", exact: true });
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: "导出海报" });
+  await expect(dialog.getByText("正在排队")).toBeVisible();
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  const watch = page.getByRole("button", { name: "导出 PNG", exact: true });
+  await expect(watch).toContainText("查看导出");
+  await watch.click();
+  await expect(dialog.getByText("正在排队")).toBeVisible();
+  release();
+  await expect(
+    page.getByRole("link", { name: "下载原尺寸 PNG", exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => document.body.style.overflowY))
+    .toBe("");
+});

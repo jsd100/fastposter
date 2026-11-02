@@ -70,10 +70,6 @@
   max-height: calc(100dvh - 36px);
   overflow: auto;
 }
-.dialog::backdrop {
-  background: var(--fp-backdrop);
-  backdrop-filter: blur(2px);
-}
 .dialog-header {
   display: flex;
   align-items: center;
@@ -166,7 +162,6 @@
   }
 }
 .bottom-sheet {
-  margin: auto auto 0;
   width: min(100%, 560px);
   max-height: 72dvh;
   border-radius: var(--fp-radius-sheet) var(--fp-radius-sheet) 0 0;

@@ -1,61 +1,48 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import type { ReactElement, ReactNode } from "react";
+import styles from "./Dialog.module.css";
+
 export function Dialog({
   title,
   children,
   onClose,
   className = "",
+  align = "center",
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   className?: string;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const id = useId();
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const el = ref.current!;
-    el.showModal();
-    return () => {
-      el.close();
-      previous?.focus();
-    };
-  }, []);
+  align?: "center" | "bottom";
+}): ReactElement {
   return (
-    <dialog
-      ref={ref}
-      className={`dialog ${className}`}
-      data-fp-overlay=""
-      aria-labelledby={id}
-      onCancel={(e) => {
-        e.preventDefault();
-        onClose();
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          const r = e.currentTarget.getBoundingClientRect();
-          if (
-            e.clientX < r.left ||
-            e.clientX > r.right ||
-            e.clientY < r.top ||
-            e.clientY > r.bottom
-          )
-            onClose();
-        }
+    <DialogPrimitive.Root
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
       }}
     >
-      <div className="dialog-header">
-        <h2 id={id}>{title}</h2>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="关闭"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-      {children}
-    </dialog>
+      <DialogPrimitive.Portal>
+        <div className={styles.shell}>
+          <DialogPrimitive.Backdrop className={styles.backdrop} />
+          <DialogPrimitive.Popup
+            data-fp-overlay=""
+            className={`dialog ${align === "bottom" ? styles.bottom : styles.center} ${className}`}
+          >
+            <div className="dialog-header">
+              <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
+              <DialogPrimitive.Close
+                type="button"
+                className="icon-button"
+                aria-label="关闭"
+              >
+                ×
+              </DialogPrimitive.Close>
+            </div>
+            {children}
+          </DialogPrimitive.Popup>
+        </div>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

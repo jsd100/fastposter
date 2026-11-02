@@ -10,7 +10,12 @@ export function BottomSheet({
   onClose: () => void;
 }) {
   return (
-    <Dialog title={title} onClose={onClose} className="bottom-sheet">
+    <Dialog
+      title={title}
+      onClose={onClose}
+      className="bottom-sheet"
+      align="bottom"
+    >
       <div className="sheet-content">{children}</div>
     </Dialog>
   );

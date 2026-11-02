@@ -21,10 +21,7 @@ const EDITABLE_SELECTOR = 'input,textarea,select,[contenteditable="true"]';
 function isOverlayOpen(): boolean {
   if (typeof document === "undefined") return false;
   if (document.querySelector("[data-fp-popup]")) return true;
-  for (const overlay of document.querySelectorAll("[data-fp-overlay]")) {
-    if (overlay instanceof HTMLDialogElement ? overlay.open : true) return true;
-  }
-  return false;
+  return document.querySelector("[data-fp-overlay]") !== null;
 }
 
 export function shouldIgnoreEditorShortcut(event: KeyboardEvent): boolean {

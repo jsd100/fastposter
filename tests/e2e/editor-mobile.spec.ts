@@ -55,3 +55,65 @@ test("mobile bottom sheet styles selected text without horizontal overflow", asy
   await expect(block).toHaveAttribute("data-x", x!);
   await expect(block).toHaveAttribute("data-y", y!);
 });
+
+test("bottom sheet font menu stays inside the viewport and keeps the selection", async ({
+  page,
+}) => {
+  await openPoster(page, "mobilesheet");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  const openSheet = page.getByRole("button", { name: "文字设置", exact: true });
+  await openSheet.click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await expect(sheet).toBeVisible();
+
+  const sheetBox = (await sheet.boundingBox())!;
+  expect(Math.round(sheetBox.y + sheetBox.height)).toBe(800);
+  expect(sheetBox.x).toBe(0);
+  expect(Math.round(sheetBox.width)).toBe(360);
+  expect(await sheet.evaluate((el) => getComputedStyle(el).paddingBottom)).toBe(
+    "24px",
+  );
+
+  const font = sheet.getByLabel("文字字体", { exact: true });
+  await font.click();
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  await expect(sheet.locator("[data-fp-popup]")).toHaveCount(1);
+  const box = (await listbox.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(360);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(360);
+
+  await listbox.getByRole("option", { name: "Inter", exact: true }).click();
+  await expect(listbox).toHaveCount(0);
+  await expect(sheet).toBeVisible();
+
+  // The page behind a modal dialog is hidden from the accessibility tree, so the
+  // live editor DOM is read here rather than through a role query.
+  const scenery = page.locator('span[data-font-id="builtin-inter-400"]');
+  await expect(scenery).toHaveCount(1);
+  await expect(scenery).toHaveText("风景");
+  await sheet.getByLabel("文字字号", { exact: true }).fill("80");
+  await expect(scenery).toHaveCSS("font-size", "80px");
+
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(openSheet).toBeFocused();
+  await expect(input).toContainText("你好风景世界");
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  const block = page.locator("[data-text-block]").first();
+  await expect(block.getByText("风景", { exact: true })).toHaveCSS(
+    "font-size",
+    "80px",
+  );
+  await expect(block.getByText("你好", { exact: true })).toHaveCSS(
+    "font-size",
+    "64px",
+  );
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(360);
+});
