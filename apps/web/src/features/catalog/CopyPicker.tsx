@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type ResourceDTO } from "@fastposter/api-client";
-import { Dialog, Status } from "@fastposter/ui";
+import { Button, Dialog, Status } from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
+
+const PAGE_SIZE = 50;
 
 type CategoryNode = ResourceDTO & { children: CategoryNode[] };
 
@@ -36,15 +38,25 @@ export function CopyPicker({
 }) {
   const { user } = useSession();
   const [keyword, setKeyword] = useState(""),
+    [page, setPage] = useState(1),
     [path, setPath] = useState<string[]>([]);
   const categories = useQuery({
     queryKey: ["copy-categories", user!.id],
-    queryFn: () =>
-      request(routes.ListCatalog, {
-        kind: "copy-category",
-        page: 1,
-        pageSize: 100,
-      }),
+    queryFn: async () => {
+      const resources: ResourceDTO[] = [];
+      let total = 0;
+      for (let page = 1; page <= 1000; page++) {
+        const reply = await request(routes.ListCatalog, {
+          kind: "copy-category",
+          page,
+          pageSize: 100,
+        });
+        total = reply.total;
+        resources.push(...reply.resources);
+        if (resources.length >= total || reply.resources.length === 0) break;
+      }
+      return { resources, total };
+    },
     retry: false,
     staleTime: 60_000,
   });
@@ -65,12 +77,12 @@ export function CopyPicker({
   }
   const selected = path.length ? path[path.length - 1] : "";
   const copies = useQuery({
-    queryKey: ["copies", user!.id, selected, keyword],
+    queryKey: ["copies", user!.id, selected, keyword, page],
     queryFn: () =>
       request(routes.ListCatalog, {
         kind: "copy",
-        page: 1,
-        pageSize: 50,
+        page,
+        pageSize: PAGE_SIZE,
         categoryId: selected || undefined,
         keyword: keyword || undefined,
       }),
@@ -86,7 +98,10 @@ export function CopyPicker({
           aria-label="搜索文案"
           placeholder="搜索文案标题或内容"
           value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
+          onChange={(e) => {
+            setKeyword(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
       {categories.error && (
@@ -100,13 +115,15 @@ export function CopyPicker({
               key={depth}
               aria-label={`文案分类第${depth + 1}级`}
               value={path[depth] ?? ""}
-              onChange={(e) =>
+              onChange={(e) => {
+                const value = e.target.value;
                 setPath((previous) =>
-                  e.target.value
-                    ? [...previous.slice(0, depth), e.target.value]
+                  value
+                    ? [...previous.slice(0, depth), value]
                     : previous.slice(0, depth),
-                )
-              }
+                );
+                setPage(1);
+              }}
             >
               <option value="">
                 {depth === 0 ? "全部分类" : `第 ${depth + 1} 级分类`}
@@ -141,6 +158,20 @@ export function CopyPicker({
         <p className="picker-empty">
           {selected ? "该分类暂无已发布文案。" : "暂无已发布文案。"}
         </p>
+      )}
+      {(copies.data?.total ?? 0) > PAGE_SIZE && (
+        <div className="pagination">
+          <Button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+            上一页
+          </Button>
+          <span>{page}</span>
+          <Button
+            disabled={page * PAGE_SIZE >= (copies.data?.total ?? 0)}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            下一页
+          </Button>
+        </div>
       )}
     </Dialog>
   );

@@ -61,6 +61,14 @@ test("administrator maintains a five-level copy tree; users cascade, search, ins
     categoryId: level5,
     published: false,
   });
+  const pagedCategory = await createCategory(admin, "分页文案");
+  for (let i = 1; i <= 55; i++)
+    await createCopy(admin, {
+      title: `分页文案 ${String(i).padStart(2, "0")}`,
+      body: `分页内容 ${i}`,
+      categoryId: pagedCategory,
+      published: true,
+    });
 
   await admin.getByRole("link", { name: "文案库", exact: true }).click();
   await expect(admin).toHaveURL(/\/admin\/copy$/);
@@ -191,5 +199,25 @@ test("administrator maintains a five-level copy tree; users cascade, search, ins
   );
   await page.getByRole("button", { name: "保存作品", exact: true }).click();
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "文案", exact: true }).click();
+  const paged = page.getByRole("dialog", { name: "文案库" });
+  await paged
+    .getByLabel("文案分类第1级", { exact: true })
+    .selectOption({ label: "分页文案" });
+  await expect(
+    paged.getByRole("button", { name: /使用文案 分页文案/ }),
+  ).toHaveCount(50);
+  await expect(
+    paged.getByRole("button", { name: "下一页", exact: true }),
+  ).toBeEnabled();
+  await paged.getByRole("button", { name: "下一页", exact: true }).click();
+  await expect(
+    paged.getByRole("button", { name: /使用文案 分页文案/ }),
+  ).toHaveCount(5);
+  await expect(
+    paged.getByRole("button", { name: "下一页", exact: true }),
+  ).toBeDisabled();
+  await paged.getByRole("button", { name: "关闭", exact: true }).click();
   await adminContext.close();
 });
