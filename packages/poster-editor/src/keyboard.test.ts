@@ -5,7 +5,7 @@ const quiet: ShortcutContext = {
   defaultPrevented: false,
   isComposing: false,
   editableTarget: false,
-  interactiveTarget: false,
+  pickerTarget: false,
   overlayOpen: false,
 };
 

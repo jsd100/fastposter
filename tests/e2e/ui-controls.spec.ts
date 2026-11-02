@@ -461,3 +461,20 @@ test("the undo hint stays readable without becoming the only name", async ({
   await expect(tip).toBeVisible();
   await expect(tip).toContainText("Ctrl/⌘ Z");
 });
+
+test("a click that leaves focus on a toolbar button keeps the editor shortcuts", async ({
+  page,
+}) => {
+  await openPoster(page, "ui_shortcut");
+  const blocks = page.locator("[data-text-block]");
+  await expect(blocks).toHaveCount(1);
+
+  const add = page.getByRole("button", { name: "添加文字", exact: true });
+  await add.click();
+  await expect(blocks).toHaveCount(2);
+  await expect(add).toBeFocused();
+  await page.keyboard.press("Delete");
+  await expect(blocks).toHaveCount(1);
+  await page.keyboard.press("Control+z");
+  await expect(blocks).toHaveCount(2);
+});
