@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
+import { chooseOption, selectTrigger, selectValue } from "./helpers";
 
 async function loginAdmin(page: Page) {
   await page.goto("http://127.0.0.1:15174/admin/login");
@@ -79,7 +80,7 @@ test("administrator maintains a five-level copy tree; users cascade, search, ins
   await form
     .getByLabel("文案正文", { exact: true })
     .fill("秋季上新，限时八折。");
-  await form.getByLabel("文案分类", { exact: true }).selectOption(level5);
+  await chooseOption(admin, "文案分类", "门店落款");
   await form.getByLabel("发布文案", { exact: true }).check();
   await form.getByRole("button", { name: "保存文案", exact: true }).click();
   const created = admin
@@ -111,23 +112,33 @@ test("administrator maintains a five-level copy tree; users cascade, search, ins
 
   await page.getByRole("button", { name: "文案", exact: true }).click();
   const picker = page.getByRole("dialog", { name: "文案库" });
-  await picker
-    .getByLabel("文案分类第1级", { exact: true })
-    .selectOption({ label: "季节主题" });
-  await picker
-    .getByLabel("文案分类第2级", { exact: true })
-    .selectOption({ label: "秋季场景" });
-  await picker
-    .getByLabel("文案分类第3级", { exact: true })
-    .selectOption({ label: "促销风格" });
-  await picker
-    .getByLabel("文案分类第4级", { exact: true })
-    .selectOption({ label: "正式语气" });
+  await chooseOption(page, "文案分类第1级", "季节主题");
+  await chooseOption(page, "文案分类第2级", "秋季场景");
+  await chooseOption(page, "文案分类第3级", "促销风格");
+  await chooseOption(page, "文案分类第4级", "正式语气");
   await expect(picker.getByText("该分类暂无已发布文案。")).toBeVisible();
-  await picker
-    .getByLabel("文案分类第5级", { exact: true })
-    .selectOption({ label: "门店落款" });
+  await chooseOption(page, "文案分类第5级", "门店落款");
   await expect(picker.getByText("夏日回顾", { exact: true })).toBeVisible();
+
+  await chooseOption(page, "文案分类第1级", "分页文案");
+  await expect(picker.getByLabel("文案分类第2级", { exact: true })).toHaveCount(
+    0,
+  );
+  await chooseOption(page, "文案分类第1级", "季节主题");
+  await expect(selectValue(page, "文案分类第2级")).toHaveText("第 2 级分类");
+  await expect(picker.getByLabel("文案分类第3级", { exact: true })).toHaveCount(
+    0,
+  );
+  await chooseOption(page, "文案分类第2级", "秋季场景");
+  await expect(selectValue(page, "文案分类第3级")).toHaveText("第 3 级分类");
+
+  await chooseOption(page, "文案分类第1级", "全部分类");
+  await expect(selectTrigger(page, "文案分类第1级")).toHaveCount(1);
+  await picker.getByLabel("搜索文案", { exact: true }).fill("夏日回顾");
+  await expect(
+    picker.getByRole("button", { name: "使用文案 夏日回顾", exact: true }),
+  ).toBeVisible();
+  await picker.getByLabel("搜索文案", { exact: true }).fill("");
   await picker.getByLabel("搜索文案", { exact: true }).fill("秋季");
   await expect(
     picker.getByRole("button", { name: "使用文案 秋季上新", exact: true }),
@@ -136,7 +147,9 @@ test("administrator maintains a five-level copy tree; users cascade, search, ins
     picker.getByRole("button", { name: "使用文案 夏日回顾", exact: true }),
   ).toHaveCount(0);
   await picker.getByLabel("搜索文案", { exact: true }).fill("隐藏");
-  await expect(picker.getByText("该分类暂无已发布文案。")).toBeVisible();
+  await expect(
+    picker.getByText("暂无已发布文案。", { exact: true }),
+  ).toBeVisible();
   await picker.getByLabel("搜索文案", { exact: true }).fill("");
   await picker
     .getByRole("button", { name: "使用文案 秋季上新", exact: true })
@@ -202,9 +215,7 @@ test("administrator maintains a five-level copy tree; users cascade, search, ins
 
   await page.getByRole("button", { name: "文案", exact: true }).click();
   const paged = page.getByRole("dialog", { name: "文案库" });
-  await paged
-    .getByLabel("文案分类第1级", { exact: true })
-    .selectOption({ label: "分页文案" });
+  await chooseOption(page, "文案分类第1级", "分页文案");
   await expect(
     paged.getByRole("button", { name: /使用文案 分页文案/ }),
   ).toHaveCount(50);

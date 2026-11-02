@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type AssetDTO } from "@fastposter/api-client";
-import { Button, Dialog, Status } from "@fastposter/ui";
+import { Button, Dialog, Select, Status } from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
 export function BackgroundPicker({
@@ -51,21 +51,21 @@ export function BackgroundPicker({
             setPage(1);
           }}
         />
-        <select
+        <Select
           aria-label="预设背景分类"
           value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
+          onValueChange={(value) => {
+            setCategory(value);
             setPage(1);
           }}
-        >
-          <option value="">全部分类</option>
-          {categories.data?.resources.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.title}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "全部分类" },
+            ...(categories.data?.resources.map((r) => ({
+              value: r.id,
+              label: r.title,
+            })) ?? []),
+          ]}
+        />
       </div>
       {q.error && <Status tone="error">{errorMessage(q.error)}</Status>}
       <div className="background-picker-grid">

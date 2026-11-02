@@ -28,6 +28,8 @@
   --fp-backdrop: #23352266;
   --fp-dialog-shadow: #2b3c2733;
   --fp-radius-icon: 5px;
+  --fp-radius-select: 5px;
+  --fp-radius-menu: 10px;
   --fp-radius-control: 6px;
   --fp-radius-dialog: 12px;
   --fp-radius-sheet: 16px;

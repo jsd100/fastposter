@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { ResourceDTO } from "@fastposter/api-client";
 import { routes } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Status } from "@fastposter/ui";
+import { Button, Dialog, FormField, Select, Status } from "@fastposter/ui";
 import { errorMessage, request } from "../../api";
 import { flattenCategories } from "./CategoryTree";
 
@@ -103,19 +103,18 @@ export function CategoryForm({
         />
         <label className="form-field">
           上级分类
-          <select
+          <Select
             aria-label="上级分类"
             value={parent}
-            onChange={(e) => setParent(e.target.value)}
-          >
-            <option value="">无（一级分类）</option>
-            {options.map(({ node, depth }) => (
-              <option key={node.id} value={node.id}>
-                {"　".repeat(depth)}
-                {node.title}
-              </option>
-            ))}
-          </select>
+            onValueChange={setParent}
+            options={[
+              { value: "", label: "无（一级分类）" },
+              ...options.map(({ node, depth }) => ({
+                value: node.id,
+                label: "　".repeat(depth) + node.title,
+              })),
+            ]}
+          />
         </label>
         <FormField
           label="分类排序"
@@ -262,19 +261,18 @@ export function CopyForm({
         </label>
         <label className="form-field">
           文案分类
-          <select
+          <Select
             aria-label="文案分类"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <option value="">未分类</option>
-            {options.map(({ node, depth }) => (
-              <option key={node.id} value={node.id}>
-                {"　".repeat(depth)}
-                {node.title}
-              </option>
-            ))}
-          </select>
+            onValueChange={setCategory}
+            options={[
+              { value: "", label: "未分类" },
+              ...options.map(({ node, depth }) => ({
+                value: node.id,
+                label: "　".repeat(depth) + node.title,
+              })),
+            ]}
+          />
         </label>
         <FormField
           label="文案排序"

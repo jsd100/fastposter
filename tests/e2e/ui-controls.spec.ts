@@ -1,4 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+import {
+  chooseOption,
+  openPoster,
+  selectTrigger,
+  selectValue,
+} from "./helpers";
 
 const password = "a secure test password";
 
@@ -58,4 +64,114 @@ test("password form submits explicitly and secondary actions do not submit", asy
     .fill("a brand new test password");
   await page.getByRole("button", { name: "登录", exact: true }).click();
   await expect(page).toHaveURL(/\/projects$/);
+});
+
+test("catalog selects support keyboard selection and Escape", async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await admin.goto("http://127.0.0.1:15174/admin/login");
+  await admin.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+  await admin
+    .getByLabel("密码", { exact: true })
+    .fill("fastposter-test-only-password");
+  await admin
+    .getByRole("button", { name: "登录管理后台", exact: true })
+    .click();
+  await expect(admin).toHaveURL(/\/admin\/overview$/);
+
+  async function createCategory(title: string) {
+    const response = await admin.request.post(
+      "http://127.0.0.1:15174/api/v1/admin/resources",
+      { data: { kind: "copy-category", title, published: true } },
+    );
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).resource.id as string;
+  }
+  async function createCopy(title: string, categoryId: string) {
+    const response = await admin.request.post(
+      "http://127.0.0.1:15174/api/v1/admin/resources",
+      {
+        data: {
+          kind: "copy",
+          title,
+          body: `${title}的正文内容。`,
+          categoryId,
+          published: true,
+        },
+      },
+    );
+    expect(response.ok()).toBeTruthy();
+  }
+  const keyboard = await createCategory("键盘可选分类");
+  const other = await createCategory("另一分类");
+  const longNames: string[] = [];
+  for (let index = 1; index <= 25; index++) {
+    const title = `超长文案分类名称用于验证触发器文本截断与下拉菜单滚动效果第二十五组序号${index}号`;
+    longNames.push(title);
+    await createCategory(title);
+  }
+  await createCopy("键盘文案", keyboard);
+  await createCopy("另一文案", other);
+
+  await page.setViewportSize({ width: 430, height: 900 });
+  await openPoster(page, "ui_selects");
+  await page.getByRole("button", { name: "文案", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "文案库" });
+  const first = selectTrigger(page, "文案分类第1级");
+  await expect(selectValue(page, "文案分类第1级")).toHaveText("全部分类");
+  await expect(
+    picker.getByRole("button", { name: "使用文案 键盘文案", exact: true }),
+  ).toBeVisible();
+  await expect(
+    picker.getByRole("button", { name: "使用文案 另一文案", exact: true }),
+  ).toBeVisible();
+
+  await chooseOption(page, "文案分类第1级", "键盘可选分类");
+  await expect(
+    picker.getByRole("button", { name: "使用文案 键盘文案", exact: true }),
+  ).toBeVisible();
+  await expect(
+    picker.getByRole("button", { name: "使用文案 另一文案", exact: true }),
+  ).toHaveCount(0);
+  await chooseOption(page, "文案分类第1级", "全部分类");
+  await expect(
+    picker.getByRole("button", { name: "使用文案 另一文案", exact: true }),
+  ).toBeVisible();
+
+  const last = longNames[longNames.length - 1];
+  await chooseOption(page, "文案分类第1级", last);
+  const truncation = await selectValue(page, "文案分类第1级").evaluate(
+    (el) => ({
+      clipped: el.scrollWidth > el.clientWidth,
+      overflow: getComputedStyle(el).textOverflow,
+    }),
+  );
+  expect(truncation.clipped).toBeTruthy();
+  expect(truncation.overflow).toBe("ellipsis");
+  await chooseOption(page, "文案分类第1级", "全部分类");
+
+  await first.click();
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  const scrollable = await listbox.evaluate(
+    (el) => el.scrollHeight > el.clientHeight,
+  );
+  expect(scrollable).toBeTruthy();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(listbox).toHaveCount(0);
+  const afterEnter = await selectValue(page, "文案分类第1级").innerText();
+  expect(afterEnter).not.toBe("全部分类");
+
+  await first.click();
+  await expect(listbox).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Escape");
+  await expect(listbox).toHaveCount(0);
+  await expect(selectValue(page, "文案分类第1级")).toHaveText(afterEnter);
+  await adminContext.close();
 });

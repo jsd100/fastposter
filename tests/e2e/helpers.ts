@@ -31,3 +31,29 @@ export async function selectScenery(page: Page) {
     .toBe("风景");
   return input;
 }
+export function selectTrigger(page: Page, label: string) {
+  return page.getByLabel(label, { exact: true });
+}
+export function selectValue(page: Page, label: string) {
+  return selectTrigger(page, label).locator("[data-fp-select-value]");
+}
+export async function chooseOption(
+  page: Page,
+  label: string,
+  optionLabel: string,
+) {
+  const trigger = selectTrigger(page, label);
+  await expect(trigger).toBeEnabled();
+  await trigger.click();
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  await listbox.getByRole("option", { name: optionLabel, exact: true }).click();
+  await expect(listbox).toHaveCount(0);
+  await expect(trigger).toHaveText(optionLabel);
+}
+export async function showOpenOptions(page: Page, label: string) {
+  const trigger = selectTrigger(page, label);
+  await trigger.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  return page.getByRole("listbox");
+}

@@ -6,7 +6,7 @@ import {
   type ResourceDTO,
   type ResourceReply,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Status } from "@fastposter/ui";
+import { Button, Dialog, FormField, Select, Status } from "@fastposter/ui";
 import {
   loadFonts,
   PosterThumbnail,
@@ -204,21 +204,21 @@ export function TemplatesPage() {
             setPage(1);
           }}
         />
-        <select
+        <Select
           aria-label="筛选模板分类"
           value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
+          onValueChange={(value) => {
+            setCategory(value);
             setPage(1);
           }}
-        >
-          <option value="">全部分类</option>
-          {categories.data?.resources.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.title}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "全部分类" },
+            ...(categories.data?.resources.map((r) => ({
+              value: r.id,
+              label: r.title,
+            })) ?? []),
+          ]}
+        />
         <Button onClick={() => setNewCategory(true)}>添加分类</Button>
       </div>
       {(error || q.error) && (

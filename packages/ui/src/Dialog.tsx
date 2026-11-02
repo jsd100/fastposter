@@ -25,6 +25,7 @@ export function Dialog({
     <dialog
       ref={ref}
       className={`dialog ${className}`}
+      data-fp-overlay=""
       aria-labelledby={id}
       onCancel={(e) => {
         e.preventDefault();

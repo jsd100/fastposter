@@ -7,7 +7,7 @@ import {
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, FormField, Status } from "@fastposter/ui";
+import { Button, FormField, Select, Status } from "@fastposter/ui";
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
 import {
   loadFonts,
@@ -204,18 +204,18 @@ export function TemplateEditor({
             maxLength={120}
             onChange={(e) => setTitle(e.target.value)}
           />
-          <select
+          <Select
             aria-label="模板分类"
             value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-          >
-            <option value="">未分类</option>
-            {categories.data?.resources.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.title}
-              </option>
-            ))}
-          </select>
+            onValueChange={setCategoryId}
+            options={[
+              { value: "", label: "未分类" },
+              ...(categories.data?.resources.map((r) => ({
+                value: r.id,
+                label: r.title,
+              })) ?? []),
+            ]}
+          />
           <label className="template-sort">
             排序
             <input

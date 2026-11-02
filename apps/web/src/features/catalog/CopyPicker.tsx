@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type ResourceDTO } from "@fastposter/api-client";
-import { Button, Dialog, Status } from "@fastposter/ui";
+import { Button, Dialog, Select, Status } from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
 
@@ -110,13 +110,12 @@ export function CopyPicker({
       {categories.isPending && <Status>正在加载文案分类…</Status>}
       {levels.length > 0 && (
         <div className="copy-category-path">
-          {levels.map((options, depth) => (
-            <select
+          {levels.map((nodes, depth) => (
+            <Select
               key={depth}
               aria-label={`文案分类第${depth + 1}级`}
               value={path[depth] ?? ""}
-              onChange={(e) => {
-                const value = e.target.value;
+              onValueChange={(value) => {
                 setPath((previous) =>
                   value
                     ? [...previous.slice(0, depth), value]
@@ -124,16 +123,17 @@ export function CopyPicker({
                 );
                 setPage(1);
               }}
-            >
-              <option value="">
-                {depth === 0 ? "全部分类" : `第 ${depth + 1} 级分类`}
-              </option>
-              {options.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.title}
-                </option>
-              ))}
-            </select>
+              options={[
+                {
+                  value: "",
+                  label: depth === 0 ? "全部分类" : `第 ${depth + 1} 级分类`,
+                },
+                ...nodes.map((node) => ({
+                  value: node.id,
+                  label: node.title,
+                })),
+              ]}
+            />
           ))}
         </div>
       )}

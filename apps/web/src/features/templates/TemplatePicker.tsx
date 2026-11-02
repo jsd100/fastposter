@@ -6,7 +6,7 @@ import {
   type ProjectReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, Dialog, Status } from "@fastposter/ui";
+import { Button, Dialog, Select, Status } from "@fastposter/ui";
 import {
   loadFonts,
   PosterThumbnail,
@@ -159,21 +159,21 @@ export function TemplatePicker({
             setPage(1);
           }}
         />
-        <select
+        <Select
           aria-label="模板分类"
           value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
+          onValueChange={(value) => {
+            setCategory(value);
             setPage(1);
           }}
-        >
-          <option value="">全部分类</option>
-          {categories.data?.resources.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.title}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "全部分类" },
+            ...(categories.data?.resources.map((r) => ({
+              value: r.id,
+              label: r.title,
+            })) ?? []),
+          ]}
+        />
         <Button
           disabled={busy !== ""}
           onClick={() => file.current?.click()}

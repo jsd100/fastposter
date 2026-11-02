@@ -7,7 +7,7 @@ import {
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Status } from "@fastposter/ui";
+import { Button, Dialog, FormField, Select, Status } from "@fastposter/ui";
 import { Plus, ImagePlus, Type } from "lucide-react";
 import { request, errorMessage } from "../api";
 import { Pager } from "./Metadata";
@@ -109,21 +109,21 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
             setPage(1);
           }}
         />
-        <select
+        <Select
           aria-label="筛选素材分类"
           value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
+          onValueChange={(value) => {
+            setCategory(value);
             setPage(1);
           }}
-        >
-          <option value="">全部分类</option>
-          {categories.data?.resources.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.title}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "全部分类" },
+            ...(categories.data?.resources.map((r) => ({
+              value: r.id,
+              label: r.title,
+            })) ?? []),
+          ]}
+        />
         <Button onClick={() => setNewCategory(true)}>添加分类</Button>
       </div>
       {(error || q.error) && (
@@ -336,18 +336,15 @@ function ResourceForm({
         />
         <label className="form-field">
           素材分类
-          <select
+          <Select
             aria-label="素材分类"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <option value="">未分类</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
+            onValueChange={setCategory}
+            options={[
+              { value: "", label: "未分类" },
+              ...categories.map((c) => ({ value: c.id, label: c.title })),
+            ]}
+          />
         </label>
         <FormField
           label="排序"
@@ -370,30 +367,28 @@ function ResourceForm({
             <div className="admin-form-row">
               <label className="form-field">
                 字重
-                <select
+                <Select
                   aria-label="字体字重"
                   value={weight}
-                  onChange={(e) => setWeight(Number(e.target.value))}
+                  onValueChange={setWeight}
                   disabled={!!resource && !file}
-                >
-                  {[100, 200, 300, 400, 500, 600, 700, 800, 900].map((w) => (
-                    <option key={w} value={w}>
-                      {w}
-                    </option>
-                  ))}
-                </select>
+                  options={[100, 200, 300, 400, 500, 600, 700, 800, 900].map(
+                    (w) => ({ value: w, label: String(w) }),
+                  )}
+                />
               </label>
               <label className="form-field">
                 样式
-                <select
+                <Select
                   aria-label="字体样式"
                   value={style}
-                  onChange={(e) => setStyle(e.target.value)}
+                  onValueChange={setStyle}
                   disabled={!!resource && !file}
-                >
-                  <option value="normal">正常</option>
-                  <option value="italic">斜体</option>
-                </select>
+                  options={[
+                    { value: "normal", label: "正常" },
+                    { value: "italic", label: "斜体" },
+                  ]}
+                />
               </label>
             </div>
           </>

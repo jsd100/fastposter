@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
+import { chooseOption, selectValue } from "./helpers";
 
 async function loginAdmin(page: Page) {
   await page.goto("http://127.0.0.1:15174/admin/login");
@@ -8,9 +9,7 @@ async function loginAdmin(page: Page) {
   await page
     .getByLabel("密码", { exact: true })
     .fill("fastposter-test-only-password");
-  await page
-    .getByRole("button", { name: "登录管理后台", exact: true })
-    .click();
+  await page.getByRole("button", { name: "登录管理后台", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/overview$/);
 }
 
@@ -37,12 +36,20 @@ test("administrator publishes a template, user applies and re-imports an indepen
   browser,
   page,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
+  const longCategory = "限时特惠活动模板分类名称超长用于验证触发器截断";
   const adminContext = await browser.newContext();
   const admin = await adminContext.newPage();
   await loginAdmin(admin);
   await admin.getByRole("link", { name: "模板", exact: true }).click();
   await expect(admin).toHaveURL(/\/admin\/templates$/);
+  const categoryReply = await admin.request.post(
+    "http://127.0.0.1:15174/api/v1/admin/resources",
+    {
+      data: { kind: "template-category", title: longCategory, published: true },
+    },
+  );
+  expect(categoryReply.ok()).toBeTruthy();
   await admin.getByRole("button", { name: "新建模板", exact: true }).click();
   const editor = admin.getByRole("dialog", { name: "模板编辑器" });
   await editor
@@ -54,13 +61,12 @@ test("administrator publishes a template, user applies and re-imports an indepen
   await editor.getByLabel("模板名称", { exact: true }).fill("限时特惠模板");
   await editor.getByRole("button", { name: "添加文字", exact: true }).click();
   await editor.getByRole("button", { name: "编辑文字", exact: true }).click();
-  await editor
-    .getByRole("textbox", { name: "海报文字编辑" })
-    .fill("限时特惠");
+  await editor.getByRole("textbox", { name: "海报文字编辑" }).fill("限时特惠");
   await editor
     .getByRole("button", { name: "完成文字编辑", exact: true })
     .click();
   await editor.getByLabel("发布模板", { exact: true }).check();
+  await chooseOption(admin, "模板分类", longCategory);
   await expect(
     editor.getByRole("button", { name: "保存模板", exact: true }),
   ).toBeEnabled({ timeout: 15_000 });
@@ -77,6 +83,11 @@ test("administrator publishes a template, user applies and re-imports an indepen
   const templateCard = picker
     .locator(".template-card")
     .filter({ hasText: "限时特惠模板" });
+  await expect(templateCard).toBeVisible({ timeout: 20_000 });
+  await chooseOption(page, "模板分类", longCategory);
+  await expect(selectValue(page, "模板分类")).toHaveText(longCategory);
+  await expect(templateCard).toBeVisible({ timeout: 15_000 });
+  await chooseOption(page, "模板分类", "全部分类");
   await expect(templateCard).toBeVisible({ timeout: 15_000 });
   const applyButton = templateCard.getByRole("button", {
     name: "使用模板",
@@ -91,9 +102,7 @@ test("administrator publishes a template, user applies and re-imports an indepen
   await expect(page.locator("[data-text-block]")).toHaveText("限时特惠");
 
   await adminCard.getByRole("button", { name: "下架", exact: true }).click();
-  await expect(
-    adminCard.getByText("已下架", { exact: true }),
-  ).toBeVisible();
+  await expect(adminCard.getByText("已下架", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator("[data-text-block]")).toHaveText("限时特惠");
   await page.getByRole("button", { name: "导出 PNG", exact: true }).click();
@@ -126,9 +135,7 @@ test("administrator publishes a template, user applies and re-imports an indepen
   await expect(page.locator("[data-text-block]")).toHaveText("限时特惠");
 
   const adminDownload = admin.waitForEvent("download");
-  await adminCard
-    .getByRole("button", { name: "导出", exact: true })
-    .click();
+  await adminCard.getByRole("button", { name: "导出", exact: true }).click();
   const adminPackage = await adminDownload;
   expect(adminPackage.suggestedFilename()).toMatch(/\.zip$/);
   const adminPackagePath = await adminPackage.path();
