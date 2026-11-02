@@ -125,10 +125,8 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
   await expect(selectValue(admin, "字体字重")).toHaveText("500");
   await admin.getByRole("button", { name: "取消", exact: true }).click();
   await openPoster(page, "font");
-  await page
-    .getByLabel("文字字体", { exact: true })
-    .selectOption({ label: "Test Inter" });
-  await expect(page.getByLabel("文字字重", { exact: true })).toHaveValue("500");
+  await chooseOption(page, "文字字体", "Test Inter");
+  await expect(selectValue(page, "文字字重")).toHaveText("500");
   await expect(
     page.getByRole("alert").filter({ hasText: "缺少字形" }),
   ).toBeVisible();

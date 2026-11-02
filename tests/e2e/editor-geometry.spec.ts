@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
+import { chooseOption, selectValue } from "./helpers";
 async function editor(page: Page) {
   const name = "geometry_" + Date.now().toString(36);
   await page.goto("/register");
@@ -27,7 +28,8 @@ test("drag, width wrap, natural height and one-step geometry history", async ({
   const block = page.locator("[data-text-block]").first();
   const first = await block.boundingBox();
   expect(first).toBeTruthy();
-  await page.getByLabel("预览缩放").selectOption("1");
+  await expect(selectValue(page, "预览缩放")).toHaveText(/% · 适应$/);
+  await chooseOption(page, "预览缩放", "100%");
   const before = await block.boundingBox();
   await page.mouse.move(before!.x + 20, before!.y + 20);
   await page.mouse.down();
@@ -40,7 +42,15 @@ test("drag, width wrap, natural height and one-step geometry history", async ({
   const undo = await block.boundingBox();
   expect(undo!.x).toBeCloseTo(before!.x, 0);
   await page.getByRole("button", { name: "重做", exact: true }).click();
-  await page.getByLabel("预览缩放").selectOption("0.5");
+  const fullBox = await block.boundingBox();
+  const widthField = page.getByLabel("文本框宽度", { exact: true });
+  const documentWidth = await widthField.inputValue();
+  const caption = (await page.locator(".stage-caption").textContent())!;
+  await chooseOption(page, "预览缩放", "50%");
+  const halfBox = await block.boundingBox();
+  expect(halfBox!.width).toBeCloseTo(fullBox!.width / 2, 0);
+  await expect(page.locator(".stage-caption")).toHaveText(caption);
+  await expect(widthField).toHaveValue(documentWidth);
   const size = await block.evaluate((el) => getComputedStyle(el).fontSize);
   const oldHeight = await block.evaluate(
     (el) => el.getBoundingClientRect().height,

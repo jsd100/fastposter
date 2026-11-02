@@ -175,3 +175,59 @@ test("catalog selects support keyboard selection and Escape", async ({
   await expect(selectValue(page, "文案分类第1级")).toHaveText(afterEnter);
   await adminContext.close();
 });
+
+test("editor number fields keep drafts, bounds and Escape without touching the document", async ({
+  page,
+}) => {
+  await openPoster(page, "ui_numbers");
+  const block = page.locator("[data-text-block]").first();
+  const spacing = page.getByLabel("文字字距", { exact: true });
+
+  await spacing.fill("12");
+  await expect(block).toHaveCSS("letter-spacing", "12px");
+  await spacing.fill("");
+  await expect(block).toHaveCSS("letter-spacing", "12px");
+  await spacing.blur();
+  await expect(spacing).toHaveValue("12");
+  await expect(block).toHaveCSS("letter-spacing", "12px");
+
+  await spacing.fill("-2.5");
+  await expect(block).toHaveCSS("letter-spacing", "-2.5px");
+
+  await spacing.fill("40");
+  await expect(block).toHaveCSS("letter-spacing", "40px");
+  await spacing.press("Escape");
+  await expect(spacing).toHaveValue("-2.5");
+  await expect(block).toHaveCSS("letter-spacing", "-2.5px");
+
+  const size = page.getByLabel("文字字号", { exact: true });
+  await size.fill("4097");
+  await expect(size).toHaveValue("4097");
+  await expect(block).toHaveCSS("font-size", "64px");
+  await size.blur();
+  await expect(size).toHaveValue("64");
+
+  const font = selectTrigger(page, "文字字体");
+  await font.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(page.locator("[data-text-block]")).toHaveCount(1);
+  await font.click();
+  await page.keyboard.press("Delete");
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await expect(page.locator("[data-text-block]")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  const shown = await spacing.inputValue();
+  await expect(block).toHaveCSS("letter-spacing", `${shown}px`);
+
+  await page.getByRole("button", { name: "添加文字", exact: true }).click();
+  const second = page.locator("[data-text-block]").nth(1);
+  await expect(spacing).toHaveValue("0");
+  await spacing.fill("9");
+  await expect(second).toHaveCSS("letter-spacing", "9px");
+  await expect(block).toHaveCSS("letter-spacing", `${shown}px`);
+});

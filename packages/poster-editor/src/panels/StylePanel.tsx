@@ -1,4 +1,5 @@
 import type { TextBlock } from "@fastposter/poster-schema";
+import { NumberField } from "@fastposter/ui";
 export function StylePanel({
   block,
   update,
@@ -21,21 +22,18 @@ export function StylePanel({
         {fields.map(([key, label, min, max, step]) => (
           <label key={key} className="panel-field">
             {label}
-            <input
-              type="number"
+            <NumberField
               aria-label={label}
               value={block.effects[key]}
               min={min}
               max={max}
               step={step}
-              onChange={(e) => {
-                const value = Number(e.target.value);
-                if (Number.isFinite(value) && value >= min && value <= max)
-                  update((b) => ({
-                    ...b,
-                    effects: { ...b.effects, [key]: value },
-                  }));
-              }}
+              onValueChange={(value) =>
+                update((b) => ({
+                  ...b,
+                  effects: { ...b.effects, [key]: value },
+                }))
+              }
             />
           </label>
         ))}

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { chooseOption } from "./helpers";
 
 const password = "a secure test password";
 
@@ -48,14 +49,10 @@ test("complete native flow keeps mixed typography and geometry across sessions a
   await input.fill("占位");
   await input.press("ControlOrMeta+A");
   await input.press("Backspace");
-  await page
-    .getByLabel("文字字体", { exact: true })
-    .selectOption({ label: "Inter" });
+  await chooseOption(page, "文字字体", "Inter");
   await input.focus();
   await page.keyboard.insertText("FastPoster");
-  await page
-    .getByLabel("文字字体", { exact: true })
-    .selectOption({ label: "思源黑体" });
+  await chooseOption(page, "文字字体", "思源黑体");
   await input.focus();
   await page.keyboard.insertText(" 海报");
   const mixed = input.locator('span[data-font-id="builtin-inter-400"]');
@@ -69,7 +66,7 @@ test("complete native flow keeps mixed typography and geometry across sessions a
   await expect(latin).toHaveCSS("font-family", /fp_builtin-inter-400/);
   await expect(block).toContainText("FastPoster 海报");
   await block.click();
-  await page.getByLabel("预览缩放").selectOption("0.5");
+  await chooseOption(page, "预览缩放", "50%");
   const before = (await block.boundingBox())!;
   const handle = page.getByRole("button", { name: "调整右侧宽度" });
   const grip = (await handle.boundingBox())!;

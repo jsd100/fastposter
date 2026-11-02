@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openPoster, selectScenery } from "./helpers";
+import { chooseOption, openPoster, selectScenery } from "./helpers";
 test("selected words keep style and selection across panel edits and save", async ({
   page,
 }) => {
@@ -65,4 +65,44 @@ test("cursor styles affect later input; IME events and shared undo preserve text
   await page.getByRole("button", { name: "撤销", exact: true }).click();
   await expect(page.locator("[data-text-block]")).toContainText("前后");
   await expect(page.locator("[data-text-block]")).not.toContainText("中文");
+});
+
+test("changing the selected words leaves the rest of the block alone and undoes", async ({
+  page,
+}) => {
+  await openPoster(page, "scope");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  await chooseOption(page, "文字字体", "Inter");
+  const scenery = input.locator('span[data-font-id="builtin-inter-400"]');
+  await expect(scenery).toHaveCount(1);
+  await expect(scenery).toHaveText("风景");
+  await expect(scenery).toHaveCSS("font-family", /fp_builtin-inter-400/);
+  await expect(input).toContainText("你好风景世界");
+  await page.getByLabel("文字字号", { exact: true }).fill("80");
+  await expect(scenery).toHaveCSS("font-size", "80px");
+  await expect(input).toContainText("你好风景世界");
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  const block = page.locator("[data-text-block]").first();
+  await expect(block.getByText("风景", { exact: true })).toHaveCSS(
+    "font-size",
+    "80px",
+  );
+  await expect(block.getByText("你好", { exact: true })).toHaveCSS(
+    "font-size",
+    "64px",
+  );
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(block.getByText("风景", { exact: true })).toHaveCSS(
+    "font-size",
+    "64px",
+  );
+  await expect(block.getByText("风景", { exact: true })).toHaveCSS(
+    "font-family",
+    /fp_builtin-inter-400/,
+  );
+  await expect(block.getByText("世界", { exact: true })).toHaveCSS(
+    "font-family",
+    /fp_builtin-noto-sc-400/,
+  );
 });

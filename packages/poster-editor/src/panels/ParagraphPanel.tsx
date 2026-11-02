@@ -1,5 +1,5 @@
 import type { TextBlock } from "@fastposter/poster-schema";
-import { Button } from "@fastposter/ui";
+import { Button, NumberField } from "@fastposter/ui";
 export function ParagraphPanel({
   block,
   update,
@@ -32,25 +32,18 @@ export function ParagraphPanel({
         {(["lineHeight", "letterSpacing"] as const).map((key) => (
           <label className="panel-field" key={key}>
             {key === "lineHeight" ? "行高" : "字距"}
-            <input
+            <NumberField
               aria-label={key === "lineHeight" ? "文字行高" : "文字字距"}
-              type="number"
-              step={key === "lineHeight" ? ".1" : "1"}
-              min={key === "lineHeight" ? ".5" : "-100"}
-              max={key === "lineHeight" ? "5" : "1000"}
+              step={key === "lineHeight" ? 0.1 : 1}
+              min={key === "lineHeight" ? 0.5 : -100}
+              max={key === "lineHeight" ? 5 : 1000}
               value={block.paragraphStyle[key]}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (
-                  Number.isFinite(n) &&
-                  n >= Number(e.target.min) &&
-                  n <= Number(e.target.max)
-                )
-                  update((b) => ({
-                    ...b,
-                    paragraphStyle: { ...b.paragraphStyle, [key]: n },
-                  }));
-              }}
+              onValueChange={(n) =>
+                update((b) => ({
+                  ...b,
+                  paragraphStyle: { ...b.paragraphStyle, [key]: n },
+                }))
+              }
             />
           </label>
         ))}

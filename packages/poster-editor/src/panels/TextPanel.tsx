@@ -2,7 +2,7 @@ import { fontFamilies, fontWeights } from "./font-options";
 import type { Editor } from "@tiptap/react";
 import type { TextBlock, InlineStyle } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
-import { Button } from "@fastposter/ui";
+import { Button, NumberField, Select } from "@fastposter/ui";
 import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
 import { selectionStyle, type InlineStylePatch } from "../text/selection";
 import { ParagraphPanel } from "./ParagraphPanel";
@@ -53,60 +53,52 @@ export function TextPanel({
       </p>
       <label className="panel-field">
         字体
-        <select
+        <Select
           aria-label="文字字体"
           value={families.find((f) => f.family === activeFamily)?.assetId ?? ""}
-          onChange={(e) => {
-            const face = fonts.find((f) => f.assetId === e.target.value);
+          onValueChange={(assetId) => {
+            const face = fonts.find((f) => f.assetId === assetId);
             if (face) apply({ fontId: face.assetId, fontWeight: face.weight });
           }}
-        >
-          <option value="" disabled>
-            混合
-          </option>
-          {families.map((f) => (
-            <option key={f.assetId} value={f.assetId}>
-              {f.family === "Noto Sans SC" ? "思源黑体" : f.family}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "混合", disabled: true },
+            ...families.map((f) => ({
+              value: f.assetId,
+              label: f.family === "Noto Sans SC" ? "思源黑体" : f.family,
+            })),
+          ]}
+        />
       </label>
       <label className="panel-field">
         字重
-        <select
+        <Select
           aria-label="文字字重"
-          value={current.fontWeight ?? ""}
-          onChange={(e) => {
+          value={current.fontWeight == null ? "" : String(current.fontWeight)}
+          onValueChange={(weight) => {
             const face = fontWeights(fonts, activeFamily).find(
-              (f) => f.weight === Number(e.target.value),
+              (f) => String(f.weight) === weight,
             );
             if (face) apply({ fontId: face.assetId, fontWeight: face.weight });
           }}
-        >
-          <option value="" disabled>
-            混合
-          </option>
-          {fontWeights(fonts, activeFamily).map((face) => (
-            <option key={face.assetId} value={face.weight}>
-              {face.weight}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "混合", disabled: true },
+            ...fontWeights(fonts, activeFamily).map((face) => ({
+              value: String(face.weight),
+              label: String(face.weight),
+            })),
+          ]}
+        />
       </label>
       <div className="panel-row">
         <label className="panel-field">
           字号
-          <input
+          <NumberField
             aria-label="文字字号"
-            type="number"
-            min="1"
-            max="4096"
-            value={current.fontSize ?? ""}
+            min={1}
+            max={4096}
+            value={current.fontSize ?? null}
             placeholder="混合"
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (n > 0 && n <= 4096) apply({ fontSize: n });
-            }}
+            onValueChange={(fontSize) => apply({ fontSize })}
           />
         </label>
         <label className="panel-field">

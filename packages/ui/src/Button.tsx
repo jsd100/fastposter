@@ -27,6 +27,7 @@ export function Button({
       type={type ?? "button"}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
+      data-fp-control=""
       className={`button button-${variant}${density === "compact" ? " " + styles.compact : ""} ${className}`}
     >
       {busy && <span className="spinner" aria-hidden="true" />}
@@ -51,6 +52,7 @@ export function IconButton({
       type={type ?? "button"}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
+      data-fp-control=""
       className={`icon-button${density === "compact" ? " " + styles.compactIcon : ""} ${className}`}
     />
   );

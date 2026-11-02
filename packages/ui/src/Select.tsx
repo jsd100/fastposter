@@ -24,6 +24,8 @@ export type SelectProps<T extends string | number> = {
   "aria-labelledby"?: string;
   disabled?: boolean;
   required?: boolean;
+  /** Trigger text used when `value` is not one of `options`; keeps `options` stable. */
+  valueLabel?: string;
   className?: string;
   density?: "normal" | "compact";
   ref?: Ref<HTMLButtonElement>;
@@ -33,6 +35,7 @@ export function Select<T extends string | number>({
   options,
   value,
   onValueChange,
+  valueLabel,
   id,
   name,
   "aria-label": ariaLabel,
@@ -56,7 +59,8 @@ export function Select<T extends string | number>({
     if (typeof ref === "function") ref(node);
     else if (ref) ref.current = node;
   };
-  const current = options.find((option) => option.value === value)?.label;
+  const current =
+    valueLabel ?? options.find((option) => option.value === value)?.label;
   return (
     <SelectPrimitive.Root
       value={value}
@@ -75,14 +79,14 @@ export function Select<T extends string | number>({
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
         title={current}
+        data-fp-control=""
         className={`select ${styles.trigger}${
           density === "compact" ? ` ${styles.compact}` : ""
         } ${className}`}
       >
-        <SelectPrimitive.Value
-          className={styles.value}
-          data-fp-select-value=""
-        />
+        <SelectPrimitive.Value className={styles.value} data-fp-select-value="">
+          {valueLabel ?? null}
+        </SelectPrimitive.Value>
         <SelectPrimitive.Icon className={styles.icon} aria-hidden="true">
           <svg width="10" height="10" viewBox="0 0 10 10" focusable="false">
             <path
@@ -102,7 +106,7 @@ export function Select<T extends string | number>({
           alignItemWithTrigger={false}
           className={styles.positioner}
         >
-          <SelectPrimitive.Popup className={styles.popup}>
+          <SelectPrimitive.Popup className={styles.popup} data-fp-popup="">
             <SelectPrimitive.List className={styles.list}>
               {options.map((option) => (
                 <SelectPrimitive.Item

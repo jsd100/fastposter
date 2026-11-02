@@ -213,7 +213,7 @@
   border-radius: 5px;
   border: 1px solid #dfe6d7;
 }
-.stage-zoom select {
+.stage-zoom .select {
   border: 0;
   background: none;
   color: #667b56;
@@ -340,7 +340,7 @@
     bottom: 10px;
     padding: 4px 6px;
   }
-  .stage-zoom select {
+  .stage-zoom .select {
     min-height: 32px;
   }
   .mobile-block-actions {
@@ -396,7 +396,7 @@
   margin: 12px 0;
 }
 .panel-field input,
-.panel-field select {
+.panel-field .select {
   width: 100%;
   min-width: 0;
   border: 1px solid #dce6d0;
@@ -409,7 +409,7 @@
   outline: none;
 }
 .panel-field input:focus,
-.panel-field select:focus {
+.panel-field .select:focus {
   border-color: #8fab77;
   box-shadow: 0 0 0 2px #b6c9a52b;
 }
@@ -463,7 +463,7 @@
     border-top: 0;
   }
   .panel-field input,
-  .panel-field select {
+  .panel-field .select {
     font-size: 16px;
     min-height: 44px;
   }
@@ -478,4 +478,8 @@
     max-height: min(65dvh, 550px);
   }
 }
-@media(max-width:680px){.editor-workspace{height:var(--editor-viewport-height,100dvh)}}
+@media (max-width: 680px) {
+  .editor-workspace {
+    height: var(--editor-viewport-height, 100dvh);
+  }
+}

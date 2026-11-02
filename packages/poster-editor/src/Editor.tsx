@@ -22,7 +22,8 @@ import type {
   RichNode,
   TextBlock,
 } from "@fastposter/poster-schema";
-import { Button, Dialog, Status } from "@fastposter/ui";
+import { Button, Dialog, NumberField, Status } from "@fastposter/ui";
+import { shouldIgnoreEditorShortcut } from "./keyboard";
 import {
   Plus,
   Undo2,
@@ -132,11 +133,7 @@ export function Editor({
   );
   useEffect(() => {
     function key(e: KeyboardEvent) {
-      const el = e.target as HTMLElement;
-      if (
-        el.closest('input,textarea,select,[contenteditable="true"]') ||
-        store.getState().mode === "edit"
-      )
+      if (shouldIgnoreEditorShortcut(e) || store.getState().mode === "edit")
         return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -466,8 +463,7 @@ export function Editor({
                 {(["x", "y", "width"] as const).map((field) => (
                   <label key={field}>
                     {field === "width" ? "宽度" : field.toUpperCase()}
-                    <input
-                      type="number"
+                    <NumberField
                       aria-label={
                         field === "width"
                           ? "文本框宽度"
@@ -484,21 +480,12 @@ export function Editor({
                             ? state.document.canvas.width - selected.width
                             : state.document.canvas.height - 0.001
                       }
-                      step="1"
-                      onChange={(e) => {
-                        const n = Number(e.target.value);
-                        if (!Number.isFinite(n)) return;
-                        const max = Number(e.target.max),
-                          min = Number(e.target.min);
+                      step={1}
+                      onValueChange={(n) => {
                         store.transact((d) => ({
                           ...d,
                           textBlocks: d.textBlocks.map((b) =>
-                            b.id === selected.id
-                              ? {
-                                  ...b,
-                                  [field]: Math.max(min, Math.min(max, n)),
-                                }
-                              : b,
+                            b.id === selected.id ? { ...b, [field]: n } : b,
                           ),
                         }));
                       }}

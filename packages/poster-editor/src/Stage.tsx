@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { TextBlock as Block } from "@fastposter/poster-schema";
+import { Select } from "@fastposter/ui";
 import { measureLayout, type LayoutReport } from "@fastposter/poster-renderer";
 import {
   pinchView,
@@ -200,7 +201,10 @@ export function Stage({
       data-editor-stage
       style={{ touchAction: state.mode === "edit" ? "auto" : "none" }}
       onPointerDownCapture={(e) => {
+        // Portaled popup presses bubble through the React tree, so they reach this
+        // handler even though their DOM nodes live outside the stage.
         if (
+          !e.currentTarget.contains(e.target as Node) ||
           e.pointerType !== "touch" ||
           state.mode === "edit" ||
           (e.target as HTMLElement).closest("button,select")
@@ -224,6 +228,7 @@ export function Stage({
       onPointerDown={(e) => {
         if (
           e.button !== 0 ||
+          !e.currentTarget.contains(e.target as Node) ||
           (e.target as HTMLElement).closest("button,[data-text-block]")
         )
           return;
@@ -311,12 +316,11 @@ export function Stage({
       </div>
       <label className="stage-zoom">
         缩放
-        <select
+        <Select
           aria-label="预览缩放"
           value={view.scale}
-          onChange={(e) => {
-            const scale = Number(e.target.value),
-              root = outer.current!;
+          onValueChange={(scale) => {
+            const root = outer.current!;
             const center = selected
               ? {
                   x: selected.x + selected.width / 2,
@@ -329,18 +333,16 @@ export function Stage({
               y: root.clientHeight / 2 - center.y * scale,
             });
           }}
-        >
-          {![0.25, 0.5, 0.75, 1, 1.5, 2, 3].includes(view.scale) && (
-            <option value={view.scale}>
-              {Math.round(view.scale * 100)}% · 适应
-            </option>
-          )}
-          {[0.25, 0.5, 0.75, 1, 1.5, 2, 3].map((scale) => (
-            <option key={scale} value={scale}>
-              {scale * 100}%
-            </option>
-          ))}
-        </select>
+          valueLabel={
+            [0.25, 0.5, 0.75, 1, 1.5, 2, 3].includes(view.scale)
+              ? `${view.scale * 100}%`
+              : `${Math.round(view.scale * 100)}% · 适应`
+          }
+          options={[0.25, 0.5, 0.75, 1, 1.5, 2, 3].map((scale) => ({
+            value: scale,
+            label: `${scale * 100}%`,
+          }))}
+        />
       </label>
     </div>
   );
