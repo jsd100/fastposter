@@ -50,6 +50,13 @@ func TestRejectCyclesAndDepthSix(t *testing.T) {
 	if e := s.MoveCategory(ctx, admin, o1.ID, c5.ID); !isCode(e, "INVALID_INPUT") {
 		t.Fatal("subtree exceeding five levels accepted", e)
 	}
+	newRoot := saveCategory(t, s, admin, "新根", "", true)
+	if _, e := s.SaveCategory(ctx, admin, catalog.ResourceInput{ID: c1.ID, Title: "主题", ParentID: newRoot.ID, Published: true}); !isCode(e, "INVALID_INPUT") {
+		t.Fatal("generic category save bypassed the five-level limit", e)
+	}
+	if _, e := s.SaveCategory(ctx, admin, catalog.ResourceInput{ID: c1.ID, Title: "主题", Published: true}); e != nil {
+		t.Fatal("unchanged depth was rejected", e)
+	}
 	if e := s.MoveCategory(ctx, admin, c5.ID, c3.ID); e != nil {
 		t.Fatal("valid re-parent rejected", e)
 	}

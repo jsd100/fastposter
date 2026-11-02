@@ -1,4 +1,4 @@
-package copy
+package catalog
 
 import (
 	"context"
@@ -6,15 +6,17 @@ import (
 	"fastposter/server/internal/domain"
 )
 
-type categoryParents map[string]string
+type CategoryParents map[string]string
 
-func loadCategoryParents(ctx context.Context, tx *sql.Tx) (categoryParents, error) {
-	rows, e := tx.QueryContext(ctx, "SELECT id,parent_id FROM resources WHERE kind='copy-category' AND deleted_at IS NULL ORDER BY sort_order,title,id FOR UPDATE")
+// LoadCategoryParents locks every live category of one kind so depth and cycle
+// validation runs against a stable tree.
+func LoadCategoryParents(ctx context.Context, tx *sql.Tx, kind string) (CategoryParents, error) {
+	rows, e := tx.QueryContext(ctx, "SELECT id,parent_id FROM resources WHERE kind=? AND deleted_at IS NULL ORDER BY sort_order,title,id FOR UPDATE", kind)
 	if e != nil {
 		return nil, e
 	}
 	defer rows.Close()
-	out := categoryParents{}
+	out := CategoryParents{}
 	for rows.Next() {
 		var id string
 		var parent sql.NullString
@@ -26,7 +28,7 @@ func loadCategoryParents(ctx context.Context, tx *sql.Tx) (categoryParents, erro
 	return out, rows.Err()
 }
 
-func (p categoryParents) subtreeHeight(id string) (int, error) {
+func (p CategoryParents) SubtreeHeight(id string) (int, error) {
 	children := map[string][]string{}
 	for child, parent := range p {
 		children[parent] = append(children[parent], child)

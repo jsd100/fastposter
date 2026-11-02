@@ -103,7 +103,7 @@ func (s *Service) MoveCategory(ctx context.Context, p auth.Principal, id, parent
 	if kind != "copy-category" {
 		return domain.E("INVALID_INPUT", "只能移动文案分类")
 	}
-	parents, e := loadCategoryParents(ctx, tx)
+	parents, e := catalog.LoadCategoryParents(ctx, tx, "copy-category")
 	if e != nil {
 		return e
 	}
@@ -129,7 +129,7 @@ func (s *Service) MoveCategory(ctx context.Context, p auth.Principal, id, parent
 			walk = parents[walk]
 		}
 	}
-	height, e := parents.subtreeHeight(id)
+	height, e := parents.SubtreeHeight(id)
 	if e != nil {
 		return e
 	}

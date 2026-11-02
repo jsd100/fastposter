@@ -315,23 +315,34 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 	return s.Get(ctx, p, id, true)
 }
 func (s *Service) validateParent(ctx context.Context, tx *sql.Tx, id, parent, kind string) error {
+	parents, e := LoadCategoryParents(ctx, tx, kind)
+	if e != nil {
+		return e
+	}
 	seen := map[string]bool{id: true}
 	depth := 1
 	for parent != "" {
 		if seen[parent] || depth >= 5 {
 			return domain.E("INVALID_INPUT", "分类最多 5 层且不能循环")
 		}
-		seen[parent] = true
-		var next sql.NullString
-		var parentKind string
-		if e := tx.QueryRowContext(ctx, "SELECT parent_id,kind FROM resources WHERE id=? AND deleted_at IS NULL", parent).Scan(&next, &parentKind); e != nil {
+		next, ok := parents[parent]
+		if !ok {
+			var parentKind string
+			if e = tx.QueryRowContext(ctx, "SELECT kind FROM resources WHERE id=? AND deleted_at IS NULL", parent).Scan(&parentKind); e == nil && parentKind != kind {
+				return domain.E("INVALID_INPUT", "分类类型不匹配")
+			}
 			return catalogMissing()
 		}
-		if parentKind != kind {
-			return domain.E("INVALID_INPUT", "分类类型不匹配")
-		}
-		parent = next.String
+		seen[parent] = true
+		parent = next
 		depth++
+	}
+	height, e := parents.SubtreeHeight(id)
+	if e != nil {
+		return e
+	}
+	if depth-1+height > 5 {
+		return domain.E("INVALID_INPUT", "分类最多 5 层")
 	}
 	return nil
 }
