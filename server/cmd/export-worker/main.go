@@ -43,7 +43,7 @@ func main() {
 	if e != nil {
 		log.Fatal(e)
 	}
-	worker := exports.Worker{Service: exports.NewService(db, store, projects.NewService(db, store)), Renderer: &exports.Renderer{ChromePath: c.ChromePath, RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: filepath.Join(c.AbsoluteDataDir, ".work"), ID: domain.ID(), Paused: func() bool { return storage.MaintenanceActive(c.AbsoluteDataDir) }}
+	worker := exports.Worker{Service: exports.NewService(db, store, projects.NewService(db, store)), Renderer: &exports.Renderer{ChromePath: c.ChromePath, RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: filepath.Join(c.AbsoluteDataDir, ".work"), ID: domain.ID(), Writers: storage.NewWriterGate(c.AbsoluteDataDir), Paused: func() bool { return storage.MaintenanceActive(c.AbsoluteDataDir) }}
 	log.Print("export worker ready; MySQL durable queue, concurrency 1")
 	if e = worker.Run(ctx); e != nil && ctx.Err() == nil {
 		log.Fatal("export worker stopped: ", e)

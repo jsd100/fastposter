@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fastposter/server/internal/app"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
@@ -151,11 +152,45 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 	binary := buildMaintenance(t, root)
 	backupDir := filepath.Join(t.TempDir(), "backup")
 	backup := exec.Command(binary, "backup", "-dest", backupDir,
-		"-wait", "30s", "-quiesce", "10ms")
+		"-wait", "30s")
 	backup.Dir = root
 	backup.Env = recoveryEnv(map[string]string{"MYSQL_DSN": sourceDSN, "APP_DATA_DIR": sourceDir})
-	if output, e := backup.CombinedOutput(); e != nil {
-		t.Fatalf("backup failed: %v %s", e, output)
+	var backupOutput bytes.Buffer
+	backup.Stdout = &backupOutput
+	backup.Stderr = &backupOutput
+	inFlight, e := storage.NewWriterGate(sourceDir).TryAcquire()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = backup.Start(); e != nil {
+		inFlight.Release()
+		t.Fatal(e)
+	}
+	backedUp := make(chan error, 1)
+	go func() { backedUp <- backup.Wait() }()
+	entered := time.Now().Add(10 * time.Second)
+	for !storage.MaintenanceActive(sourceDir) {
+		if time.Now().After(entered) {
+			inFlight.Release()
+			t.Fatal("backup did not enter maintenance mode")
+		}
+		select {
+		case e = <-backedUp:
+			inFlight.Release()
+			t.Fatalf("backup exited before in-flight writes drained: %v %s", e, backupOutput.String())
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+	select {
+	case e = <-backedUp:
+		t.Fatalf("backup completed while a write was still in flight: %v %s", e, backupOutput.String())
+	case <-time.After(500 * time.Millisecond):
+	}
+	if e = inFlight.Release(); e != nil {
+		t.Fatal(e)
+	}
+	if e = <-backedUp; e != nil {
+		t.Fatalf("backup failed after the in-flight write drained: %v %s", e, backupOutput.String())
 	}
 	if storage.MaintenanceActive(sourceDir) {
 		t.Fatal("backup did not release the maintenance gate")
@@ -308,6 +343,37 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 	if e = admin.QueryRowContext(ctx, "SELECT COUNT(*) FROM `"+sentinelDB+"`.projects").Scan(&otherDBProjects); e != nil || otherDBProjects != 1 {
 		t.Fatalf("restore changed another database: %d %v", otherDBProjects, e)
 	}
+
+	// A second -force restore targets a non-empty database and a non-empty data
+	// directory. Both must be replaced only after the staged copy is verified.
+	if _, e = targetDBHandle.ExecContext(ctx, "UPDATE projects SET title='tampered' WHERE id=?", created.ID); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(filepath.Join(targetDir, "stale.bin"), []byte("stale"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	targetStore.Close()
+	forced := exec.Command(binary, "restore", "-source", backupDir, "-dsn", targetDSN, "-data-dir", targetDir, "-force")
+	forced.Dir = root
+	forced.Env = recoveryEnv(map[string]string{"MYSQL_DSN": sourceDSN, "APP_DATA_DIR": sourceDir})
+	if output, e := forced.CombinedOutput(); e != nil {
+		t.Fatalf("forced restore over an existing target failed: %v %s", e, output)
+	}
+	if _, e = os.Stat(filepath.Join(targetDir, "stale.bin")); !errors.Is(e, os.ErrNotExist) {
+		t.Fatalf("forced restore kept stale target files: %v", e)
+	}
+	var forcedTitle string
+	if e = targetDBHandle.QueryRowContext(ctx, "SELECT title FROM projects WHERE id=?", created.ID).Scan(&forcedTitle); e != nil || forcedTitle != created.Title {
+		t.Fatalf("forced restore did not replace the database: %q %v", forcedTitle, e)
+	}
+	restoredAgain, e := storage.NewLocal(targetDir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if info, e := restoredAgain.Stat(ctx, background); e != nil || info.SHA256 != backgroundInfo.SHA256 {
+		t.Fatalf("forced restore lost asset files: %+v %v", info, e)
+	}
+	restoredAgain.Close()
 }
 
 const fakePNG = "\x89PNG\r\n\x1a\nrecovery-result"

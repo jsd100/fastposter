@@ -39,7 +39,7 @@
 - 全仓库未发现演示路由或模拟数据返回；测试通过真实领域服务、Hertz/Kitex 传输和 MySQL 运行。渲染 fixture 和容量测试入口保留。
 - 不依赖 Postgres、S3/MinIO、Docker 或云对象存储；`go.mod`、依赖和部署说明中没有对应占位凭据。
 - 管理员资源下架不删除版本文件，旧作品继续引用明确版本；管理作品接口不返回正文或私有文件。
-- 软删除作品 30 天内可恢复；导出结果 7 天；GC 只删除到期且无引用的文件；备份恢复不会触碰其他数据库。详见 [backup.md](../../deploy/backup.md)。
+- 软删除作品/资源 30 天内可恢复；导出结果 7 天；`gc -apply` 暂停写入后清除超过 30 天的软删除数据，回收无 `asset_refs`/`resource_versions` 引用的素材版本及文件；备份恢复不会触碰其他数据库。详见 [backup.md](../../deploy/backup.md)。
 - 生成器版本锁定在 `deploy/toolchain.lock.json`，生成命令 `pnpm contracts:generate`，检查命令 `pnpm contracts:check`。
 
 ## 未执行 / 人工缺口

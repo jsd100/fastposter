@@ -29,6 +29,7 @@ type Worker struct {
 	TempRoot string
 	ID       string
 	Paused   func() bool
+	Writers  *storage.WriterGate
 }
 
 func workerError(e error) error {
@@ -257,31 +258,51 @@ func (w *Worker) Run(ctx context.Context) error {
 		if e := ctx.Err(); e != nil {
 			return nil
 		}
+		write, e := w.Writers.TryAcquire()
+		if e != nil {
+			if errors.Is(e, storage.ErrWritersPaused) {
+				if waitErr := waitRetry(ctx); waitErr != nil {
+					return nil
+				}
+				continue
+			}
+			return e
+		}
 		if w.Paused != nil && w.Paused() {
-			select {
-			case <-ctx.Done():
+			write.Release()
+			if e = waitRetry(ctx); e != nil {
 				return nil
-			case <-time.After(time.Second):
 			}
 			continue
 		}
 		lease, e := w.Service.Claim(ctx, w.ID, time.Now().UTC())
 		if e != nil {
+			write.Release()
 			return e
 		}
 		if lease == nil {
-			select {
-			case <-ctx.Done():
+			write.Release()
+			if e = waitRetry(ctx); e != nil {
 				return nil
-			case <-time.After(time.Second):
 			}
 			continue
 		}
-		if e = w.Process(ctx, *lease); e != nil {
+		e = w.Process(ctx, *lease)
+		write.Release()
+		if e != nil {
 			var known *domain.Error
 			if !errors.As(e, &known) || known.Code != "LEASE_LOST" {
 				return e
 			}
 		}
+	}
+}
+
+func waitRetry(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(time.Second):
+		return nil
 	}
 }

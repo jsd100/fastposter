@@ -21,13 +21,16 @@ go run ./server/cmd/maintenance gc              # 试运行
 go run ./server/cmd/maintenance gc -apply      # 真正删除
 ```
 
-`gc` 只删除同时满足“已到期”和“无引用”的文件：
+`gc -apply` 先进入维护模式并取得独占写锁，等待在途请求和导出结束（`-wait`，默认 3 分钟），然后依次：
 
-- `staged_uploads` 中 `staged`/`claimed` 状态且过期超过 24 小时（`-grace` 可调整）的上传，先删文件再删行。
-- `export_jobs.expires_at` 已到的导出结果和预览（完成后 7 天），删除文件并清空 `result_key`、`preview_key`、`result_size` 与对应的导出引用。
-- 数据目录中未被 `asset_versions`、有效上传、未过期导出引用的文件，且修改时间早于 24 小时才删除；`tmp`、`.work` 和维护锁文件不动。
+- 清理 `staged_uploads` 中 `staged`/`claimed` 状态且过期超过 24 小时（`-grace` 可调整）的上传，先删文件再删行。
+- 清理 `export_jobs.expires_at` 已到的导出结果和预览（完成后 7 天），删除文件并清空 `result_key`、`preview_key`、`result_size` 与对应的导出引用。
+- 永久删除软删除超过 30 天的作品：先删其导出任务与 `project`/`project-history`/`export` 引用，再删作品行（历史版本级联删除）。
+- 永久删除软删除超过 30 天的文案/分类资源及其版本，并删除对应的 `resource`/`resource-version` 引用。
+- 回收超过 `-grace`（默认 24 小时）且不再被任何 `asset_refs` 或 `resource_versions` 引用的素材版本，同时删除素材行和原图、标准化图、预览图。
+- 最后扫描数据目录，删除未被有效上传、未过期导出或仍被引用的素材版本占用、且修改时间早于 24 小时的文件；`tmp`、`.work` 和维护锁文件不动。
 
-软删除作品保留 30 天，期间其资源文件始终被视为被引用，不会被清理；作品恢复接口在 30 天内可用，超过后返回 `NOT_FOUND`。GC 与在途上传、导出和仍可恢复的作品兼容，不要用 `find`/`rm` 直接清理数据目录。
+软删除作品和资源保留 30 天，期间其文件始终被视为被引用；超过后由下一次 `gc -apply` 永久清除，恢复接口也返回 `NOT_FOUND`。试运行（不带 `-apply`）不进入维护模式、不加锁、不修改数据库或文件，只报告将回收的数量。不要用 `find`/`rm` 直接清理数据目录。
 
 ## 备份
 
@@ -38,13 +41,13 @@ go run ./server/cmd/maintenance backup -dest /Volumes/backup/fastposter-20261030
 
 默认写入 `var/backups/fastposter-<UTC 时间戳>`，目标目录必须不存在且不能位于 `APP_DATA_DIR` 内。流程：
 
-1. 在数据目录获取排他锁并写入 `.fastposter-maintenance` 门禁文件；网关对非 GET 请求返回 503 `MAINTENANCE`，导出 worker 停止领取新任务，已在执行的任务继续完成。
-2. 等待在途导出租约和 `staged`/`claimed` 上传结束（默认最多 3 分钟，`-wait` 调整；暂停后默认再等 5 秒让请求落地）。
+1. 在数据目录获取排他锁并写入 `.fastposter-maintenance` 门禁文件；网关对非 GET 请求返回 503 `MAINTENANCE`，导出 worker 停止领取新任务。
+2. 通过 `.fastposter-writers.lock` 的共享/排他锁等待所有在途写入结束：每个已放行的网关写请求和导出任务持共享锁，备份写入门禁后申请排他锁，默认最多等待 3 分钟（`-wait` 调整）。排他锁由备份进程一直持有到复制结束，因此不会有请求越过门禁写进来。
 3. 用 `mysqldump --single-transaction` 导出业务库，只导出该库。
-4. 复制 `APP_DATA_DIR` 中除 `tmp`、`.work`、门禁文件外的常规文件；遇到符号链接直接拒绝。
+4. 复制 `APP_DATA_DIR` 中除 `tmp`、`.work`、门禁与写锁文件外的常规文件；遇到符号链接直接拒绝。
 5. 写入 `manifest.json`（格式版本、schema 版本、dump 大小与 SHA-256、文件数量/字节数、各表行数），同步落盘后原子重命名为最终目录。失败会清理 `.partial`，不会留下看似完整的备份。
 
-门禁文件记录 PID 和开始时间：进程崩溃后其他进程可通过 PID 是否存活判断并解除暂停；锁由操作系统在进程退出时释放。备份结束（成功或失败）都会移除门禁文件。
+门禁文件记录 PID 和开始时间：进程崩溃后其他进程可通过 PID 是否存活判断并解除暂停；两把锁由操作系统在进程退出时释放。备份结束（成功或失败）都会移除门禁文件。
 
 备份不是时间点快照：暂停写入门禁只覆盖本机共享同一 `APP_DATA_DIR` 的进程，备份期间仍应避免绕过应用直接改数据库或文件。导出结果只需 7 天，历史导出文件会随时间减少；需要长期留存的成品请在客户端下载保存。
 
@@ -65,7 +68,8 @@ go run ./server/cmd/maintenance restore \
 - 目标库名只允许字母、数字和下划线，拒绝 `mysql`、`information_schema`、`performance_schema`、`sys`；只向目标库导入，绝不执行 `DROP DATABASE`，其他数据库不受影响。
 - 目标库不存在时自动创建；已存在且非空时要求 `-force`；目标数据目录非空时同样要求 `-force`。`-force` 前应先保留安全副本。
 - 目标与当前配置的正式数据库或 `APP_DATA_DIR` 相同时拒绝执行，除非显式传入 `-allow-live`；正式实例恢复前应停止网关、核心服务和 worker。
-- 导入后核对 schema 版本、每张表的行数、数据文件数量和总字节数，并用 `-verify-files`（默认开启）重新哈希所有被引用的资源文件。任何一项不符都会报错。
+- 文件先复制到目标同级的 staging 目录并核对数量/总字节数，此时目标数据库与数据目录都未被修改；只有 staging 完整后才会导入数据库。
+- 导入后核对 schema 版本、每张表的行数，并用 `-verify-files`（默认开启）针对 staging 重新哈希所有被引用的资源文件。全部通过后才把原数据目录移开、将 staging 原子重命名到目标位置；重命名失败会自动恢复原目录。任何一项不符都会报错，目标目录保持原样。
 
 恢复完成不会自动切换线上配置。确认独立实例可用后，再停止旧实例、将 `MYSQL_DSN` 与 `APP_DATA_DIR` 指向恢复实例并重启。
 

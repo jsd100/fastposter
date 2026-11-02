@@ -102,47 +102,57 @@ func VerifyFiles(ctx context.Context, db *sql.DB, store FileStore) (FileCheck, e
 		present[key] = true
 		return true, nil
 	}
-	rows, e := db.QueryContext(ctx, "SELECT original_key,normalized_key,preview_key,normalized_sha256,normalized_size FROM asset_versions")
+	rows, e := db.QueryContext(ctx, "SELECT original_key,original_sha256,original_size,normalized_key,normalized_sha256,normalized_size,preview_key FROM asset_versions")
 	if e != nil {
 		return check, e
 	}
+	verifyHash := func(key, sha string, size int64) error {
+		if key == "" {
+			return nil
+		}
+		info, e := store.Stat(ctx, Key(key))
+		if errors.Is(e, fs.ErrNotExist) {
+			markMissing(key)
+			return nil
+		}
+		if e != nil {
+			return e
+		}
+		if info.SHA256 != sha || info.Size != size {
+			markMismatch(key)
+		}
+		return nil
+	}
 	for rows.Next() {
-		var original, normalized, preview string
-		var sha string
-		var size int64
-		if e = rows.Scan(&original, &normalized, &preview, &sha, &size); e != nil {
+		var original, originalSHA, normalized, normalizedSHA, preview string
+		var originalSize, normalizedSize int64
+		if e = rows.Scan(&original, &originalSHA, &originalSize, &normalized, &normalizedSHA, &normalizedSize, &preview); e != nil {
 			rows.Close()
 			return check, e
 		}
-		for _, key := range []string{original, preview} {
-			if key == "" {
-				continue
-			}
-			ok, e := exists(key)
+		if e = verifyHash(original, originalSHA, originalSize); e != nil {
+			rows.Close()
+			return check, e
+		}
+		if preview != "" {
+			ok, e := exists(preview)
 			if e != nil {
 				rows.Close()
 				return check, e
 			}
 			if !ok {
-				markMissing(key)
+				markMissing(preview)
 			}
 		}
-		if normalized == "" {
+		if normalized == "" || hashed[normalized] {
 			continue
 		}
-		if !hashed[normalized] {
-			info, e := store.Stat(ctx, Key(normalized))
-			if errors.Is(e, fs.ErrNotExist) {
-				markMissing(normalized)
-			} else if e != nil {
-				rows.Close()
-				return check, e
-			} else if info.SHA256 != sha || info.Size != size {
-				markMismatch(normalized)
-			}
-			hashed[normalized] = true
-			check.UniqueFiles++
+		if e = verifyHash(normalized, normalizedSHA, normalizedSize); e != nil {
+			rows.Close()
+			return check, e
 		}
+		hashed[normalized] = true
+		check.UniqueFiles++
 	}
 	if e = rows.Close(); e != nil {
 		return check, e

@@ -39,7 +39,7 @@ func main() {
 	if health.FreeBytes < 512<<20 {
 		log.Printf("warning: only %d MiB free in %s", health.FreeBytes>>20, health.Path)
 	}
-	gateway := transport.Gateway{RPC: rpc, Store: store, AllowedOrigins: c.AppOrigins, SecureCookies: c.CookieSecure, Paused: func() bool { return storage.MaintenanceActive(c.AbsoluteDataDir) }}
+	gateway := transport.Gateway{RPC: rpc, Store: store, Writers: storage.NewWriterGate(c.AbsoluteDataDir), AllowedOrigins: c.AppOrigins, SecureCookies: c.CookieSecure, Paused: func() bool { return storage.MaintenanceActive(c.AbsoluteDataDir) }}
 	gateway.BindUploads()
 	gateway.Register(h)
 	h.GET("/api/v1/health", func(ctx context.Context, r *app.RequestContext) {

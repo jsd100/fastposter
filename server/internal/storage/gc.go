@@ -12,6 +12,7 @@ import (
 )
 
 const DefaultGCGrace = 24 * time.Hour
+const DefaultRetention = 30 * 24 * time.Hour
 
 type GC struct {
 	DB     *sql.DB
@@ -30,6 +31,9 @@ type GCReport struct {
 	FreedBytes      int64 `json:"freedBytes"`
 	ExpiredExports  int   `json:"expiredExports"`
 	ExpiredUploads  int   `json:"expiredUploads"`
+	PurgedProjects  int   `json:"purgedProjects"`
+	PurgedResources int   `json:"purgedResources"`
+	ReclaimedAssets int   `json:"reclaimedAssets"`
 }
 
 func (g *GC) Run(ctx context.Context, now time.Time) (GCReport, error) {
@@ -51,6 +55,18 @@ func (g *GC) Run(ctx context.Context, now time.Time) (GCReport, error) {
 		return report, e
 	}
 	if e := g.expireExports(ctx, now, &report); e != nil {
+		return report, e
+	}
+	if e := g.expireExportRefs(ctx, now); e != nil {
+		return report, e
+	}
+	if e := g.purgeDeletedProjects(ctx, now, &report); e != nil {
+		return report, e
+	}
+	if e := g.purgeDeletedResources(ctx, now, &report); e != nil {
+		return report, e
+	}
+	if e := g.pruneAssets(ctx, now, grace, &report); e != nil {
 		return report, e
 	}
 	referenced := map[string]struct{}{}
@@ -195,6 +211,227 @@ func (g *GC) expireExports(ctx context.Context, now time.Time, report *GCReport)
 	return nil
 }
 
+func (g *GC) expireExportRefs(ctx context.Context, now time.Time) error {
+	if g.DryRun {
+		return nil
+	}
+	_, e := g.DB.ExecContext(ctx, "DELETE FROM asset_refs WHERE owner_kind='export' AND owner_id IN (SELECT id FROM export_jobs WHERE expires_at IS NOT NULL AND expires_at<=?)", now)
+	return e
+}
+
+func (g *GC) removeFiles(ctx context.Context, keys []Key, report *GCReport) error {
+	seen := map[Key]bool{}
+	for _, key := range keys {
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		exists, size, e := g.fileInfo(ctx, key)
+		if e != nil {
+			return e
+		}
+		if !exists {
+			continue
+		}
+		report.DeletedFiles++
+		report.FreedBytes += size
+		if !g.DryRun {
+			if e = g.Store.Delete(ctx, key); e != nil && !errors.Is(e, fs.ErrNotExist) {
+				return e
+			}
+		}
+	}
+	return nil
+}
+
+func (g *GC) purgeDeletedProjects(ctx context.Context, now time.Time, report *GCReport) error {
+	cutoff := now.Add(-DefaultRetention)
+	rows, e := g.DB.QueryContext(ctx, "SELECT id FROM projects WHERE deleted_at IS NOT NULL AND deleted_at<=?", cutoff)
+	if e != nil {
+		return e
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if e = rows.Scan(&id); e != nil {
+			rows.Close()
+			return e
+		}
+		ids = append(ids, id)
+	}
+	if e = rows.Close(); e != nil {
+		return e
+	}
+	for _, id := range ids {
+		if g.DryRun {
+			report.PurgedProjects++
+			continue
+		}
+		tx, e := g.DB.BeginTx(ctx, nil)
+		if e != nil {
+			return e
+		}
+		if _, e = tx.ExecContext(ctx, "DELETE FROM asset_refs WHERE owner_kind='export' AND owner_id IN (SELECT id FROM export_jobs WHERE project_id=?)", id); e != nil {
+			tx.Rollback()
+			return e
+		}
+		if _, e = tx.ExecContext(ctx, "DELETE FROM export_jobs WHERE project_id=?", id); e != nil {
+			tx.Rollback()
+			return e
+		}
+		if _, e = tx.ExecContext(ctx, "DELETE FROM asset_refs WHERE owner_kind IN ('project','project-history') AND owner_id=?", id); e != nil {
+			tx.Rollback()
+			return e
+		}
+		result, e := tx.ExecContext(ctx, "DELETE FROM projects WHERE id=? AND deleted_at IS NOT NULL AND deleted_at<=?", id, cutoff)
+		if e != nil {
+			tx.Rollback()
+			return e
+		}
+		affected, e := result.RowsAffected()
+		if e != nil {
+			tx.Rollback()
+			return e
+		}
+		if affected == 0 {
+			tx.Rollback()
+			continue
+		}
+		if e = tx.Commit(); e != nil {
+			return e
+		}
+		report.PurgedProjects++
+	}
+	return nil
+}
+
+func (g *GC) purgeDeletedResources(ctx context.Context, now time.Time, report *GCReport) error {
+	cutoff := now.Add(-DefaultRetention)
+	rows, e := g.DB.QueryContext(ctx, "SELECT id FROM resources WHERE deleted_at IS NOT NULL AND deleted_at<=?", cutoff)
+	if e != nil {
+		return e
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if e = rows.Scan(&id); e != nil {
+			rows.Close()
+			return e
+		}
+		ids = append(ids, id)
+	}
+	if e = rows.Close(); e != nil {
+		return e
+	}
+	for _, id := range ids {
+		if g.DryRun {
+			report.PurgedResources++
+			continue
+		}
+		tx, e := g.DB.BeginTx(ctx, nil)
+		if e != nil {
+			return e
+		}
+		if _, e = tx.ExecContext(ctx, "DELETE FROM asset_refs WHERE (owner_kind='resource' AND owner_id=?) OR (owner_kind='resource-version' AND SUBSTRING_INDEX(owner_id,':',1)=?)", id, id); e != nil {
+			tx.Rollback()
+			return e
+		}
+		result, e := tx.ExecContext(ctx, "DELETE FROM resources WHERE id=? AND deleted_at IS NOT NULL AND deleted_at<=?", id, cutoff)
+		if e != nil {
+			tx.Rollback()
+			return e
+		}
+		affected, e := result.RowsAffected()
+		if e != nil {
+			tx.Rollback()
+			return e
+		}
+		if affected == 0 {
+			tx.Rollback()
+			continue
+		}
+		if e = tx.Commit(); e != nil {
+			return e
+		}
+		report.PurgedResources++
+	}
+	return nil
+}
+
+func (g *GC) pruneAssets(ctx context.Context, now time.Time, grace time.Duration, report *GCReport) error {
+	cutoff := now.Add(-grace)
+	const orphanQuery = `SELECT v.asset_id,v.version,v.original_key,v.normalized_key,v.preview_key
+		FROM asset_versions v
+		WHERE v.created_at<=?
+		AND NOT EXISTS (SELECT 1 FROM asset_refs r WHERE r.asset_id=v.asset_id AND r.asset_version=v.version)
+		AND NOT EXISTS (SELECT 1 FROM resource_versions rv WHERE rv.asset_id=v.asset_id AND rv.asset_version=v.version)`
+	rows, e := g.DB.QueryContext(ctx, orphanQuery, cutoff)
+	if e != nil {
+		return e
+	}
+	type orphan struct {
+		assetID string
+		version uint64
+		keys    []Key
+	}
+	var orphans []orphan
+	for rows.Next() {
+		var item orphan
+		var original, normalized, preview string
+		if e = rows.Scan(&item.assetID, &item.version, &original, &normalized, &preview); e != nil {
+			rows.Close()
+			return e
+		}
+		for _, key := range []string{original, normalized, preview} {
+			if key != "" {
+				item.keys = append(item.keys, Key(key))
+			}
+		}
+		orphans = append(orphans, item)
+	}
+	if e = rows.Close(); e != nil {
+		return e
+	}
+	for _, item := range orphans {
+		if !g.DryRun {
+			tx, e := g.DB.BeginTx(ctx, nil)
+			if e != nil {
+				return e
+			}
+			result, e := tx.ExecContext(ctx, `DELETE FROM asset_versions
+				WHERE asset_id=? AND version=? AND created_at<=?
+				AND NOT EXISTS (SELECT 1 FROM asset_refs r WHERE r.asset_id=? AND r.asset_version=?)
+				AND NOT EXISTS (SELECT 1 FROM resource_versions rv WHERE rv.asset_id=? AND rv.asset_version=?)`,
+				item.assetID, item.version, cutoff, item.assetID, item.version, item.assetID, item.version)
+			if e != nil {
+				tx.Rollback()
+				return e
+			}
+			affected, e := result.RowsAffected()
+			if e != nil {
+				tx.Rollback()
+				return e
+			}
+			if affected == 0 {
+				tx.Rollback()
+				continue
+			}
+			if _, e = tx.ExecContext(ctx, "DELETE FROM assets WHERE id=? AND NOT EXISTS (SELECT 1 FROM asset_versions WHERE asset_id=?)", item.assetID, item.assetID); e != nil {
+				tx.Rollback()
+				return e
+			}
+			if e = tx.Commit(); e != nil {
+				return e
+			}
+		}
+		if e = g.removeFiles(ctx, item.keys, report); e != nil {
+			return e
+		}
+		report.ReclaimedAssets++
+	}
+	return nil
+}
+
 func (g *GC) loadReferences(ctx context.Context, now time.Time, out map[string]struct{}) error {
 	collect := func(query string, args ...any) error {
 		rows, e := g.DB.QueryContext(ctx, query, args...)
@@ -216,11 +453,8 @@ func (g *GC) loadReferences(ctx context.Context, now time.Time, out map[string]s
 	if e := collect("SELECT file_key FROM staged_uploads WHERE state IN ('staged','claimed')"); e != nil {
 		return e
 	}
-	for _, query := range []string{
-		"SELECT original_key FROM asset_versions",
-		"SELECT normalized_key FROM asset_versions",
-		"SELECT preview_key FROM asset_versions",
-	} {
+	for _, column := range []string{"original_key", "normalized_key", "preview_key"} {
+		query := "SELECT v." + column + " FROM asset_versions v WHERE EXISTS (SELECT 1 FROM asset_refs r WHERE r.asset_id=v.asset_id AND r.asset_version=v.version) OR EXISTS (SELECT 1 FROM resource_versions rv WHERE rv.asset_id=v.asset_id AND rv.asset_version=v.version)"
 		if e := collect(query); e != nil {
 			return e
 		}
@@ -260,7 +494,7 @@ func (g *GC) collect(ctx context.Context, now time.Time, grace time.Duration, re
 			}
 			return nil
 		}
-		if strings.HasPrefix(entry.Name(), MaintenanceGateName) {
+		if strings.HasPrefix(entry.Name(), MaintenanceGateName) || strings.HasPrefix(entry.Name(), WriterLockName) {
 			return nil
 		}
 		if entry.Type()&fs.ModeSymlink != 0 || !entry.Type().IsRegular() {

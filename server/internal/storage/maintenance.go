@@ -18,8 +18,10 @@ type gateInfo struct {
 }
 
 type Maintenance struct {
-	gate string
-	lock *os.File
+	gate    string
+	dir     string
+	lock    *os.File
+	writers *os.File
 }
 
 func BeginMaintenance(dir string) (*Maintenance, error) {
@@ -61,7 +63,7 @@ func BeginMaintenance(dir string) (*Maintenance, error) {
 		release()
 		return nil, e
 	}
-	return &Maintenance{gate: gate, lock: lock}, nil
+	return &Maintenance{gate: gate, dir: abs, lock: lock}, nil
 }
 
 func (m *Maintenance) Close() error {
@@ -71,6 +73,13 @@ func (m *Maintenance) Close() error {
 	var out error
 	if e := os.Remove(m.gate); e != nil && !errors.Is(e, os.ErrNotExist) {
 		out = e
+	}
+	if m.writers != nil {
+		syscall.Flock(int(m.writers.Fd()), syscall.LOCK_UN)
+		if e := m.writers.Close(); e != nil && out == nil {
+			out = e
+		}
+		m.writers = nil
 	}
 	if m.lock != nil {
 		syscall.Flock(int(m.lock.Fd()), syscall.LOCK_UN)

@@ -135,6 +135,9 @@ func TestGCDoesNotDeleteActiveOrLeasedFiles(t *testing.T) {
 	db, store, dir := gcFixture(t)
 	seedProjectRow(t, db, "p1", "u1")
 	asset := seedAsset(t, db, store, dir, "a1", "u1", 48*time.Hour)
+	if _, e := db.Exec("INSERT INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('project','p1','a1',1)"); e != nil {
+		t.Fatal(e)
+	}
 	putFile(t, store, dir, "staging/images/active", "staged", 48*time.Hour)
 	if _, e := db.Exec("INSERT INTO staged_uploads(file_key,user_id,state,expires_at) VALUES('staging/images/active','u1','staged',UTC_TIMESTAMP(6)+INTERVAL 15 MINUTE)"); e != nil {
 		t.Fatal(e)
@@ -184,6 +187,9 @@ func TestCollectsOrphanAfterGracePeriod(t *testing.T) {
 	db, store, dir := gcFixture(t)
 	seedProjectRow(t, db, "p1", "u1")
 	asset := seedAsset(t, db, store, dir, "a1", "u1", 48*time.Hour)
+	if _, e := db.Exec("INSERT INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('project','p1','a1',1)"); e != nil {
+		t.Fatal(e)
+	}
 	putFile(t, store, dir, "exports/orphan-old", "orphan", 48*time.Hour)
 	putFile(t, store, dir, "tmp/leftover", "partial", 48*time.Hour)
 	putFile(t, store, dir, "staging/images/expired", "expired", 48*time.Hour)
@@ -255,6 +261,11 @@ func TestExpiresOnlyExportResultAfterSevenDays(t *testing.T) {
 	if _, e := db.Exec("INSERT INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('export','j-expire','a1',1),('project','p1','a1',1)"); e != nil {
 		t.Fatal(e)
 	}
+	failedAt := completed.Add(-time.Hour)
+	seedJob(t, db, "j-failed", "u1", "p1", "failed", "", "", &failedAt, nil)
+	if _, e := db.Exec("INSERT INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('export','j-failed','a1',1)"); e != nil {
+		t.Fatal(e)
+	}
 	collector := storage.GC{DB: db, Store: store, Root: dir, Grace: 24 * time.Hour}
 	report, e := collector.Run(context.Background(), completed.Add(7*24*time.Hour-time.Minute))
 	if e != nil {
@@ -262,6 +273,10 @@ func TestExpiresOnlyExportResultAfterSevenDays(t *testing.T) {
 	}
 	if report.ExpiredExports != 0 {
 		t.Fatalf("result expired early: %+v", report)
+	}
+	var failedRefs int
+	if e = db.QueryRow("SELECT COUNT(*) FROM asset_refs WHERE owner_kind='export' AND owner_id='j-failed'").Scan(&failedRefs); e != nil || failedRefs != 0 {
+		t.Fatalf("expired failed export kept asset refs: %d %v", failedRefs, e)
 	}
 	if !fileExists(t, store, "exports/expired") || !fileExists(t, store, "export-previews/expired") {
 		t.Fatal("unexpired result was deleted")
@@ -295,6 +310,93 @@ func TestExpiresOnlyExportResultAfterSevenDays(t *testing.T) {
 	}
 	if !fileExists(t, store, asset.original) {
 		t.Fatal("project original asset was removed")
+	}
+}
+
+func TestPurgingExpiredDataReclaimsAssets(t *testing.T) {
+	db, store, dir := gcFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	old := now.Add(-31 * 24 * time.Hour)
+	ageVersion := func(id string) {
+		t.Helper()
+		if _, e := db.Exec("UPDATE asset_versions SET created_at=? WHERE asset_id=?", old, id); e != nil {
+			t.Fatal(e)
+		}
+	}
+	seedProjectRow(t, db, "p-old", "u1")
+	if _, e := db.Exec("UPDATE projects SET deleted_at=? WHERE id='p-old'", old); e != nil {
+		t.Fatal(e)
+	}
+	projectAsset := seedAsset(t, db, store, dir, "a-proj", "u1", 31*24*time.Hour)
+	ageVersion("a-proj")
+	if _, e := db.Exec("INSERT INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('project','p-old','a-proj',1),('project-history','p-old','a-proj',1),('export','j-old','a-proj',1)"); e != nil {
+		t.Fatal(e)
+	}
+	expires := now.Add(7 * 24 * time.Hour)
+	putFile(t, store, dir, "exports/old", "old-result", 48*time.Hour)
+	putFile(t, store, dir, "export-previews/old", "old-preview", 48*time.Hour)
+	seedJob(t, db, "j-old", "u1", "p-old", "succeeded", "exports/old", "export-previews/old", &expires, nil)
+
+	if _, e := db.Exec("INSERT INTO resources(id,kind,title,created_by,current_version,deleted_at) VALUES('r-old','copy','旧文案','u1',1,?)", old); e != nil {
+		t.Fatal(e)
+	}
+	resourceAsset := seedAsset(t, db, store, dir, "a-res", "u1", 31*24*time.Hour)
+	ageVersion("a-res")
+	if _, e := db.Exec("INSERT INTO resource_versions(resource_id,version,asset_id,asset_version,body) VALUES('r-old',1,'a-res',1,'body')"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := db.Exec("INSERT INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('resource','r-old','a-res',1),('resource-version','r-old:1','a-res',1)"); e != nil {
+		t.Fatal(e)
+	}
+
+	unused := seedAsset(t, db, store, dir, "a-unused", "u1", 31*24*time.Hour)
+	ageVersion("a-unused")
+
+	seedProjectRow(t, db, "p-live", "u1")
+	live := seedAsset(t, db, store, dir, "a-live", "u1", 31*24*time.Hour)
+	ageVersion("a-live")
+	if _, e := db.Exec("INSERT INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('project','p-live','a-live',1)"); e != nil {
+		t.Fatal(e)
+	}
+
+	collector := storage.GC{DB: db, Store: store, Root: dir, Grace: 24 * time.Hour}
+	report, e := collector.Run(ctx, now)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if report.PurgedProjects != 1 || report.PurgedResources != 1 || report.ReclaimedAssets != 3 {
+		t.Fatalf("unexpected purge report: %+v", report)
+	}
+	var count int
+	for _, query := range []string{
+		"SELECT COUNT(*) FROM projects WHERE id='p-old'",
+		"SELECT COUNT(*) FROM export_jobs WHERE project_id='p-old'",
+		"SELECT COUNT(*) FROM resources WHERE id='r-old'",
+		"SELECT COUNT(*) FROM resource_versions WHERE resource_id='r-old'",
+		"SELECT COUNT(*) FROM asset_refs WHERE owner_id IN ('p-old','r-old','r-old:1','j-old')",
+		"SELECT COUNT(*) FROM assets WHERE id IN ('a-proj','a-res','a-unused')",
+		"SELECT COUNT(*) FROM asset_versions WHERE asset_id IN ('a-proj','a-res','a-unused')",
+	} {
+		if e = db.QueryRow(query).Scan(&count); e != nil {
+			t.Fatal(e)
+		}
+		if count != 0 {
+			t.Fatalf("expired data survived: %s => %d", query, count)
+		}
+	}
+	for _, key := range []storage.Key{projectAsset.original, projectAsset.normalized, projectAsset.preview, resourceAsset.original, resourceAsset.normalized, resourceAsset.preview, unused.original, unused.normalized, unused.preview, "exports/old", "export-previews/old"} {
+		if fileExists(t, store, key) {
+			t.Fatalf("expired file survived: %s", key)
+		}
+	}
+	if e = db.QueryRow("SELECT COUNT(*) FROM assets WHERE id='a-live'").Scan(&count); e != nil || count != 1 {
+		t.Fatalf("live asset row was removed: %d %v", count, e)
+	}
+	for _, key := range []storage.Key{live.original, live.normalized, live.preview} {
+		if !fileExists(t, store, key) {
+			t.Fatalf("live asset file was removed: %s", key)
+		}
 	}
 }
 
@@ -414,8 +516,8 @@ func TestMaintenanceGatePausesAndReleases(t *testing.T) {
 	}
 }
 
-func TestVerifyFilesDetectsMissingAssetFile(t *testing.T) {
-	db, store, _ := gcFixture(t)
+func TestVerifyFilesDetectsMissingAndTamperedAssets(t *testing.T) {
+	db, store, dir := gcFixture(t)
 	ctx := context.Background()
 	put := func(content string) (storage.Key, int64, string) {
 		key := storage.NewKey("test-assets")
@@ -437,6 +539,17 @@ func TestVerifyFilesDetectsMissingAssetFile(t *testing.T) {
 	check, e := storage.VerifyFiles(ctx, db, store)
 	if e != nil || !check.Healthy() {
 		t.Fatalf("healthy files reported bad: %+v %v", check, e)
+	}
+	originalPath := filepath.Join(dir, filepath.FromSlash(string(original)))
+	if e = os.WriteFile(originalPath, []byte("originaL"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	check, e = storage.VerifyFiles(ctx, db, store)
+	if e != nil || len(check.Mismatched) != 1 || check.Mismatched[0] != string(original) {
+		t.Fatalf("tampered original file not detected: %+v %v", check, e)
+	}
+	if e = os.WriteFile(originalPath, []byte("original"), 0600); e != nil {
+		t.Fatal(e)
 	}
 	if e = store.Delete(ctx, normalized); e != nil {
 		t.Fatal(e)

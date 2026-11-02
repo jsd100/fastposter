@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fastposter/server/gen/kitex/common"
 	"fastposter/server/gen/kitex/core/coreservice"
 	"fastposter/server/internal/storage"
@@ -18,6 +19,7 @@ import (
 type Gateway struct {
 	RPC            coreservice.Client
 	Store          storage.FileStore
+	Writers        *storage.WriterGate
 	AllowedOrigins []string
 	SecureCookies  bool
 	Paused         func() bool
@@ -32,9 +34,21 @@ func (g *Gateway) Register(h *server.Hertz) {
 			rand.Read(b[:])
 			id := hex.EncodeToString(b[:])
 			r.Header("X-Request-Id", id)
-			if route.Method != "GET" && g.Paused != nil && g.Paused() {
-				r.JSON(503, &common.APIError{Code: "MAINTENANCE", Message: "系统维护中，暂时无法写入", RequestId: id})
-				return
+			if route.Method != "GET" {
+				lease, leaseErr := g.Writers.TryAcquire()
+				if leaseErr != nil {
+					code := "STORAGE_UNAVAILABLE"
+					if errors.Is(leaseErr, storage.ErrWritersPaused) {
+						code = "MAINTENANCE"
+					}
+					r.JSON(503, &common.APIError{Code: code, Message: "系统维护中，暂时无法写入", RequestId: id})
+					return
+				}
+				defer lease.Release()
+				if g.Paused != nil && g.Paused() {
+					r.JSON(503, &common.APIError{Code: "MAINTENANCE", Message: "系统维护中，暂时无法写入", RequestId: id})
+					return
+				}
 			}
 			peer := "local"
 			if addr := r.RemoteAddr(); addr != nil {

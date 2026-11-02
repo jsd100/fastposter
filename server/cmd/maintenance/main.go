@@ -253,10 +253,14 @@ func runCheck(ctx context.Context, args []string) error {
 
 func runGC(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("gc", flag.ContinueOnError)
-	apply := flags.Bool("apply", false, "delete expired and unreferenced files; default is dry-run")
+	apply := flags.Bool("apply", false, "delete expired and unreferenced files and purge expired rows; default is dry-run")
 	grace := flags.Duration("grace", storage.DefaultGCGrace, "orphan file grace period")
+	wait := flags.Duration("wait", 3*time.Minute, "maximum time to wait for in-flight writes and exports before applying")
 	if e := flags.Parse(args); e != nil {
 		return e
+	}
+	if *wait <= 0 {
+		return errors.New("wait must be positive")
 	}
 	c, _, db, e := openSource(ctx)
 	if e != nil {
@@ -268,6 +272,16 @@ func runGC(ctx context.Context, args []string) error {
 		return errors.New("local storage initialization failed")
 	}
 	defer store.Close()
+	if *apply {
+		guard, e := storage.BeginMaintenance(c.AbsoluteDataDir)
+		if e != nil {
+			return e
+		}
+		defer guard.Close()
+		if e = guard.PauseWriters(ctx, *wait); e != nil {
+			return e
+		}
+	}
 	collector := storage.GC{DB: db, Store: store, Root: c.AbsoluteDataDir, Grace: *grace, DryRun: !*apply}
 	report, e := collector.Run(ctx, time.Now().UTC())
 	if e != nil {
@@ -280,14 +294,13 @@ func runBackup(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("backup", flag.ContinueOnError)
 	root, _ := config.Root()
 	dest := flags.String("dest", filepath.Join(root, "var/backups/fastposter-"+time.Now().UTC().Format("20060102T150405Z")), "new directory for the backup; must be outside APP_DATA_DIR")
-	wait := flags.Duration("wait", 3*time.Minute, "maximum time to wait for in-flight uploads and exports")
-	quiesce := flags.Duration("quiesce", 5*time.Second, "delay after pausing new writes before dumping")
+	wait := flags.Duration("wait", 3*time.Minute, "maximum time to wait for in-flight writes and exports")
 	dumpBin := flags.String("mysqldump", "mysqldump", "mysqldump binary")
 	if e := flags.Parse(args); e != nil {
 		return e
 	}
-	if *wait <= 0 || *quiesce < 0 {
-		return errors.New("wait must be positive and quiesce cannot be negative")
+	if *wait <= 0 {
+		return errors.New("wait must be positive")
 	}
 	c, cfg, db, e := openSource(ctx)
 	if e != nil {
@@ -332,8 +345,8 @@ func runBackup(ctx context.Context, args []string) error {
 		return e
 	}
 	defer guard.Close()
-	log.Print("application writes and export claims paused; waiting for in-flight work")
-	if e = waitQuiescent(ctx, db, *wait, *quiesce); e != nil {
+	log.Print("application writes paused; waiting for all in-flight writes and exports to finish")
+	if e = guard.PauseWriters(ctx, *wait); e != nil {
 		return e
 	}
 	dumpPath := filepath.Join(partial, "mysql.sql")
@@ -373,45 +386,6 @@ func runBackup(ctx context.Context, args []string) error {
 	keepPartial = false
 	syncDir(filepath.Dir(destAbs))
 	return printJSON(backupReport{Backup: destAbs, CreatedAt: created, Database: cfg.DBName, SchemaVersion: schema, MySQLSize: dumpSize, DataFiles: dataFiles, DataBytes: dataBytes, Counts: counts})
-}
-
-func waitQuiescent(ctx context.Context, db *sql.DB, wait, quiesce time.Duration) error {
-	if e := sleepContext(ctx, quiesce); e != nil {
-		return e
-	}
-	deadline := time.Now().Add(wait)
-	for {
-		var exports, uploads int
-		if e := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM export_jobs WHERE state='running' AND lease_until>UTC_TIMESTAMP(6)").Scan(&exports); e != nil {
-			return e
-		}
-		if e := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM staged_uploads WHERE state IN ('staged','claimed') AND expires_at>UTC_TIMESTAMP(6)").Scan(&uploads); e != nil {
-			return e
-		}
-		if exports == 0 && uploads == 0 {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timed out waiting for in-flight work: %d exports, %d uploads; retry after they finish or expire", exports, uploads)
-		}
-		if e := sleepContext(ctx, 500*time.Millisecond); e != nil {
-			return e
-		}
-	}
-}
-
-func sleepContext(ctx context.Context, d time.Duration) error {
-	if d <= 0 {
-		return ctx.Err()
-	}
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
 }
 
 func clientArgs(cfg *mysql.Config) []string {
@@ -549,7 +523,7 @@ func copyDataDir(ctx context.Context, src, dst string) (int, int64, error) {
 			}
 			return os.MkdirAll(filepath.Join(dst, filepath.FromSlash(key)), 0700)
 		}
-		if strings.HasPrefix(entry.Name(), storage.MaintenanceGateName) {
+		if strings.HasPrefix(entry.Name(), storage.MaintenanceGateName) || strings.HasPrefix(entry.Name(), storage.WriterLockName) {
 			return nil
 		}
 		if entry.Type()&fs.ModeSymlink != 0 {
@@ -748,11 +722,32 @@ func runRestore(ctx context.Context, args []string) error {
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return e
 	}
-	if e = os.MkdirAll(dataAbs, 0700); e != nil {
+	if e = os.MkdirAll(filepath.Dir(dataAbs), 0700); e != nil {
 		return e
 	}
 	if _, e = exec.LookPath(*mysqlBin); e != nil {
 		return fmt.Errorf("%s was not found in PATH", *mysqlBin)
+	}
+	staging := fmt.Sprintf("%s.restore-%d", dataAbs, time.Now().UTC().UnixNano())
+	if _, e = os.Stat(staging); !errors.Is(e, os.ErrNotExist) {
+		return fmt.Errorf("staging directory already exists: %s", staging)
+	}
+	if e = os.Mkdir(staging, 0700); e != nil {
+		return e
+	}
+	keepStaging := true
+	defer func() {
+		if keepStaging {
+			os.RemoveAll(staging)
+		}
+	}()
+	log.Print("copying backup files into staging; the target database and data directory are untouched")
+	dataFiles, dataBytes, e := copyDataDir(ctx, filepath.Join(sourceAbs, "data"), staging)
+	if e != nil {
+		return e
+	}
+	if dataFiles != manifest.DataFiles || dataBytes != manifest.DataBytes {
+		return fmt.Errorf("staged data file count or size does not match manifest: got %d files/%d bytes, want %d/%d", dataFiles, dataBytes, manifest.DataFiles, manifest.DataBytes)
 	}
 	importArgs := append(clientArgs(target), "--default-character-set=utf8mb4", "--database="+targetDB)
 	command := exec.CommandContext(ctx, *mysqlBin, importArgs...)
@@ -767,13 +762,6 @@ func runRestore(ctx context.Context, args []string) error {
 	command.Stderr = stderr
 	if e = command.Run(); e != nil {
 		return commandError(*mysqlBin, e, stderr, target.Passwd)
-	}
-	dataFiles, dataBytes, e := copyDataDir(ctx, filepath.Join(sourceAbs, "data"), dataAbs)
-	if e != nil {
-		return e
-	}
-	if dataFiles != manifest.DataFiles || dataBytes != manifest.DataBytes {
-		return fmt.Errorf("restored data file count or size does not match manifest: got %d files/%d bytes, want %d/%d", dataFiles, dataBytes, manifest.DataFiles, manifest.DataBytes)
 	}
 	restored, e := app.OpenMySQL(ctx, target.FormatDSN())
 	if e != nil {
@@ -796,14 +784,9 @@ func runRestore(ctx context.Context, args []string) error {
 			return fmt.Errorf("restored table %s has %d rows, backup had %d", table, counts[table], manifest.Counts[table])
 		}
 	}
-	store, e := storage.NewLocal(dataAbs)
-	if e != nil {
-		return errors.New("restored data directory is not usable")
-	}
-	defer store.Close()
 	report := restoreReport{Source: sourceAbs, Database: targetDB, DataDir: dataAbs, SchemaVersion: schema, DataFiles: dataFiles, DataBytes: dataBytes, Counts: counts}
 	if *verify {
-		check, e := storage.VerifyFiles(ctx, restored, store)
+		check, e := verifyStagedFiles(ctx, restored, staging)
 		if e != nil {
 			return e
 		}
@@ -813,5 +796,49 @@ func runRestore(ctx context.Context, args []string) error {
 		}
 		report.UniqueFiles = check.UniqueFiles
 	}
+	if e = swapDataDir(staging, dataAbs); e != nil {
+		return e
+	}
+	keepStaging = false
 	return printJSON(report)
+}
+
+func verifyStagedFiles(ctx context.Context, db *sql.DB, dir string) (storage.FileCheck, error) {
+	store, e := storage.NewLocal(dir)
+	if e != nil {
+		return storage.FileCheck{}, errors.New("staged data directory is not usable")
+	}
+	defer store.Close()
+	return storage.VerifyFiles(ctx, db, store)
+}
+
+// swapDataDir replaces the target only after the staged restore has been fully
+// verified, so a failed restore never leaves the database and files from
+// different generations.
+func swapDataDir(staging, target string) error {
+	old := fmt.Sprintf("%s.restore-old-%d", target, time.Now().UTC().UnixNano())
+	hadTarget := false
+	if _, e := os.Lstat(target); e == nil {
+		if e = os.Rename(target, old); e != nil {
+			return fmt.Errorf("cannot move the existing data directory aside: %w", e)
+		}
+		hadTarget = true
+	} else if !errors.Is(e, os.ErrNotExist) {
+		return e
+	}
+	if e := os.Rename(staging, target); e != nil {
+		if hadTarget {
+			if restoreErr := os.Rename(old, target); restoreErr != nil {
+				return fmt.Errorf("cannot install staged data directory: %w; the previous directory is at %s", e, old)
+			}
+		}
+		return fmt.Errorf("cannot install staged data directory: %w", e)
+	}
+	syncDir(filepath.Dir(target))
+	if hadTarget {
+		if e := os.RemoveAll(old); e != nil {
+			log.Printf("warning: restored successfully but could not remove the previous data directory %s: %v", old, e)
+		}
+	}
+	return nil
 }
