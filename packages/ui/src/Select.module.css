@@ -96,3 +96,11 @@
   flex: none;
   color: var(--fp-green);
 }
+@media (pointer: coarse) {
+  /* The menu rows are what a thumb hits, so they take the same 44px target and
+     text size the package gives its buttons and fields on a touch screen. */
+  .item {
+    min-height: var(--fp-tap-target);
+    font-size: 16px;
+  }
+}

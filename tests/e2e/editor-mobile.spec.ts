@@ -122,3 +122,33 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(360);
 });
+
+test("font menu rows keep a thumb-sized target on a touch screen", async ({
+  page,
+}) => {
+  await openPoster(page, "mobilemenu");
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await expect(sheet).toBeVisible();
+
+  await sheet.getByLabel("文字字体", { exact: true }).click();
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  const row = listbox.getByRole("option", { name: "Inter", exact: true });
+  // The page grows the trigger to 44px, but the rows inside the menu are what a
+  // thumb actually hits, so the package grows those with it.
+  expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(row).toHaveCSS("font-size", "16px");
+
+  // The menu portals into the sheet, which is itself a scroll box, so being
+  // visible is not enough: it has to sit inside that box, and what does not fit
+  // has to be reachable by scrolling the list rather than cut off.
+  const listBox = (await listbox.boundingBox())!;
+  const clip = await sheet.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom };
+  });
+  expect(listBox.y).toBeGreaterThanOrEqual(clip.top - 0.5);
+  expect(listBox.y + listBox.height).toBeLessThanOrEqual(clip.bottom + 0.5);
+  await expect(listbox).toHaveCSS("overflow-y", "auto");
+});
