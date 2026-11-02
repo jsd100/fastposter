@@ -161,16 +161,23 @@ test("catalog selects support keyboard selection and Escape", async ({
     (el) => el.scrollHeight > el.clientHeight,
   );
   expect(scrollable).toBeTruthy();
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Enter");
+  const highlighted = listbox.locator("[data-highlighted]");
+  await expect(highlighted).toHaveText("全部分类");
+  await highlighted.press("ArrowDown");
+  await expect(highlighted).not.toHaveText("全部分类");
+  const moved = (await highlighted.innerText()).trim();
+  await highlighted.press("Enter");
   await expect(listbox).toHaveCount(0);
   const afterEnter = await selectValue(page, "文案分类第1级").innerText();
-  expect(afterEnter).not.toBe("全部分类");
+  expect(afterEnter).toBe(moved);
 
   await first.click();
   await expect(listbox).toBeVisible();
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Escape");
+  const reopenActive = listbox.locator("[data-highlighted]");
+  await expect(reopenActive).toHaveText(afterEnter);
+  await reopenActive.press("ArrowDown");
+  await expect(reopenActive).not.toHaveText(afterEnter);
+  await reopenActive.press("Escape");
   await expect(listbox).toHaveCount(0);
   await expect(selectValue(page, "文案分类第1级")).toHaveText(afterEnter);
   await adminContext.close();
