@@ -1,3 +1,4 @@
+import { IconButton, Tooltip } from "@fastposter/ui";
 import type { ReactNode } from "react";
 import type { UserDTO } from "@fastposter/api-client";
 import {
@@ -76,13 +77,11 @@ export function AdminLayout({
             {user.username}
             <small>管理员</small>
           </span>
-          <button
-            className="icon-button"
-            aria-label="退出登录"
-            onClick={logout}
-          >
-            <LogOut size={17} />
-          </button>
+          <Tooltip label="退出登录">
+            <IconButton aria-label="退出登录" onClick={logout}>
+              <LogOut size={17} />
+            </IconButton>
+          </Tooltip>
         </div>
       </aside>
       <main className="admin-main">

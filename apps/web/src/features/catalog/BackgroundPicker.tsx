@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type AssetDTO } from "@fastposter/api-client";
-import { Button, Dialog, Select, Status } from "@fastposter/ui";
+import { Button, Dialog, Select, Status, TextInput } from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
 export function BackgroundPicker({
@@ -42,7 +42,7 @@ export function BackgroundPicker({
     <Dialog title="背景库" className="background-picker" onClose={onClose}>
       <p>选择预设背景。不同尺寸会调整画布和文字位置，字号保持不变。</p>
       <div className="picker-filters">
-        <input
+        <TextInput variant="bare"
           aria-label="搜索预设背景"
           placeholder="搜索背景"
           value={keyword}

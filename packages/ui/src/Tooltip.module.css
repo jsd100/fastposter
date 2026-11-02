@@ -1,0 +1,15 @@
+.positioner {
+  z-index: 90;
+}
+
+.popup {
+  max-width: 240px;
+  border-radius: var(--fp-radius-icon);
+  background: var(--fp-ink);
+  color: var(--fp-surface-soft);
+  padding: 5px 9px;
+  font-size: 10px;
+  line-height: 1.5;
+  box-shadow: 0 6px 18px var(--fp-dialog-shadow);
+  pointer-events: none;
+}

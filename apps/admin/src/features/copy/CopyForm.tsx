@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { ResourceDTO } from "@fastposter/api-client";
 import { routes } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Status } from "@fastposter/ui";
+import { Button, Dialog, FormField, Select, Status, Textarea } from "@fastposter/ui";
 import { errorMessage, request } from "../../api";
 import { flattenCategories } from "./CategoryTree";
 
@@ -249,7 +249,7 @@ export function CopyForm({
         />
         <label className="form-field">
           文案正文
-          <textarea
+          <Textarea variant="bare"
             aria-label="文案正文"
             value={body}
             onChange={(e) => setBody(e.target.value)}

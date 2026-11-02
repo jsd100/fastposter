@@ -119,7 +119,7 @@ export function ProjectListView({
                   <MoreHorizontal size={20} />
                 </summary>
                 <div className="project-menu-items">
-                  <button
+                  <Button
                     onClick={(e) => {
                       e.currentTarget.closest("details")!.open = false;
                       onAction("rename", project);
@@ -127,8 +127,8 @@ export function ProjectListView({
                   >
                     <Pencil size={15} />
                     重命名
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={(e) => {
                       e.currentTarget.closest("details")!.open = false;
                       onAction("clone", project);
@@ -136,8 +136,8 @@ export function ProjectListView({
                   >
                     <Copy size={15} />
                     复制作品
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     className="text-danger"
                     onClick={(e) => {
                       e.currentTarget.closest("details")!.open = false;
@@ -146,7 +146,7 @@ export function ProjectListView({
                   >
                     <Trash2 size={15} />
                     移到回收站
-                  </button>
+                  </Button>
                 </div>
               </details>
             )}

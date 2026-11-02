@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type ResourceDTO } from "@fastposter/api-client";
-import { Button, Dialog, Select, Status } from "@fastposter/ui";
+import { Button, Dialog, Select, Status, TextInput } from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
 
@@ -94,7 +94,7 @@ export function CopyPicker({
         选择分类浏览已发布文案。无选区时新建文字块；选中文字时替换选区并沿用当前样式。
       </p>
       <div className="picker-filters">
-        <input
+        <TextInput variant="bare"
           aria-label="搜索文案"
           placeholder="搜索文案标题或内容"
           value={keyword}

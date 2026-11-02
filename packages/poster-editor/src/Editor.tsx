@@ -22,7 +22,7 @@ import type {
   RichNode,
   TextBlock,
 } from "@fastposter/poster-schema";
-import { Button, Dialog, NumberField, Status } from "@fastposter/ui";
+import { Button, Dialog, NumberField, Status, Tooltip } from "@fastposter/ui";
 import { shouldIgnoreEditorShortcut } from "./keyboard";
 import {
   Plus,
@@ -338,21 +338,26 @@ export function Editor({
               背景库
             </Button>
           )}
-          <Button
-            aria-label="撤销"
-            title="撤销 Ctrl/⌘ Z"
-            disabled={!state.canUndo}
-            onClick={store.undo}
-          >
-            <Undo2 size={16} />
-          </Button>
-          <Button
-            aria-label="重做"
-            disabled={!state.canRedo}
-            onClick={store.redo}
-          >
-            <Redo2 size={16} />
-          </Button>
+          <Tooltip label="撤销 Ctrl/⌘ Z">
+            <Button
+              aria-label="撤销"
+              aria-keyshortcuts="Control+Z Meta+Z"
+              disabled={!state.canUndo}
+              onClick={store.undo}
+            >
+              <Undo2 size={16} />
+            </Button>
+          </Tooltip>
+          <Tooltip label="重做 Ctrl/⌘ Y">
+            <Button
+              aria-label="重做"
+              aria-keyshortcuts="Control+Y Meta+Y"
+              disabled={!state.canRedo}
+              onClick={store.redo}
+            >
+              <Redo2 size={16} />
+            </Button>
+          </Tooltip>
         </div>
       </div>
       {error && <Status tone="error">{error}</Status>}
@@ -426,27 +431,32 @@ export function Editor({
           {selected ? (
             <>
               <div className="selection-actions">
-                <Button
-                  aria-label="复制文字块"
-                  onClick={store.duplicateSelected}
-                >
-                  <Copy size={15} />
-                </Button>
-                <Button
-                  aria-label="文字块前移一层"
-                  onClick={() => store.reorderSelected(1)}
-                >
-                  <ArrowUp size={15} />
-                </Button>
-                <Button
-                  aria-label="文字块后移一层"
-                  onClick={() => store.reorderSelected(-1)}
-                >
-                  <ArrowDown size={15} />
-                </Button>
-                <Button aria-label="删除文字块" onClick={store.deleteSelected}>
-                  <Trash2 size={15} />
-                </Button>
+                <Tooltip label="复制文字块">
+                  <Button aria-label="复制文字块" onClick={store.duplicateSelected}>
+                    <Copy size={15} />
+                  </Button>
+                </Tooltip>
+                <Tooltip label="文字块前移一层">
+                  <Button
+                    aria-label="文字块前移一层"
+                    onClick={() => store.reorderSelected(1)}
+                  >
+                    <ArrowUp size={15} />
+                  </Button>
+                </Tooltip>
+                <Tooltip label="文字块后移一层">
+                  <Button
+                    aria-label="文字块后移一层"
+                    onClick={() => store.reorderSelected(-1)}
+                  >
+                    <ArrowDown size={15} />
+                  </Button>
+                </Tooltip>
+                <Tooltip label="删除文字块">
+                  <Button aria-label="删除文字块" onClick={store.deleteSelected}>
+                    <Trash2 size={15} />
+                  </Button>
+                </Tooltip>
               </div>
               {true && (
                 <Button

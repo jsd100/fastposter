@@ -7,7 +7,7 @@ import {
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Status } from "@fastposter/ui";
+import { Button, Dialog, FormField, Select, Status, TextInput, Textarea } from "@fastposter/ui";
 import { Plus, ImagePlus, Type } from "lucide-react";
 import { request, errorMessage } from "../api";
 import { Pager } from "./Metadata";
@@ -99,7 +99,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         </Button>
       </div>
       <div className="admin-filters">
-        <input
+        <TextInput variant="bare"
           className="admin-search"
           aria-label="搜索素材"
           placeholder="搜索素材名称"
@@ -414,7 +414,7 @@ function ResourceForm({
         </label>
         <label className="form-field">
           授权说明
-          <textarea
+          <Textarea variant="bare"
             aria-label="授权说明"
             value={license}
             onChange={(e) => setLicense(e.target.value)}

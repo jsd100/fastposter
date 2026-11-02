@@ -2,7 +2,7 @@ import { fontFamilies, fontWeights } from "./font-options";
 import type { Editor } from "@tiptap/react";
 import type { TextBlock, InlineStyle } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
-import { Button, NumberField, Select } from "@fastposter/ui";
+import { NumberField, Select, ToggleButton } from "@fastposter/ui";
 import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
 import { selectionStyle, type InlineStylePatch } from "../text/selection";
 import { ParagraphPanel } from "./ParagraphPanel";
@@ -133,13 +133,14 @@ export function TextPanel({
             { mark: "strike", label: "删除线", icon: Strikethrough },
           ] as const
         ).map(({ mark, label, icon: Icon, ...extra }) => (
-          <Button
+          <ToggleButton
             key={mark}
             aria-label={label}
-            aria-pressed={editor?.isActive(mark) || false}
+            tooltip={label}
+            pressed={editor?.isActive(mark) ?? false}
             disabled={!editor || ("disabled" in extra && extra.disabled)}
             onPointerDown={(e) => e.preventDefault()}
-            onClick={() => {
+            onPressedChange={() => {
               if (!editor) return;
               const chain = editor.chain();
               if (mark === "bold") chain.toggleBold();
@@ -150,7 +151,7 @@ export function TextPanel({
             }}
           >
             <Icon size={15} />
-          </Button>
+          </ToggleButton>
         ))}
       </div>
       {!italicAvailable && (

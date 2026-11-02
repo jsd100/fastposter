@@ -68,6 +68,7 @@ export function NumberField({
       disabled={disabled}
     >
       <NumberFieldPrimitive.Input
+        data-fp-input=""
         id={id}
         aria-label={ariaLabel}
         placeholder={placeholder}

@@ -6,7 +6,7 @@ import {
   type ProjectReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, Dialog, Select, Status } from "@fastposter/ui";
+import { Button, Dialog, Select, Status, TextInput } from "@fastposter/ui";
 import {
   loadFonts,
   PosterThumbnail,
@@ -150,7 +150,7 @@ export function TemplatePicker({
     <Dialog title="模板库" className="template-picker" onClose={onClose}>
       <p>选择模板会创建一个独立作品，保留画布、背景与文字排版。</p>
       <div className="picker-filters">
-        <input
+        <TextInput variant="bare"
           aria-label="搜索模板"
           placeholder="搜索模板"
           value={keyword}

@@ -7,7 +7,7 @@ import {
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, FormField, Select, Status } from "@fastposter/ui";
+import { Button, FormField, NumberField, Select, Status, TextInput } from "@fastposter/ui";
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
 import {
   loadFonts,
@@ -196,7 +196,8 @@ export function TemplateEditor({
     <div className="template-editor-overlay" role="dialog" aria-label="模板编辑器">
       <header className="template-editor-header">
         <div className="template-editor-meta">
-          <input
+          <TextInput
+            variant="bare"
             className="template-title-input"
             aria-label="模板名称"
             placeholder="模板名称"
@@ -218,13 +219,13 @@ export function TemplateEditor({
           />
           <label className="template-sort">
             排序
-            <input
-              type="number"
+            <NumberField
+              className="template-sort-field"
               aria-label="模板排序"
               min={0}
               max={100000}
               value={sortOrder}
-              onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
+              onValueChange={setSortOrder}
             />
           </label>
           <label className="checkbox-field">

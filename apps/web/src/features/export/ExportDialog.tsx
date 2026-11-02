@@ -57,7 +57,6 @@ export function ExportControls({
     <>
       <Button
         variant="primary"
-        aria-label="导出 PNG"
         disabled={overflow || blocked}
         onClick={() => {
           if (running) setOpen(true);

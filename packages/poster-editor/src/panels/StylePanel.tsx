@@ -1,5 +1,5 @@
 import type { TextBlock } from "@fastposter/poster-schema";
-import { NumberField } from "@fastposter/ui";
+import { Button, NumberField } from "@fastposter/ui";
 export function StylePanel({
   block,
   update,
@@ -54,7 +54,8 @@ export function StylePanel({
               }
             />
             {key !== "strokeColor" && (
-              <button
+              <Button
+                variant="ghost"
                 className="clear-effect"
                 onClick={() =>
                   update((b) => ({
@@ -64,7 +65,7 @@ export function StylePanel({
                 }
               >
                 设为透明
-              </button>
+              </Button>
             )}
           </label>
         ),

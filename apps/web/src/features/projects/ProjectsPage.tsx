@@ -7,7 +7,15 @@ import {
   type AssetReply,
   type ProjectDTO,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Status } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  FormField,
+  IconButton,
+  Status,
+  TextInput,
+  Tooltip,
+} from "@fastposter/ui";
 import {
   FolderOpen,
   ImagePlus,
@@ -204,15 +212,16 @@ export function ProjectsPage() {
             {user!.username}
             <small>个人空间</small>
           </span>
-          <button
-            aria-label="退出登录"
-            className="icon-button"
-            onClick={() =>
-              void logout().catch((e) => setError(errorMessage(e)))
-            }
-          >
-            <LogOut size={17} />
-          </button>
+          <Tooltip label="退出登录">
+            <IconButton
+              aria-label="退出登录"
+              onClick={() =>
+                void logout().catch((e) => setError(errorMessage(e)))
+              }
+            >
+              <LogOut size={17} />
+            </IconButton>
+          </Tooltip>
         </div>
         <Link className="password-link" href="/password">
           <Settings2 size={13} />
@@ -240,15 +249,17 @@ export function ProjectsPage() {
             <i />
             云端保存
           </span>
-          <button
-            className="icon-button mobile-logout"
-            aria-label="退出登录"
-            onClick={() =>
-              void logout().catch((e) => setError(errorMessage(e)))
-            }
-          >
-            <LogOut size={18} />
-          </button>
+          <Tooltip label="退出登录">
+            <IconButton
+              className="mobile-logout"
+              aria-label="退出登录"
+              onClick={() =>
+                void logout().catch((e) => setError(errorMessage(e)))
+              }
+            >
+              <LogOut size={18} />
+            </IconButton>
+          </Tooltip>
         </header>
         <div className="workspace-content">
           <div className="workspace-title-row">
@@ -299,7 +310,8 @@ export function ProjectsPage() {
             </span>
             <div className="search-input">
               <Search size={16} />
-              <input
+              <TextInput
+                variant="bare"
                 aria-label="搜索作品"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}

@@ -106,3 +106,27 @@ test("changing the selected words leaves the rest of the block alone and undoes"
     /fp_builtin-noto-sc-400/,
   );
 });
+
+test("format toggles bold only the selected words and announce their pressed state", async ({
+  page,
+}) => {
+  await openPoster(page, "toggle");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  const bold = page.getByRole("button", { name: "粗体", exact: true });
+  await expect(bold).toHaveAttribute("aria-pressed", "false");
+  await bold.click();
+  await expect(bold).toHaveAttribute("aria-pressed", "true");
+  const strong = input.locator("strong");
+  await expect(strong).toHaveCount(1);
+  await expect(strong).toHaveText("风景");
+  await expect(strong).toHaveCSS("font-weight", "700");
+  await expect(input).toContainText("你好风景世界");
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+    .toBe("风景");
+  await bold.click();
+  await expect(bold).toHaveAttribute("aria-pressed", "false");
+  await expect(input.locator("strong")).toHaveCount(0);
+  await expect(input).toContainText("你好风景世界");
+});

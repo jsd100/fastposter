@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { routes, type UserDTO } from "@fastposter/api-client";
-import { Button, Dialog, Status } from "@fastposter/ui";
+import { Button, Dialog, Status, TextInput, Textarea } from "@fastposter/ui";
 import { request, errorMessage } from "../api";
 function Empty() {
   return <p className="admin-empty">暂无记录</p>;
@@ -86,7 +86,7 @@ export function UsersPage() {
       <p className="admin-subtitle">
         禁用即时撤销会话；恢复账号后仍须重新登录。
       </p>
-      <input
+      <TextInput variant="bare"
         className="admin-search"
         aria-label="搜索用户"
         placeholder="搜索用户名"
@@ -172,7 +172,7 @@ export function UsersPage() {
                 已撤销旧密码和所有会话。将以下令牌交给本人，在 30 分钟内前往{" "}
                 <code>/password?reset=1</code> 设置新密码。令牌只显示本次。
               </p>
-              <textarea
+              <Textarea variant="bare"
                 readOnly
                 aria-label="一次性重置令牌"
                 className="reset-token"
@@ -217,7 +217,7 @@ export function ProjectsPage() {
       <p className="admin-subtitle">
         仅显示名称、归属、尺寸与版本。海报正文和私有图片不向管理员开放。
       </p>
-      <input
+      <TextInput variant="bare"
         className="admin-search"
         aria-label="搜索作品元数据"
         placeholder="搜索作品名称"

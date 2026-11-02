@@ -6,7 +6,7 @@ import {
   type ResourceDTO,
   type ResourceReply,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Status } from "@fastposter/ui";
+import { Button, Dialog, FormField, Select, Status, TextInput } from "@fastposter/ui";
 import {
   loadFonts,
   PosterThumbnail,
@@ -194,7 +194,7 @@ export function TemplatesPage() {
         </div>
       </div>
       <div className="admin-filters">
-        <input
+        <TextInput variant="bare"
           className="admin-search"
           aria-label="搜索模板"
           placeholder="搜索模板名称"

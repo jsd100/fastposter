@@ -1,3 +1,4 @@
+import { Tooltip } from "@fastposter/ui";
 import type { ResourceDTO } from "@fastposter/api-client";
 import { Pencil, Plus } from "lucide-react";
 
@@ -62,22 +63,24 @@ export function CategoryTree({
           <span>{node.title}</span>
           {!node.published && <i>未发布</i>}
         </button>
-        <button
-          className="copy-node-icon"
-          aria-label={`添加子分类 ${node.title}`}
-          title="添加子分类"
-          onClick={() => onAdd(node.id)}
-        >
-          <Plus size={13} />
-        </button>
-        <button
-          className="copy-node-icon"
-          aria-label={`编辑分类 ${node.title}`}
-          title="编辑分类"
-          onClick={() => onEdit(node)}
-        >
-          <Pencil size={13} />
-        </button>
+        <Tooltip label="添加子分类">
+          <button
+            className="copy-node-icon"
+            aria-label={`添加子分类 ${node.title}`}
+            onClick={() => onAdd(node.id)}
+          >
+            <Plus size={13} />
+          </button>
+        </Tooltip>
+        <Tooltip label="编辑分类">
+          <button
+            className="copy-node-icon"
+            aria-label={`编辑分类 ${node.title}`}
+            onClick={() => onEdit(node)}
+          >
+            <Pencil size={13} />
+          </button>
+        </Tooltip>
       </div>
       {node.children.map((child) => row(child, depth + 1))}
     </div>

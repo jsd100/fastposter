@@ -361,3 +361,48 @@ test("modal dialog traps focus, locks page scroll and restores both after closin
     .poll(() => page.evaluate(() => window.scrollY))
     .toBeGreaterThan(restored);
 });
+
+test("icon actions describe themselves on keyboard focus and disabled actions stay inert", async ({
+  page,
+}) => {
+  await openPoster(page, "uitip");
+  const tip = page.locator("[data-fp-tooltip]");
+  await expect(tip).toHaveCount(0);
+  await page.getByRole("button", { name: "复制文字块", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  const hint = page.getByRole("button", { name: "文字块前移一层", exact: true });
+  await expect(hint).toBeFocused();
+  await expect(tip).toBeVisible();
+  await expect(tip).toHaveText("文字块前移一层");
+  await page.keyboard.press("Escape");
+  await expect(tip).toHaveCount(0);
+  await expect(hint).toBeFocused();
+
+  const redo = page.getByRole("button", { name: "重做", exact: true });
+  await expect(redo).toBeDisabled();
+  await redo.hover();
+  await expect(tip).toHaveCount(0);
+  const before = await page
+    .locator("[data-text-block]")
+    .first()
+    .innerText();
+  await redo.click({ force: true });
+  await expect(redo).toBeDisabled();
+  await expect(page.locator("[data-text-block]").first()).toHaveText(before);
+});
+
+test("the undo hint stays readable without becoming the only name", async ({
+  page,
+}) => {
+  await openPoster(page, "uitip2");
+  const undo = page.getByRole("button", { name: "撤销", exact: true });
+  await expect(undo).toBeEnabled();
+  await expect(undo).toHaveAttribute("aria-keyshortcuts", /Z/);
+  await expect(undo).not.toHaveAttribute("title");
+  await page.getByRole("button", { name: "背景库", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await expect(undo).toBeFocused();
+  const tip = page.locator("[data-fp-tooltip]");
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText("Ctrl/⌘ Z");
+});

@@ -395,8 +395,9 @@
   min-width: 0;
   margin: 12px 0;
 }
-.panel-field input,
-.panel-field .select {
+.panel-field [data-fp-input],
+.panel-field .select,
+.panel-field input[type="color"] {
   width: 100%;
   min-width: 0;
   border: 1px solid #dce6d0;
@@ -408,8 +409,9 @@
   font-size: 12px;
   outline: none;
 }
-.panel-field input:focus,
-.panel-field .select:focus {
+.panel-field [data-fp-input]:focus,
+.panel-field .select:focus,
+.panel-field input[type="color"]:focus {
   border-color: #8fab77;
   box-shadow: 0 0 0 2px #b6c9a52b;
 }
@@ -448,13 +450,18 @@
   cursor: pointer;
   min-height: 25px;
 }
-.clear-effect {
+.panel-field .button.clear-effect {
   border: 0;
   background: none;
   color: #92a380;
   font-size: 9px;
+  font-weight: 400;
+  padding: 1px 6px;
   align-self: flex-end;
   min-height: 25px;
+}
+.panel-field .button.clear-effect:hover {
+  background: none;
 }
 @media (max-width: 680px) {
   .text-panel {
@@ -462,8 +469,9 @@
     padding-top: 0;
     border-top: 0;
   }
-  .panel-field input,
-  .panel-field .select {
+  .panel-field [data-fp-input],
+  .panel-field .select,
+  .panel-field input[type="color"] {
     font-size: 16px;
     min-height: 44px;
   }

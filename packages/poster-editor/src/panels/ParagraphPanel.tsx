@@ -1,5 +1,5 @@
 import type { TextBlock } from "@fastposter/poster-schema";
-import { Button, NumberField } from "@fastposter/ui";
+import { NumberField, ToggleButton } from "@fastposter/ui";
 export function ParagraphPanel({
   block,
   update,
@@ -12,12 +12,12 @@ export function ParagraphPanel({
       <h3>段落</h3>
       <div className="format-buttons">
         {(["left", "center", "right"] as const).map((align, i) => (
-          <Button
+          <ToggleButton
             key={align}
             aria-label={["左对齐", "居中对齐", "右对齐"][i]}
-            aria-pressed={block.paragraphStyle.align === align}
+            pressed={block.paragraphStyle.align === align}
             onPointerDown={(e) => e.preventDefault()}
-            onClick={() =>
+            onPressedChange={() =>
               update((b) => ({
                 ...b,
                 paragraphStyle: { ...b.paragraphStyle, align },
@@ -25,7 +25,7 @@ export function ParagraphPanel({
             }
           >
             {["左对齐", "居中", "右对齐"][i]}
-          </Button>
+          </ToggleButton>
         ))}
       </div>
       <div className="panel-row">

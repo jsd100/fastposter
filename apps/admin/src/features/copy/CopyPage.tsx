@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { routes, type ResourceDTO } from "@fastposter/api-client";
-import { Button, Status } from "@fastposter/ui";
+import { Button, Status, TextInput } from "@fastposter/ui";
 import { Plus } from "lucide-react";
 import { errorMessage, request } from "../../api";
 import { Pager } from "../Metadata";
@@ -111,7 +111,7 @@ export function CopyPage() {
         />
         <section className="copy-main">
           <div className="admin-filters">
-            <input
+            <TextInput variant="bare"
               className="admin-search"
               aria-label="搜索文案"
               placeholder="搜索文案标题或内容"

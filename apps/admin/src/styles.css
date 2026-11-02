@@ -529,7 +529,8 @@ td .button {
 .template-title-input{height:36px;min-width:220px;border:1px solid #dfe8d4;border-radius:5px;padding:0 10px;font-size:13px;color:#4d6140;background:#fbfdf8}
 .template-editor-meta .select{height:36px;min-width:130px;padding:0 9px;border:1px solid #dfe8d4;background:#fff;border-radius:5px;color:#829b68;font-size:11px}
 .template-sort{display:flex;align-items:center;gap:6px;font-size:11px;color:#829b68}
-.template-sort input{width:90px;height:36px;border:1px solid #dfe8d4;border-radius:5px;padding:0 8px;font-size:11px;color:#829b68}
+.template-sort .template-sort-field{width:90px;min-width:0}
+.template-sort [data-fp-input]{width:100%;height:36px;border:1px solid #dfe8d4;border-radius:5px;padding:0 8px;font-size:11px;color:#829b68}
 .template-editor-actions{display:flex;align-items:center;gap:8px}
 .template-overflow{color:#b0602f;font-size:11px}
 .template-editor-canvas{flex:1;min-height:0;display:flex}
@@ -550,6 +551,8 @@ td .button {
 .copy-node i{font-style:normal;font-size:8px;color:#b08c64;background:#fbf2e7;border-radius:3px;padding:2px 4px;flex-shrink:0}
 .copy-node-icon{opacity:0;border:0;background:transparent;color:#9aad87;cursor:pointer;padding:3px;flex-shrink:0}
 .copy-node-row:hover .copy-node-icon,.copy-node-icon:focus-visible{opacity:1}
+@media (hover:none){.copy-node-icon{opacity:1}}
+@media (pointer:coarse){.copy-node-icon{width:44px;height:44px;display:flex;align-items:center;justify-content:center}}
 .copy-tree-empty{font-size:10px;color:#a2b18e;line-height:1.7;padding:14px 6px}
 .copy-main{min-width:0}
 .copy-scope{font-size:10px;color:#9aad87;white-space:nowrap}
