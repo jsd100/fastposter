@@ -482,7 +482,9 @@
   .effect-panel summary {
     min-height: 44px;
   }
-  .poster-editor .bottom-sheet {
+  /* The sheet popup is portalled to the body, so this page rule reaches it
+     through the package hook instead of an editor ancestor. */
+  [data-fp-overlay].bottom-sheet {
     max-height: min(65dvh, 550px);
   }
 }

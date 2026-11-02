@@ -68,6 +68,9 @@
   color: var(--fp-ink);
   background: var(--fp-surface);
   max-height: calc(100dvh - 36px);
+  /* <dialog> was clamped by the UA to the viewport minus a gutter; a portalled
+     popup gets no such clamp, so the modal keeps the width it rendered with. */
+  max-width: calc(100% - 6px - 2em);
   overflow: auto;
 }
 .dialog-header {

@@ -69,8 +69,13 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
 
   const sheetBox = (await sheet.boundingBox())!;
   expect(Math.round(sheetBox.y + sheetBox.height)).toBe(800);
-  expect(sheetBox.x).toBe(0);
-  expect(Math.round(sheetBox.width)).toBe(360);
+  // A centred or bottom sheet keeps the 17px gutter the browser used to clamp
+  // modals to, so the authored width never runs out to the screen edge.
+  expect(sheetBox.x).toBe(17);
+  expect(Math.round(sheetBox.width)).toBe(326);
+  // The editor caps its sheet below the package default; the popup still has to
+  // reach that page rule after being portalled out of the editor.
+  expect(Math.round(sheetBox.height)).toBeLessThanOrEqual(520);
   expect(await sheet.evaluate((el) => getComputedStyle(el).paddingBottom)).toBe(
     "24px",
   );

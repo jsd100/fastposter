@@ -13,6 +13,8 @@
   position: fixed;
   inset: 0;
   margin: auto;
+  /* inset:0 stretches an auto height; <dialog> used to get fit-content from the UA */
+  height: fit-content;
 }
 .bottom {
   position: fixed;

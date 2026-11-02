@@ -239,6 +239,34 @@ test("editor number fields keep drafts, bounds and Escape without touching the d
   await expect(block).toHaveCSS("letter-spacing", `${shown}px`);
 });
 
+test("the select trigger keeps the native control's ink and insets", async ({
+  page,
+}) => {
+  await openPoster(page, "ui_caret");
+  const trigger = selectTrigger(page, "文字字体");
+  const caret = trigger.locator("svg");
+  await expect(caret).toHaveCSS(
+    "color",
+    await trigger.evaluate((el) => getComputedStyle(el).color),
+  );
+
+  // The native arrow hugged the control's right border; the component must not
+  // push it into the field's padding.
+  const box = (await trigger.boundingBox())!;
+  const ink = (await caret.boundingBox())!;
+  expect(box.x + box.width - (ink.x + ink.width)).toBeLessThanOrEqual(4);
+
+  // A native menulist indented its value past the author padding, and every
+  // field next to it was laid out against that.
+  const textLeft = await trigger.evaluate((el) => {
+    const value = el.querySelector("[data-fp-select-value]")!;
+    const range = document.createRange();
+    range.selectNodeContents(value);
+    return range.getBoundingClientRect().left;
+  });
+  expect(Math.round(textLeft - box.x)).toBeGreaterThanOrEqual(13);
+});
+
 test("select inside the template dialog closes before its parent and restores focus", async ({
   page,
 }) => {
@@ -284,8 +312,10 @@ test("modal dialog traps focus, locks page scroll and restores both after closin
   await expect(picker).toBeVisible();
 
   const placed = (await picker.boundingBox())!;
-  expect(Math.round(placed.width)).toBe(402);
-  expect(Math.round(placed.x)).toBe(14);
+  // The authored width is 100vw - 28px, but a modal keeps the gutter the browser
+  // used to clamp dialogs to, so the narrower of the two wins.
+  expect(Math.round(placed.width)).toBe(396);
+  expect(Math.round(placed.x)).toBe(17);
   expect(placed.height).toBeLessThanOrEqual(900 - 36);
   expect(Math.abs(placed.y - (900 - placed.height) / 2)).toBeLessThanOrEqual(2);
 
@@ -360,6 +390,31 @@ test("modal dialog traps focus, locks page scroll and restores both after closin
   await expect
     .poll(() => page.evaluate(() => window.scrollY))
     .toBeGreaterThan(restored);
+});
+
+test("a short dialog hugs its content instead of filling the viewport", async ({
+  page,
+}) => {
+  await account(page, "ui_dialog_fit_" + Date.now().toString(36));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole("button", { name: "模板库", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "模板库" });
+  await expect(picker).toBeVisible();
+  const fit = await picker.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const last = el.lastElementChild!.getBoundingClientRect();
+    return {
+      dead:
+        box.bottom -
+        last.bottom -
+        parseFloat(getComputedStyle(el).paddingBottom),
+      height: Math.round(box.height),
+      scrollable: el.scrollHeight > el.clientHeight + 1,
+    };
+  });
+  expect(fit.scrollable).toBe(false);
+  expect(fit.dead).toBeLessThanOrEqual(2);
+  expect(fit.height).toBeLessThan(600);
 });
 
 test("icon actions describe themselves on keyboard focus and disabled actions stay inert", async ({
