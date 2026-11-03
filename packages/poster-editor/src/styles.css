@@ -426,8 +426,38 @@
 }
 .panel-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Two steppers need a readable middle field; below that the row stacks. */
+  grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
   gap: 12px;
+}
+.panel-field [data-fp-stepper] {
+  height: 35px;
+  border: 1px solid #dce6d0;
+  border-radius: 5px;
+  background: #fcfdf9;
+  overflow: hidden;
+}
+.panel-field [data-fp-stepper] [data-fp-input] {
+  width: auto;
+  height: 100%;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.panel-field [data-fp-stepper] [data-fp-input]:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+.panel-field [data-fp-stepper]:focus-within {
+  border-color: var(--fp-focus-line);
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
+}
+@media (pointer: coarse) {
+  .panel-field [data-fp-stepper] {
+    height: 46px;
+  }
 }
 .format-buttons {
   display: flex;
@@ -479,6 +509,9 @@
   .panel-field input[type="color"] {
     font-size: 16px;
     min-height: 44px;
+  }
+  .panel-field [data-fp-stepper] {
+    height: 46px;
   }
   .mobile-block-actions .button {
     font-size: 10px;

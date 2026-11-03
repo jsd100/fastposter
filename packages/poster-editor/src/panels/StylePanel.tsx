@@ -3,12 +3,15 @@ import { Button, NumberField } from "@fastposter/ui";
 export function StylePanel({
   block,
   update,
+  onNumericStart,
+  onNumericEnd,
 }: {
   block: TextBlock;
   update: (change: (b: TextBlock) => TextBlock) => void;
+  onNumericStart: () => void;
+  onNumericEnd: () => void;
 }) {
   const fields = [
-    ["opacity", "透明度", 0, 1, 0.05],
     ["padding", "内边距", 0, Math.max(0, block.width / 2 - 0.001), 1],
     ["strokeWidth", "描边宽度", 0, 40, 1],
     ["shadowBlur", "阴影模糊", 0, 200, 1],
@@ -19,15 +22,39 @@ export function StylePanel({
     <details className="effect-panel">
       <summary>文字效果</summary>
       <div className="panel-row">
+        <label className="panel-field">
+          透明度
+          <NumberField
+            aria-label="透明度"
+            variant="stepper"
+            unit="%"
+            value={Math.round(block.effects.opacity * 100)}
+            min={0}
+            max={100}
+            step={5}
+            onInteractionStart={onNumericStart}
+            onInteractionEnd={onNumericEnd}
+            onValueChange={(value) =>
+              update((b) => ({
+                ...b,
+                effects: { ...b.effects, opacity: value / 100 },
+              }))
+            }
+          />
+        </label>
         {fields.map(([key, label, min, max, step]) => (
           <label key={key} className="panel-field">
             {label}
             <NumberField
               aria-label={label}
+              variant="stepper"
+              unit="px"
               value={block.effects[key]}
               min={min}
               max={max}
               step={step}
+              onInteractionStart={onNumericStart}
+              onInteractionEnd={onNumericEnd}
               onValueChange={(value) =>
                 update((b) => ({
                   ...b,

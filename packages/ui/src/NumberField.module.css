@@ -7,3 +7,61 @@
   height: 30px;
   font-size: 10px;
 }
+
+.stepper {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.stepButton {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stepButton:hover:not(:disabled) {
+  background: var(--fp-surface-hover);
+}
+
+.stepButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.unit {
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding-right: 6px;
+  font-size: 9px;
+  color: var(--fp-icon-ink);
+  pointer-events: none;
+}
+
+@media (pointer: coarse) {
+  .stepButton {
+    width: var(--fp-tap-target, 44px);
+    font-size: 18px;
+  }
+  .unit {
+    padding-right: 3px;
+    font-size: 11px;
+  }
+}

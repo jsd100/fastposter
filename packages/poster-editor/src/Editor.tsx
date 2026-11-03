@@ -6,6 +6,7 @@ import {
   captureSelection,
   restoreSelection,
   applyTextStyle,
+  firstTargetStyle,
   type FontTarget,
   type InlineStylePatch,
 } from "./text/selection";
@@ -277,6 +278,19 @@ export function Editor({
     }
     return { blockId, target: { kind: "block", from: 0, to: 0 } };
   }
+  const numericInteraction = useRef(false);
+  function beginNumericInteraction() {
+    if (numericInteraction.current) return;
+    store.commit();
+    store.begin();
+    numericInteraction.current = true;
+  }
+  function endNumericInteraction() {
+    if (!numericInteraction.current) return;
+    numericInteraction.current = false;
+    store.commit();
+    selectionChanged((v) => v + 1);
+  }
   function applyPreparedFontChange(change: PreparedFontChange) {
     const editor = activeEditor;
     if (state.mode === "edit" && editor && !editor.isDestroyed) {
@@ -312,14 +326,26 @@ export function Editor({
       return;
     }
     if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
-      store.commit();
-      store.begin();
+      if (!numericInteraction.current) {
+        store.commit();
+        store.begin();
+      }
       if (textSelection.current)
         restoreSelection(activeEditor, textSelection.current);
       if (patch.fontWeight !== undefined) activeEditor.commands.unsetBold();
       activeEditor.commands.setMark("textStyle", patch);
-      store.commit();
+      if (!numericInteraction.current) store.commit();
       selectionChanged((v) => v + 1);
+    } else if (numericInteraction.current) {
+      store.updateBlock(selected.id, (b) => ({
+        ...b,
+        defaultStyle: { ...b.defaultStyle, ...patch },
+        content: applyTextStyle(
+          b.content,
+          { kind: "block", from: 0, to: 0 },
+          patch,
+        ),
+      }));
     } else {
       store.transact((d) => ({
         ...d,
@@ -347,7 +373,16 @@ export function Editor({
       apply={apply}
       chooseFont={(face) => void fontChoice.choose(face)}
       fontPending={fontChoice.pending}
+      sizeBase={
+        firstTargetStyle(state.document, fontTarget(selected.id)).fontSize
+      }
+      onNumericStart={beginNumericInteraction}
+      onNumericEnd={endNumericInteraction}
       update={(change) => {
+        if (numericInteraction.current) {
+          store.updateBlock(selected.id, change);
+          return;
+        }
         store.commit();
         store.transact((d) => ({
           ...d,

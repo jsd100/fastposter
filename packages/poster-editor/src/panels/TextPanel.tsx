@@ -15,6 +15,9 @@ export function TextPanel({
   apply,
   chooseFont,
   fontPending,
+  sizeBase,
+  onNumericStart,
+  onNumericEnd,
   update,
 }: {
   block: TextBlock;
@@ -23,6 +26,9 @@ export function TextPanel({
   apply: (patch: InlineStylePatch) => void;
   chooseFont: (font: FontSource) => void;
   fontPending: boolean;
+  sizeBase?: number;
+  onNumericStart: () => void;
+  onNumericEnd: () => void;
   update: (change: (block: TextBlock) => TextBlock) => void;
 }) {
   const selection = editor?.state.selection;
@@ -96,10 +102,16 @@ export function TextPanel({
           字号
           <NumberField
             aria-label="文字字号"
+            variant="stepper"
+            unit="px"
             min={1}
             max={4096}
+            step={1}
+            stepBase={sizeBase}
             value={current.fontSize ?? null}
             placeholder="混合"
+            onInteractionStart={onNumericStart}
+            onInteractionEnd={onNumericEnd}
             onValueChange={(fontSize) => apply({ fontSize })}
           />
         </label>
@@ -159,8 +171,18 @@ export function TextPanel({
       {!italicAvailable && (
         <p className="property-hint">当前字体未提供斜体字形。</p>
       )}
-      <ParagraphPanel block={block} update={update} />
-      <StylePanel block={block} update={update} />
+      <ParagraphPanel
+        block={block}
+        update={update}
+        onNumericStart={onNumericStart}
+        onNumericEnd={onNumericEnd}
+      />
+      <StylePanel
+        block={block}
+        update={update}
+        onNumericStart={onNumericStart}
+        onNumericEnd={onNumericEnd}
+      />
     </div>
   );
 }

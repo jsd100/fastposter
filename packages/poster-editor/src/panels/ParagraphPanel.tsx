@@ -3,9 +3,13 @@ import { NumberField, ToggleButton } from "@fastposter/ui";
 export function ParagraphPanel({
   block,
   update,
+  onNumericStart,
+  onNumericEnd,
 }: {
   block: TextBlock;
   update: (change: (b: TextBlock) => TextBlock) => void;
+  onNumericStart: () => void;
+  onNumericEnd: () => void;
 }) {
   return (
     <section>
@@ -34,10 +38,14 @@ export function ParagraphPanel({
             {key === "lineHeight" ? "行高" : "字距"}
             <NumberField
               aria-label={key === "lineHeight" ? "文字行高" : "文字字距"}
+              variant="stepper"
+              unit={key === "lineHeight" ? "倍" : "px"}
               step={key === "lineHeight" ? 0.1 : 1}
               min={key === "lineHeight" ? 0.5 : -100}
               max={key === "lineHeight" ? 5 : 1000}
               value={block.paragraphStyle[key]}
+              onInteractionStart={onNumericStart}
+              onInteractionEnd={onNumericEnd}
               onValueChange={(n) =>
                 update((b) => ({
                   ...b,
