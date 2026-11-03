@@ -69,7 +69,7 @@
 ### 变更
 
 - manifest 从 4 个字面扩展到 6 家族、11 个字面，原有四个字面 ID 不变；内置字体由 manifest 哈希校验后幂等 bootstrap，ListFonts 按 manifest 内置 ID 优先，限制仍为最多 100 个字面。
-- 新增完整字库与许可证：Noto Serif SC、LXGW WenKai、ZCOOL KuaiLe、ZCOOL XiaoWei；来源固定到 google/fonts commit 与 LXGW v1.530，没有用 Web 子集冒充完整字库。
+- 新增完整字库与许可证：Noto Serif SC、LXGW WenKai、ZCOOL KuaiLe、ZCOOL XiaoWei；来源固定到 google/fonts commit 与 LXGW v1.530，没有用 Web 子集冒充完整字库。六个文件的可下载来源均固定到具体 commit 或 release tag（Noto Sans SC、Inter、Noto Serif SC 同为 `8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5`，ZCOOL 两族分别为 `6d49995f…` 与 `d4276864…`，LXGW 为 `v1.530`），不使用 `tree/main` 等移动分支。
 - `loadFonts` 以源 URL 和字面注册分别去重；失败会移除缓存以便重试；同源检查在读取缓存之前执行。
 
 ### 字库体积（SHA-256 与 manifest 全部一致）
@@ -87,7 +87,7 @@
 
 ### 验证
 
-- `TestBuiltinManifestDeclaresSixFamilies`、`TestBuiltinFontsUpgradeIsIdempotent`、`TestBuiltinFontsRemainVisibleAtCatalogLimit`、`TestBuiltinFontsBootstrapIsImmutableAndReadable` 全部通过；升级两次不会重复插入，超过 100 个自定义字面时内置仍可发现。
+- `TestBuiltinManifestDeclaresSixFamilies`、`TestBuiltinFontSourcesArePinned`、`TestBuiltinFontsUpgradeIsIdempotent`、`TestBuiltinFontsRemainVisibleAtCatalogLimit`、`TestBuiltinFontsBootstrapIsImmutableAndReadable` 全部通过；`TestBuiltinFontSourcesArePinned` 先因 Noto Sans SC 与 Inter 使用 `tree/main` 失败，改为固定 commit 后通过；每个 manifest 文件都必须有来源，且来源只能是 40 位 commit blob 或 release tag。
 - `font-cache` 单测 2/2：同 key 只执行一次 loader，失败后再次调用可成功且不永久缓存拒绝的 Promise。
 - 六个中文字体的短句、标点、换行与覆盖测试通过；Inter 的中文缺字仍被识别。
 - 装载 11 个字面后 `editor-richtext` 4/4；新家族实际渲染、保存、重载和导出的版本一致性见 Task 6。
@@ -167,7 +167,7 @@
 - 初始化只请求 `builtin-noto-sc-400/700/900` 三个字面 URL（同一 Noto Sans SC 变量字体家族，属于既有默认文档行为），没有请求 Noto Serif SC、LXGW WenKai、ZCOOL KuaiLe、ZCOOL XiaoWei 或 Inter。
 - 高亮霞鹜文楷新增且只新增 `builtin-lxgw-wenkai-400`；高亮思源宋体新增且只新增 `builtin-noto-serif-sc-400`。
 - 再次高亮霞鹜文楷、实际选中应用霞鹜文楷都没有新增请求；保留字体失败重试路径。
-- 保存并重新加载后只加载文档引用的 Noto Sans SC 与霞鹜文楷，不加载其他家族。
+- 重载后的累计请求集合没有新增 ZCOOL 或 Inter；探针快照是累计集合，无法单独区分重载阶段，因此本文不据此声称“重载只加载引用家族”。
 - 限制说明：初始化会为 Noto Sans SC 三个字面各发一个 face URL（它们指向同一变量字体文件），这是本计划之前已有的初始化行为；本轮未增加其他家族，也未在预览/换字体时重复下载。
 
 ### Go 与集成
@@ -182,7 +182,7 @@
 
 | 组 | 文件 | 用例 | 注册数 | 结果 |
 | --- | --- | ---: | ---: | --- |
-| A | notifications、image-upload、session-sync、templates、copy | 7 | 6 | 7 passed (35.6s) |
+| A | notifications、image-upload、session-sync、templates、copy | 8 | 8 | 8 passed (36.5s) |
 | B | editor-fonts、editor-mobile | 9 | 9 | 9 passed (31.6s) |
 | C | editor-settings、editor-richtext | 8 | 8 | 8 passed (23.3s) |
 | D | ui-controls（前 9 个用例） | 9 | 9 | 9 passed (23.2s) |
@@ -190,7 +190,15 @@
 | F | admin-catalog、autosave | 6 | 6 | 6 passed (42.8s) |
 | G | editor-geometry、export、full-flow、projects | 8 | 9 | 8 passed (38.2s) |
 
-合计 53 个功能用例通过。`ui-baseline` 是 opt-in 采集，2/2 通过，单独列出，不计入 53；网络探针与附件探针也是单独运行、脚本临时创建后删除，不计入功能用例。
+合计 54 个功能用例通过。`ui-baseline` 是 opt-in 采集，2/2 通过，单独列出，不计入 54；网络探针与附件探针也是单独运行、脚本临时创建后删除，不计入功能用例。
+
+### 独立审阅与修复
+
+独立审阅覆盖 `f702d18..e8fe87b` 的 8 个实现提交，结论为“修复后可合并”，无 Critical。
+
+- 重要问题（已修复）：Noto Sans SC 与 Inter 的来源仍指向 `tree/main`，与“来源固定”的约束不符。两者实际字节与固定 commit `8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5` 下 `ofl/notosanssc/NotoSansSC[wght].ttf`、`ofl/inter/Inter[opsz,wght].ttf` 的 SHA-256 完全一致，已改为该 commit 的 blob 地址；新增 `TestBuiltinFontSourcesArePinned`，先失败后通过。
+- 重要问题（经复现验证不成立）：审阅担心切换账号后，旧账号的本地错误会被重新发布到新账号。实际页面均以 `user.id` 为 key，且跨标签页切换账号必经退出并跳转 `/login`，旧错误随页面卸载清空；新增 `session-sync` 回归用例“switching accounts does not resurrect the previous account's error”，在未改动生产代码的情况下通过。`useErrorNotice` 在作用域代数变化时重跑仍属潜在脆弱点，已记为延后 Minor。
+- 其余延后 Minor：字体预览失败状态粘滞、`useErrorNotice` 卸载清理、持久通知关闭后无恢复入口、后台模板字体作用域缺少身份、manifest 校验未覆盖 sources/licenses/未引用文件。均不影响本轮验收。
 
 ### 既有引用可重现
 

@@ -6,7 +6,9 @@ import (
 	"fastposter/server/internal/fontfile"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +84,33 @@ func TestBuiltinManifestDeclaresSixFamilies(t *testing.T) {
 	for _, license := range manifest.Licenses {
 		if _, e := os.Stat(filepath.Join(root, "assets/fonts", license)); e != nil {
 			t.Fatalf("missing license %s: %v", license, e)
+		}
+	}
+}
+
+func TestBuiltinFontSourcesArePinned(t *testing.T) {
+	root, e := filepath.Abs("../../..")
+	if e != nil {
+		t.Fatal(e)
+	}
+	manifest, e := loadBuiltinManifest(root)
+	if e != nil {
+		t.Fatal(e)
+	}
+	blob := regexp.MustCompile(`/blob/[0-9a-f]{40}/`)
+	release := regexp.MustCompile(`/releases/tag/[^/]+$`)
+	for file := range manifest.Files {
+		source, ok := manifest.Sources[file]
+		if !ok || source == "" {
+			t.Fatalf("%s has no declared source", file)
+		}
+		for _, moving := range []string{"/tree/main", "/blob/main", "/tree/master", "/blob/master"} {
+			if strings.Contains(source, moving) {
+				t.Fatalf("%s source tracks a moving branch: %s", file, source)
+			}
+		}
+		if !blob.MatchString(source) && !release.MatchString(source) {
+			t.Fatalf("%s source is not pinned to a commit or release: %s", file, source)
 		}
 	}
 }
