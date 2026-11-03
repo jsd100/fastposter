@@ -10,12 +10,10 @@
   -webkit-appearance: none;
   cursor: pointer;
   font-family: inherit;
+  padding: 0 10px;
 }
 .value {
   min-width: 0;
-  /* A native menulist indented its value about 14px from the control's border,
-     past whatever padding the page set; keep the text where it rendered. */
-  padding-inline-start: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: pre;
@@ -23,9 +21,6 @@
 .icon {
   display: flex;
   flex: none;
-  /* The native arrow sat against the control's border, inside the author
-     padding; pulling the icon back keeps that inset on every page. */
-  margin-inline-end: -6px;
 }
 .trigger[data-focus-visible],
 .trigger:focus-visible {

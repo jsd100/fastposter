@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import {
   chooseOption,
   openPoster,
@@ -338,9 +338,7 @@ test("Enter validates invalid and unfinished drafts without leaving a stale disp
   await expect(block).toHaveCSS("font-size", "4096px");
 });
 
-test("the select trigger keeps the native control's ink and insets", async ({
-  page,
-}) => {
+test("the select trigger balances text and caret insets", async ({ page }) => {
   await openPoster(page, "ui_caret");
   const trigger = selectTrigger(page, "文字字体");
   const caret = trigger.locator("svg");
@@ -349,21 +347,57 @@ test("the select trigger keeps the native control's ink and insets", async ({
     await trigger.evaluate((el) => getComputedStyle(el).color),
   );
 
-  // The native arrow hugged the control's right border; the component must not
-  // push it into the field's padding.
   const box = (await trigger.boundingBox())!;
   const ink = (await caret.boundingBox())!;
-  expect(box.x + box.width - (ink.x + ink.width)).toBeLessThanOrEqual(4);
-
-  // A native menulist indented its value past the author padding, and every
-  // field next to it was laid out against that.
   const textLeft = await trigger.evaluate((el) => {
     const value = el.querySelector("[data-fp-select-value]")!;
     const range = document.createRange();
     range.selectNodeContents(value);
     return range.getBoundingClientRect().left;
   });
-  expect(Math.round(textLeft - box.x)).toBeGreaterThanOrEqual(13);
+  const leftInset = textLeft - box.x;
+  const rightInset = box.x + box.width - (ink.x + ink.width);
+  // Glyph metrics differ from the layout box, so allow the ~2px visual error
+  // the design signed off on instead of the old "arrow within 4px" target.
+  expect(Math.abs(leftInset - rightInset)).toBeLessThanOrEqual(2);
+});
+
+async function expectFocusInk(input: Locator) {
+  await input.focus();
+  const ink = await input.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      border: style.borderTopColor,
+      outline: style.outlineStyle,
+      shadow: style.boxShadow,
+    };
+  });
+  expect(ink.border).toBe("rgb(136, 164, 113)");
+  expect(ink.outline).toBe("none");
+  expect(ink.shadow).toContain("rgba(180, 199, 165");
+}
+
+test("bare picker search uses the green focus treatment", async ({ page }) => {
+  await openPoster(page, "ui_focus");
+  await page.getByRole("button", { name: "背景库", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "背景库" })).toBeVisible();
+  await expectFocusInk(page.getByRole("textbox", { name: "搜索预设背景" }));
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+
+  await page.goto("/projects");
+  const projectsSearch = page.getByRole("textbox", { name: "搜索作品" });
+  await projectsSearch.focus();
+  await expect(page.locator(".search-input")).toHaveCSS(
+    "border-top-color",
+    "rgb(136, 164, 113)",
+  );
+  expect(
+    await projectsSearch.evaluate((el) => getComputedStyle(el).boxShadow),
+  ).toBe("none");
+
+  await page.getByRole("button", { name: "模板库", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "模板库" })).toBeVisible();
+  await expectFocusInk(page.getByRole("textbox", { name: "搜索模板" }));
 });
 
 test("select inside the template dialog closes before its parent and restores focus", async ({

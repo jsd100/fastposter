@@ -22,9 +22,9 @@ export function TextInput({
       {...props}
       data-fp-input=""
       ref={ref}
-      className={`${
+      className={`${styles.focus}${
         variant === "field"
-          ? styles.text + (density === "compact" ? " " + styles.compact : "")
+          ? " " + styles.text + (density === "compact" ? " " + styles.compact : "")
           : ""
       } ${className}`}
     />
@@ -47,7 +47,7 @@ export function Textarea({
       {...props}
       data-fp-input=""
       ref={ref}
-      className={`${variant === "field" ? styles.textarea : ""} ${className}`}
+      className={`${styles.focus}${variant === "field" ? " " + styles.textarea : ""} ${className}`}
     />
   );
 }

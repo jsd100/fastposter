@@ -468,6 +468,13 @@ summary:focus-visible {
 .search-input [data-fp-input]::placeholder {
   color: #abb4a1;
 }
+.search-input:focus-within {
+  border-color: var(--fp-focus-line);
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
+}
+.search-input [data-fp-input]:focus {
+  box-shadow: none;
+}
 .project-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -1042,7 +1049,7 @@ summary:focus-visible {
 @media(max-width:680px){.workspace-title-actions{justify-content:flex-start}.template-picker-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .copy-picker{width:min(720px,calc(100vw - 28px))}
 .copy-category-path{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-.copy-category-path .select{min-width:120px;flex:1;height:36px;border:1px solid #dde7d1;border-radius:5px;background:#fbfdf8;padding:0 9px;color:#7b9463;font-size:11px}
+.copy-category-path .select{min-width:120px;flex:1;height:36px;border:1px solid #dde7d1;border-radius:5px;background:#fbfdf8;padding:0 10px;color:#7b9463;font-size:11px}
 .copy-picker-list{display:flex;flex-direction:column;gap:9px;max-height:min(48vh,430px);overflow:auto}
 .copy-picker-list button{border:1px solid #e0e8d5;background:#fff;border-radius:6px;padding:12px 14px;text-align:left;display:flex;flex-direction:column;gap:6px;color:#6e8955;cursor:pointer}
 .copy-picker-list button:hover{border-color:#b9d29f;background:#fbfdf8}

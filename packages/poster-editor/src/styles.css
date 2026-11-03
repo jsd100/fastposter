@@ -220,6 +220,8 @@
   font-size: 10px;
   outline: none;
   min-height: 24px;
+  /* Chromeless inline picker: keep the trigger padding from widening the box. */
+  padding: 0;
 }
 .editor-properties {
   width: 250px;
@@ -409,11 +411,14 @@
   font-size: 12px;
   outline: none;
 }
+.panel-field .select {
+  padding: 0 10px;
+}
 .panel-field [data-fp-input]:focus,
 .panel-field .select:focus,
 .panel-field input[type="color"]:focus {
-  border-color: #8fab77;
-  box-shadow: 0 0 0 2px #b6c9a52b;
+  border-color: var(--fp-focus-line);
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
 }
 .panel-field input[type="color"] {
   padding: 4px;

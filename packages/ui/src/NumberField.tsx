@@ -1,5 +1,6 @@
 import { NumberField as NumberFieldPrimitive } from "@base-ui/react/number-field";
 import { useEffect, useRef, useState, type ReactElement } from "react";
+import inputStyles from "./Input.module.css";
 import { classifyNumberDraft } from "./number-draft";
 import styles from "./NumberField.module.css";
 
@@ -83,6 +84,7 @@ export function NumberField({
     >
       <NumberFieldPrimitive.Input
         data-fp-input=""
+        className={inputStyles.focus}
         id={id}
         aria-label={ariaLabel}
         placeholder={placeholder}

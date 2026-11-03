@@ -1,3 +1,11 @@
+/* Shared focus ink for every variant, bare included; it sets no frame
+   dimension, so page-owned heights, borders and padding stay in charge. */
+[data-fp-input].focus:focus {
+  outline: none;
+  border-color: var(--fp-focus-line);
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
+}
+
 .text {
   width: 100%;
   height: var(--fp-height-field);
@@ -9,10 +17,6 @@
   color: var(--fp-field-ink);
   font-size: 13px;
   min-width: 0;
-}
-.text:focus {
-  border-color: var(--fp-focus-line);
-  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
 }
 .text:disabled {
   opacity: 0.5;
@@ -33,10 +37,6 @@
   min-width: 0;
   resize: vertical;
   font-family: inherit;
-}
-.textarea:focus {
-  border-color: #88a471;
-  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
 }
 
 .compact {

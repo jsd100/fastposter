@@ -257,7 +257,7 @@ td .button {
 .resource-form .select {
   height: 36px;
   min-width: 130px;
-  padding: 0 9px;
+  padding: 0 10px;
   border: 1px solid #dfe8d4;
   background: white;
   border-radius: 5px;
@@ -527,7 +527,7 @@ td .button {
 .template-editor-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid #e0e8d5;border-radius:8px;padding:10px 12px}
 .template-editor-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .template-title-input{height:36px;min-width:220px;border:1px solid #dfe8d4;border-radius:5px;padding:0 10px;font-size:13px;color:#4d6140;background:#fbfdf8}
-.template-editor-meta .select{height:36px;min-width:130px;padding:0 9px;border:1px solid #dfe8d4;background:#fff;border-radius:5px;color:#829b68;font-size:11px}
+.template-editor-meta .select{height:36px;min-width:130px;padding:0 10px;border:1px solid #dfe8d4;background:#fff;border-radius:5px;color:#829b68;font-size:11px}
 .template-sort{display:flex;align-items:center;gap:6px;font-size:11px;color:#829b68}
 .template-sort .template-sort-field{width:90px;min-width:0}
 .template-sort [data-fp-input]{width:100%;height:36px;border:1px solid #dfe8d4;border-radius:5px;padding:0 8px;font-size:11px;color:#829b68}
