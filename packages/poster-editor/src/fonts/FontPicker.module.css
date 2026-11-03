@@ -1,0 +1,20 @@
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 9px 9px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--fp-line);
+}
+.sample {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--fp-field-ink);
+}
+.caption {
+  font-size: 9px;
+  color: var(--fp-icon-ink);
+}

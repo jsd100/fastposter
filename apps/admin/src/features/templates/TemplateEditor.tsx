@@ -283,6 +283,12 @@ export function TemplateEditor({
           <Editor
             document={draft}
             onChange={setDraft}
+            checkFonts={async (candidate) => {
+              await request(routes.CheckFonts, {
+                document: JSON.stringify(candidate),
+              });
+            }}
+            fontCheckScope={`admin:template:${resource?.id ?? "new"}`}
             availableFonts={availableFonts}
             onAssetRequest={background}
             onOverflowChange={setOverflow}

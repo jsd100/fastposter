@@ -229,7 +229,6 @@ test("editor number fields keep drafts, bounds and Escape without touching the d
   await expect(page.locator("[data-text-block]")).toHaveCount(1);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
-
   await page.getByRole("button", { name: "撤销", exact: true }).click();
   const shown = await spacing.inputValue();
   await expect(block).toHaveCSS("letter-spacing", `${shown}px`);
@@ -342,7 +341,7 @@ test("Enter validates invalid and unfinished drafts without leaving a stale disp
 
 test("the select trigger balances text and caret insets", async ({ page }) => {
   await openPoster(page, "ui_caret");
-  const trigger = selectTrigger(page, "文字字体");
+  const trigger = selectTrigger(page, "文字字重");
   const caret = trigger.locator("svg");
   await expect(caret).toHaveCSS(
     "color",

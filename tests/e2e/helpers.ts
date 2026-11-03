@@ -44,9 +44,22 @@ export async function chooseOption(
 ) {
   const trigger = selectTrigger(page, label);
   await expect(trigger).toBeEnabled();
+  const tag = await trigger.evaluate((el) => el.tagName);
   await trigger.click();
   const listbox = page.getByRole("listbox");
   await expect(listbox).toBeVisible();
+  if (tag === "INPUT") {
+    await trigger.fill(optionLabel);
+    await expect(
+      listbox.getByRole("option", { name: optionLabel, exact: true }),
+    ).toBeVisible();
+    await listbox
+      .getByRole("option", { name: optionLabel, exact: true })
+      .click();
+    await expect(listbox).toHaveCount(0);
+    await expect(trigger).toHaveValue(optionLabel);
+    return;
+  }
   await listbox.getByRole("option", { name: optionLabel, exact: true }).click();
   await expect(listbox).toHaveCount(0);
   await expect(trigger).toHaveText(optionLabel);

@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   chooseOption,
   openPoster,
+  selectScenery,
   selectTrigger,
   selectValue,
 } from "./helpers";
@@ -125,8 +126,46 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
   await expect(selectValue(admin, "字体字重")).toHaveText("500");
   await admin.getByRole("button", { name: "取消", exact: true }).click();
   await openPoster(page, "font");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  const font = page.getByLabel("文字字体", { exact: true });
+  // The 500-only Latin family cannot cover the selected Chinese, so the
+  // preflight rejects it and the untouched document stays exportable.
+  await font.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await font.fill("Test Inter");
+  await page
+    .getByRole("listbox")
+    .getByRole("option", { name: "Test Inter", exact: true })
+    .click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(
+    page.getByTestId("notice").filter({ hasText: "缺少字形" }),
+  ).toBeVisible();
+  await expect(input).toHaveCSS("font-family", /fp_builtin-noto-sc-400/);
+  await expect(font).toHaveValue("思源黑体");
+  await expect(selectValue(page, "文字字重")).toHaveText("400");
+  await expect(
+    page.getByRole("button", { name: "导出 PNG", exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByTestId("notice")
+    .filter({ hasText: "缺少字形" })
+    .getByTestId("notice-close")
+    .click();
+  // English text has glyphs, so the same family applies at weight 500.
+  await input.fill("Poster 2026");
+  await input.press("ControlOrMeta+A");
   await chooseOption(page, "文字字体", "Test Inter");
   await expect(selectValue(page, "文字字重")).toHaveText("500");
+  await expect(input.getByText("Poster 2026", { exact: true })).toHaveCSS(
+    "font-family",
+    /fp_/,
+  );
+  // Appending Chinese leaves the document with missing glyphs; the long-lived
+  // check blocks export until the target is repaired.
+  await input.press("End");
+  await page.keyboard.insertText("海报");
   await expect(
     page.getByTestId("notice").filter({ hasText: "缺少字形" }),
   ).toBeVisible();
@@ -136,23 +175,41 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
   await expect(
     page.getByRole("button", { name: "导出 PNG", exact: true }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
-  await page.getByRole("textbox", { name: "海报文字编辑" }).fill("Poster 2026");
-  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  // A loaded missing-glyph document can still repair the current target.
+  await input.press("Shift+ArrowLeft");
+  await input.press("Shift+ArrowLeft");
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+    .toBe("海报");
+  await chooseOption(page, "文字字体", "思源黑体");
   await expect(
     page.getByTestId("notice").filter({ hasText: "缺少字形" }),
   ).toHaveCount(0);
   await expect(
     page.locator(".status-error").filter({ hasText: "缺少字形" }),
   ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "导出 PNG", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const projectId = page.url().split("/").at(-2)!;
+  const project = (
+    await (await page.request.get(`/api/v1/projects/${projectId}`)).json()
+  ).project;
+  const savedDocument = JSON.parse(project.document) as {
+    fonts: { family: string }[];
+  };
+  expect(
+    savedDocument.fonts.some((ref) => ref.family === "Test Inter"),
+  ).toBe(true);
   await admin
     .getByTestId("resource-card")
     .filter({ hasText: "中等字体 500" })
     .getByRole("button", { name: "下架", exact: true })
     .click();
   await page.reload();
-  await expect(page.locator("[data-text-block]")).toHaveText("Poster 2026");
+  await expect(page.locator("[data-text-block]")).toHaveText("Poster 2026海报");
   await page.getByRole("button", { name: "导出 PNG", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "下载原尺寸 PNG", exact: true }),

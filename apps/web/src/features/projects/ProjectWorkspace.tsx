@@ -377,6 +377,12 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       <Editor
         document={doc}
         onChange={(next) => auto.controller.update(next)}
+        checkFonts={async (candidate) => {
+          await request(routes.CheckFonts, {
+            document: JSON.stringify(candidate),
+          });
+        }}
+        fontCheckScope={`${user!.id}:project:${initial.id}`}
         onInteractionChange={auto.setInteraction}
         availableFonts={readyFonts}
         onAssetRequest={background}

@@ -8,6 +8,7 @@ export * from "./number-draft";
 export * from "./NoticeHost";
 export * from "./notifications";
 export * from "./BottomSheet";
+export * from "./Combobox";
 export * from "./Select";
 export * from "./Status";
 export * from "./Tooltip";

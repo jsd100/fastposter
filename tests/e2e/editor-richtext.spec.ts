@@ -73,11 +73,11 @@ test("changing the selected words leaves the rest of the block alone and undoes"
   await openPoster(page, "scope");
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
   const input = await selectScenery(page);
-  await chooseOption(page, "文字字体", "Inter");
-  const scenery = input.locator('span[data-font-id="builtin-inter-400"]');
+  await chooseOption(page, "文字字体", "思源宋体");
+  const scenery = input.locator('span[data-font-id="builtin-noto-serif-sc-400"]');
   await expect(scenery).toHaveCount(1);
   await expect(scenery).toHaveText("风景");
-  await expect(scenery).toHaveCSS("font-family", /fp_builtin-inter-400/);
+  await expect(scenery).toHaveCSS("font-family", /fp_builtin-noto-serif-sc-400/);
   await expect(input).toContainText("你好风景世界");
   await page.getByLabel("文字字号", { exact: true }).fill("80");
   await expect(scenery).toHaveCSS("font-size", "80px");
@@ -99,7 +99,7 @@ test("changing the selected words leaves the rest of the block alone and undoes"
   );
   await expect(block.getByText("风景", { exact: true })).toHaveCSS(
     "font-family",
-    /fp_builtin-inter-400/,
+    /fp_builtin-noto-serif-sc-400/,
   );
   await expect(block.getByText("世界", { exact: true })).toHaveCSS(
     "font-family",

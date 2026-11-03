@@ -92,13 +92,17 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(360);
 
-  await listbox.getByRole("option", { name: "Inter", exact: true }).click();
+  await listbox
+    .getByRole("option", { name: "思源宋体", exact: true })
+    .click();
   await expect(listbox).toHaveCount(0);
   await expect(sheet).toBeVisible();
 
   // The page behind a modal dialog is hidden from the accessibility tree, so the
   // live editor DOM is read here rather than through a role query.
-  const scenery = page.locator('span[data-font-id="builtin-inter-400"]');
+  const scenery = page.locator(
+    'span[data-font-id="builtin-noto-serif-sc-400"]',
+  );
   await expect(scenery).toHaveCount(1);
   await expect(scenery).toHaveText("风景");
   await sheet.getByLabel("文字字号", { exact: true }).fill("80");

@@ -9,10 +9,8 @@ import {
   type FontTarget,
   type InlineStylePatch,
 } from "./text/selection";
-import {
-  prepareFontChange,
-  type PreparedFontChange,
-} from "./fonts/prepare-change";
+import type { PreparedFontChange } from "./fonts/prepare-change";
+import { useFontChoice } from "./fonts/useFontChoice";
 import { BottomSheet } from "@fastposter/ui";
 import {
   useEffect,
@@ -55,6 +53,8 @@ import { RichText, type FontSource } from "@fastposter/poster-renderer";
 export type EditorProps = {
   document: PosterDocument;
   onChange: (doc: PosterDocument) => void;
+  checkFonts: (candidate: PosterDocument) => Promise<void>;
+  fontCheckScope: string;
   availableFonts?: FontSource[];
   onAssetRequest?: () => Promise<BackgroundAsset | undefined>;
   onBackgroundLibraryRequest?: () => Promise<BackgroundAsset | undefined>;
@@ -66,6 +66,8 @@ export type EditorProps = {
 export function Editor({
   document,
   onChange,
+  checkFonts,
+  fontCheckScope,
   availableFonts = [],
   onAssetRequest,
   onBackgroundLibraryRequest,
@@ -129,6 +131,35 @@ export function Editor({
     [uploading, setUploading] = useState(false),
     [copyBusy, setCopyBusy] = useState(false);
   useErrorNotice("editor:operation", error || null);
+  const fontChoice = useFontChoice({
+    scope: fontCheckScope,
+    fonts: availableFonts,
+    checkFonts,
+    snapshot: () => {
+      const current = store.getState();
+      const block = current.document.textBlocks.find(
+        (candidate) => candidate.id === current.selectedId,
+      );
+      return {
+        document: current.document,
+        target: block ? fontTarget(block.id) : null,
+        scope: fontCheckScope,
+      };
+    },
+    apply: applyPreparedFontChange,
+  });
+  useErrorNotice(
+    "editor:font",
+    fontChoice.error?.message ?? null,
+    fontChoice.error?.action
+      ? {
+          action: {
+            label: fontChoice.error.action.label,
+            onClick: () => fontChoice.error?.action?.run(),
+          },
+        }
+      : undefined,
+  );
   useEffect(() => {
     if (document !== emitted.current) {
       emitted.current = document;
@@ -277,46 +308,8 @@ export function Editor({
     if (!selected) return;
     if (patch.fontId) {
       const chosen = availableFonts.find((f) => f.assetId === patch.fontId);
-      if (chosen) {
-        try {
-          applyPreparedFontChange(
-            prepareFontChange(
-              state.document,
-              fontTarget(selected.id),
-              chosen,
-              availableFonts,
-            ),
-          );
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "更换字体失败");
-        }
-        return;
-      }
-      const family = availableFonts.find(
-        (f) => f.assetId === patch.fontId,
-      )?.family;
-      const additions = availableFonts
-        .filter(
-          (f) =>
-            f.family === family &&
-            !state.document.fonts.some(
-              (existing) => existing.assetId === f.assetId,
-            ),
-        )
-        .map(({ assetId, version, family, weight, style }) => ({
-          assetId,
-          version,
-          family,
-          weight,
-          style,
-        }));
-      if (additions.length) {
-        if (state.document.fonts.length + additions.length > 100) {
-          setError("字体引用已达上限");
-          return;
-        }
-        store.transact((d) => ({ ...d, fonts: [...d.fonts, ...additions] }));
-      }
+      if (chosen) void fontChoice.choose(chosen);
+      return;
     }
     if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
       store.commit();
@@ -352,6 +345,8 @@ export function Editor({
       editor={state.mode === "edit" ? activeEditor : null}
       fonts={availableFonts}
       apply={apply}
+      chooseFont={(face) => void fontChoice.choose(face)}
+      fontPending={fontChoice.pending}
       update={(change) => {
         store.commit();
         store.transact((d) => ({

@@ -1,10 +1,11 @@
-import { fontFamilies, fontWeights } from "./font-options";
+import { fontWeights } from "./font-options";
 import type { Editor } from "@tiptap/react";
 import type { TextBlock, InlineStyle } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
 import { NumberField, Select, ToggleButton } from "@fastposter/ui";
 import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
 import { selectionStyle, type InlineStylePatch } from "../text/selection";
+import { FontPicker } from "../fonts/FontPicker";
 import { ParagraphPanel } from "./ParagraphPanel";
 import { StylePanel } from "./StylePanel";
 export function TextPanel({
@@ -12,12 +13,16 @@ export function TextPanel({
   editor,
   fonts,
   apply,
+  chooseFont,
+  fontPending,
   update,
 }: {
   block: TextBlock;
   editor: Editor | null;
   fonts: FontSource[];
   apply: (patch: InlineStylePatch) => void;
+  chooseFont: (font: FontSource) => void;
+  fontPending: boolean;
   update: (change: (block: TextBlock) => TextBlock) => void;
 }) {
   const selection = editor?.state.selection;
@@ -37,11 +42,15 @@ export function TextPanel({
             ),
           ),
         } as InlineStyle);
-  const families = fontFamilies(fonts);
   const activeFamily = fonts.find((f) => f.assetId === current.fontId)?.family;
   const italicAvailable = fonts.some(
     (f) => f.family === activeFamily && f.style === "italic",
   );
+  const selectedText =
+    editor && selection && !selection.empty
+      ? editor.state.doc.textBetween(selection.from, selection.to, " ")
+      : "";
+  const sample = (selectedText || "海报字体预览 Aa 123").slice(0, 12);
   return (
     <div className="text-panel">
       <p className="style-target">
@@ -53,32 +62,25 @@ export function TextPanel({
       </p>
       <label className="panel-field">
         字体
-        <Select
-          aria-label="文字字体"
-          value={families.find((f) => f.family === activeFamily)?.assetId ?? ""}
-          onValueChange={(assetId) => {
-            const face = fonts.find((f) => f.assetId === assetId);
-            if (face) apply({ fontId: face.assetId, fontWeight: face.weight });
-          }}
-          options={[
-            { value: "", label: "混合", disabled: true },
-            ...families.map((f) => ({
-              value: f.assetId,
-              label: f.family === "Noto Sans SC" ? "思源黑体" : f.family,
-            })),
-          ]}
+        <FontPicker
+          fonts={fonts}
+          value={current.fontId ?? ""}
+          sample={sample}
+          disabled={fontPending}
+          onChoose={chooseFont}
         />
       </label>
       <label className="panel-field">
         字重
         <Select
           aria-label="文字字重"
+          disabled={fontPending}
           value={current.fontWeight == null ? "" : String(current.fontWeight)}
           onValueChange={(weight) => {
             const face = fontWeights(fonts, activeFamily).find(
               (f) => String(f.weight) === weight,
             );
-            if (face) apply({ fontId: face.assetId, fontWeight: face.weight });
+            if (face) chooseFont(face);
           }}
           options={[
             { value: "", label: "混合", disabled: true },
