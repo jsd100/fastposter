@@ -14,6 +14,7 @@ import (
 	hserver "github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/kitex/client"
 	kserver "github.com/cloudwego/kitex/server"
+	"image"
 	"image/png"
 	"io"
 	"mime/multipart"
@@ -78,15 +79,11 @@ func TestAssetHTTPUploadAndPrivateRead(t *testing.T) {
 	defer h.Close()
 	base := "http://" + httpListener.Addr().String()
 	web := &http.Client{Timeout: 10 * time.Second}
-	upload := func(token, name string) *http.Response {
+	upload := func(token, name string, raw []byte) *http.Response {
 		t.Helper()
 		var body bytes.Buffer
 		w := multipart.NewWriter(&body)
 		part, e := w.CreateFormFile("file", name)
-		if e != nil {
-			t.Fatal(e)
-		}
-		raw, e := os.ReadFile(filepath.Join(root, "tests/fixtures/images/rgba.png"))
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -107,28 +104,50 @@ func TestAssetHTTPUploadAndPrivateRead(t *testing.T) {
 		}
 		return r
 	}
-	denied := upload("", "a.png")
+	pngFixture, e := os.ReadFile(filepath.Join(root, "tests/fixtures/images/rgba.png"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var portrait bytes.Buffer
+	portraitImage := image.NewNRGBA(image.Rect(0, 0, 1152, 2048))
+	for i := 3; i < len(portraitImage.Pix); i += 4 {
+		portraitImage.Pix[i] = 255
+	}
+	if e = png.Encode(&portrait, portraitImage); e != nil {
+		t.Fatal(e)
+	}
+	denied := upload("", "a.png", pngFixture)
 	denied.Body.Close()
 	if denied.StatusCode != 401 {
 		t.Fatalf("anonymous upload: %d", denied.StatusCode)
 	}
-	bad := upload(owner.Token, "a.jpg")
-	bad.Body.Close()
-	if bad.StatusCode != 422 {
-		t.Fatalf("mismatched format: %d", bad.StatusCode)
+	spoofed := upload(owner.Token, "pretend.png", []byte("<svg xmlns='http://www.w3.org/2000/svg'></svg>"))
+	spoofed.Body.Close()
+	if spoofed.StatusCode != 422 {
+		t.Fatalf("spoofed content: %d", spoofed.StatusCode)
 	}
-	uploaded := upload(owner.Token, "海报.png")
-	raw, e := io.ReadAll(uploaded.Body)
-	uploaded.Body.Close()
-	if e != nil || uploaded.StatusCode != 200 {
-		t.Fatalf("upload %d: %s", uploaded.StatusCode, raw)
+	corruptFixture := append([]byte{}, pngFixture...)
+	corruptFixture[len(corruptFixture)/2] ^= 0xff
+	corrupt := upload(owner.Token, "broken.png", corruptFixture)
+	corrupt.Body.Close()
+	if corrupt.StatusCode != 422 {
+		t.Fatalf("corrupt image: %d", corrupt.StatusCode)
 	}
-	if bytes.Contains(raw, []byte(dataDir)) || bytes.Contains(raw, []byte("fileKey")) || bytes.Contains(raw, []byte("normalized/")) {
-		t.Fatal("internal storage detail exposed")
+	mislabeled := upload(owner.Token, "portrait.jpg", portrait.Bytes())
+	mislabeledRaw, e := io.ReadAll(mislabeled.Body)
+	mislabeled.Body.Close()
+	if e != nil || mislabeled.StatusCode != 200 {
+		t.Fatalf("mislabeled upload %d: %s", mislabeled.StatusCode, mislabeledRaw)
 	}
-	var payload common.PublicPayload
-	if e = json.Unmarshal(raw, &payload); e != nil || payload.Asset == nil {
-		t.Fatalf("invalid asset response %s", raw)
+	var mislabeledPayload common.PublicPayload
+	if e = json.Unmarshal(mislabeledRaw, &mislabeledPayload); e != nil || mislabeledPayload.Asset == nil {
+		t.Fatalf("invalid mislabeled asset response %s", mislabeledRaw)
+	}
+	if got := mislabeledPayload.Asset.GetName(); got != "portrait.png" {
+		t.Fatalf("normalized asset name %q", got)
+	}
+	if mislabeledPayload.Asset.GetWidth() != 1152 || mislabeledPayload.Asset.GetHeight() != 2048 {
+		t.Fatalf("asset dimensions %dx%d", mislabeledPayload.Asset.GetWidth(), mislabeledPayload.Asset.GetHeight())
 	}
 	get := func(token, path string) *http.Response {
 		t.Helper()
@@ -143,6 +162,28 @@ func TestAssetHTTPUploadAndPrivateRead(t *testing.T) {
 			t.Fatal(e)
 		}
 		return res
+	}
+	mislabeledRead := get(owner.Token, mislabeledPayload.Asset.GetUrl())
+	mislabeledImage, e := png.Decode(mislabeledRead.Body)
+	mislabeledRead.Body.Close()
+	if e != nil || mislabeledRead.StatusCode != 200 || mislabeledRead.Header.Get("Content-Type") != "image/png" || mislabeledImage.Bounds().Dx() != 1152 || mislabeledImage.Bounds().Dy() != 2048 {
+		t.Fatalf("mislabeled normalized response: %d %s %v", mislabeledRead.StatusCode, mislabeledRead.Header.Get("Content-Type"), e)
+	}
+	if disposition := mislabeledRead.Header.Get("Content-Disposition"); !strings.Contains(disposition, "portrait.png") {
+		t.Fatalf("normalized download name %q", disposition)
+	}
+	uploaded := upload(owner.Token, "海报.png", pngFixture)
+	raw, e := io.ReadAll(uploaded.Body)
+	uploaded.Body.Close()
+	if e != nil || uploaded.StatusCode != 200 {
+		t.Fatalf("upload %d: %s", uploaded.StatusCode, raw)
+	}
+	if bytes.Contains(raw, []byte(dataDir)) || bytes.Contains(raw, []byte("fileKey")) || bytes.Contains(raw, []byte("normalized/")) {
+		t.Fatal("internal storage detail exposed")
+	}
+	var payload common.PublicPayload
+	if e = json.Unmarshal(raw, &payload); e != nil || payload.Asset == nil {
+		t.Fatalf("invalid asset response %s", raw)
 	}
 	read := get(owner.Token, payload.Asset.GetUrl())
 	img, e := png.Decode(read.Body)

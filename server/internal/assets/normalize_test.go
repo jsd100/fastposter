@@ -145,6 +145,13 @@ func TestCorruptAndMislabeledInput(t *testing.T) {
 	if _, e := Probe(context.Background(), bad); e == nil {
 		t.Fatal("corrupt PNG accepted")
 	}
+	valid, _ := os.ReadFile(fixture("rgba.png"))
+	misnamed := filepath.Join(t.TempDir(), "valid-jpeg-name.jpg")
+	os.WriteFile(misnamed, valid, 0600)
+	metadata, e := Probe(context.Background(), misnamed)
+	if e != nil || metadata.Format != "png" || metadata.Width != 4 || metadata.Height != 3 {
+		t.Fatalf("valid PNG with .jpg name rejected: %+v, %v", metadata, e)
+	}
 }
 
 func TestNormalizeAtPixelAndSideLimits(t *testing.T) {

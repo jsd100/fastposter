@@ -61,10 +61,17 @@ func safeName(name, format string) (string, error) {
 	if format == "jpeg" {
 		want = ".jpg"
 	}
+	isImage := format == "png" || format == "jpeg" || format == "webp"
 	if extension == "" {
 		return name + want, nil
 	}
-	if extension != want && !(format == "jpeg" && extension == ".jpeg") {
+	if isImage {
+		if extension != want && !(format == "jpeg" && extension == ".jpeg") {
+			return strings.TrimSuffix(name, filepath.Ext(name)) + want, nil
+		}
+		return strings.TrimSuffix(name, filepath.Ext(name)) + extension, nil
+	}
+	if extension != want {
 		return "", domain.E("INVALID_INPUT", "文件扩展名与真实图片格式不一致")
 	}
 	return name, nil
