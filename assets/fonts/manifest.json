@@ -2,14 +2,39 @@
   "version": 1,
   "files": {
     "NotoSansSC-VF.ttf": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
-    "Inter-VF.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+    "Inter-VF.ttf": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+    "NotoSerifSC-VF.ttf": "050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9",
+    "LXGWWenKai-Regular.ttf": "2d73eea94ad808999d90c0000c239a84a33b09d4bc6ab6c5b8bbf1eda8a7fc8b",
+    "ZCOOLKuaiLe-Regular.ttf": "812a6fc1fe54b6d73a419245c32dfeba8aa33104d5be90d1cf6af082007cb71d",
+    "ZCOOLXiaoWei-Regular.ttf": "a42b620140f493db42f741351dfbf343c0936d58588ee8004b8b2a218d997ff1"
   },
   "sources": {
     "NotoSansSC-VF.ttf": "https://github.com/google/fonts/tree/main/ofl/notosanssc",
-    "Inter-VF.ttf": "https://github.com/google/fonts/tree/main/ofl/inter"
+    "Inter-VF.ttf": "https://github.com/google/fonts/tree/main/ofl/inter",
+    "NotoSerifSC-VF.ttf": "https://github.com/google/fonts/blob/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/notoserifsc/NotoSerifSC%5Bwght%5D.ttf",
+    "LXGWWenKai-Regular.ttf": "https://github.com/lxgw/LxgwWenKai/releases/tag/v1.530",
+    "ZCOOLKuaiLe-Regular.ttf": "https://github.com/google/fonts/blob/6d49995f5d8f1c7d476760a580ffb89ce1e52c5d/ofl/zcoolkuaile/ZCOOLKuaiLe-Regular.ttf",
+    "ZCOOLXiaoWei-Regular.ttf": "https://github.com/google/fonts/blob/d427686494a89f0b7ecb9833273b6aabb83a6350/ofl/zcoolxiaowei/ZCOOLXiaoWei-Regular.ttf"
   },
   "licenses": [
     "OFL.txt",
-    "Inter-OFL.txt"
+    "Inter-OFL.txt",
+    "NotoSerifSC-OFL.txt",
+    "LXGWWenKai-OFL.txt",
+    "ZCOOLKuaiLe-OFL.txt",
+    "ZCOOLXiaoWei-OFL.txt"
+  ],
+  "faces": [
+    {"id": "builtin-noto-sc-400", "family": "Noto Sans SC", "file": "NotoSansSC-VF.ttf", "weight": 400, "style": "normal"},
+    {"id": "builtin-noto-sc-700", "family": "Noto Sans SC", "file": "NotoSansSC-VF.ttf", "weight": 700, "style": "normal"},
+    {"id": "builtin-noto-sc-900", "family": "Noto Sans SC", "file": "NotoSansSC-VF.ttf", "weight": 900, "style": "normal"},
+    {"id": "builtin-noto-serif-sc-400", "family": "Noto Serif SC", "file": "NotoSerifSC-VF.ttf", "weight": 400, "style": "normal"},
+    {"id": "builtin-noto-serif-sc-700", "family": "Noto Serif SC", "file": "NotoSerifSC-VF.ttf", "weight": 700, "style": "normal"},
+    {"id": "builtin-noto-serif-sc-900", "family": "Noto Serif SC", "file": "NotoSerifSC-VF.ttf", "weight": 900, "style": "normal"},
+    {"id": "builtin-lxgw-wenkai-400", "family": "LXGW WenKai", "file": "LXGWWenKai-Regular.ttf", "weight": 400, "style": "normal"},
+    {"id": "builtin-zcool-kuaile-400", "family": "ZCOOL KuaiLe", "file": "ZCOOLKuaiLe-Regular.ttf", "weight": 400, "style": "normal"},
+    {"id": "builtin-zcool-xiaowei-400", "family": "ZCOOL XiaoWei", "file": "ZCOOLXiaoWei-Regular.ttf", "weight": 400, "style": "normal"},
+    {"id": "builtin-inter-400", "family": "Inter", "file": "Inter-VF.ttf", "weight": 400, "style": "normal"},
+    {"id": "builtin-inter-700", "family": "Inter", "file": "Inter-VF.ttf", "weight": 700, "style": "normal"}
   ]
 }

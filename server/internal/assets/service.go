@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"unicode"
 )
@@ -31,6 +32,8 @@ type Service struct {
 	Normalizer *Normalizer
 	TempRoot   string
 	slots      chan struct{}
+	builtinMu  sync.RWMutex
+	builtin    []builtinFace
 }
 
 func NewService(db *sql.DB, store storage.FileStore, normalizer *Normalizer, tempRoot string) *Service {

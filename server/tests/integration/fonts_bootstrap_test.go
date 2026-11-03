@@ -26,7 +26,7 @@ func TestBuiltinFontsBootstrapIsImmutableAndReadable(t *testing.T) {
 		t.Fatal(e)
 	}
 	list, e := svc.ListFonts(ctx, auth.Principal{UserID: "reader", Role: "user"})
-	if e != nil || len(list) != 4 {
+	if e != nil || len(list) != 11 {
 		t.Fatalf("builtin faces %d %v", len(list), e)
 	}
 	for _, f := range list {
@@ -41,7 +41,7 @@ func TestBuiltinFontsBootstrapIsImmutableAndReadable(t *testing.T) {
 		r.Close()
 	}
 	var references int
-	if e = db.QueryRow("SELECT COUNT(*) FROM asset_refs WHERE owner_kind='resource'").Scan(&references); e != nil || references != 4 {
+	if e = db.QueryRow("SELECT COUNT(*) FROM asset_refs WHERE owner_kind='resource'").Scan(&references); e != nil || references != 11 {
 		t.Fatalf("builtin resource refs %d %v", references, e)
 	}
 	var users int
@@ -56,7 +56,7 @@ func TestBuiltinFontsBootstrapIsImmutableAndReadable(t *testing.T) {
 		t.Fatal(e)
 	}
 	list, e = svc.ListFonts(ctx, auth.Principal{UserID: "reader", Role: "user"})
-	if e != nil || len(list) != 3 {
+	if e != nil || len(list) != 10 {
 		t.Fatal("restart republished a disabled font")
 	}
 }
