@@ -1,6 +1,15 @@
 import { it, expect } from "vitest";
-import type { RichNode } from "@fastposter/poster-schema";
-import { applyTextStyle, selectionStyle, canonicalRichText } from "./selection";
+import {
+  parseDocument,
+  type PosterDocument,
+  type RichNode,
+} from "@fastposter/poster-schema";
+import {
+  applyTextStyle,
+  selectionStyle,
+  canonicalRichText,
+  firstTargetStyle,
+} from "./selection";
 const content: RichNode = {
   type: "doc",
   content: [
@@ -42,6 +51,132 @@ it("cursor styling leaves existing text unchanged", () => {
     ),
   ).toEqual(content);
 });
+const styleDoc: PosterDocument = parseDocument({
+  schemaVersion: 1,
+  canvas: { width: 1200, height: 1600 },
+  background: { assetId: "bg", version: "1" },
+  fonts: [
+    {
+      assetId: "sans-400",
+      version: "1",
+      family: "Noto Sans SC",
+      weight: 400,
+      style: "normal",
+    },
+    {
+      assetId: "serif-400",
+      version: "1",
+      family: "Noto Serif SC",
+      weight: 400,
+      style: "normal",
+    },
+  ],
+  textBlocks: [
+    {
+      id: "block",
+      x: 0,
+      y: 0,
+      width: 1200,
+      zIndex: 0,
+      defaultStyle: {
+        fontId: "sans-400",
+        fontSize: 64,
+        color: "#284632",
+        fontWeight: 400,
+      },
+      paragraphStyle: { align: "left", lineHeight: 1.4, letterSpacing: 0 },
+      effects: {
+        opacity: 1,
+        padding: 0,
+        backgroundColor: "#00000000",
+        strokeWidth: 0,
+        strokeColor: "#000000",
+        shadowColor: "#00000000",
+        shadowBlur: 0,
+        shadowX: 0,
+        shadowY: 0,
+      },
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "你好风景",
+                marks: [
+                  {
+                    type: "textStyle",
+                    attrs: {
+                      fontId: "serif-400",
+                      fontSize: 72,
+                      color: "#445566",
+                      fontWeight: 400,
+                    },
+                  },
+                ],
+              },
+              {
+                type: "text",
+                text: "世界",
+                marks: [
+                  {
+                    type: "textStyle",
+                    attrs: {
+                      fontId: "sans-400",
+                      fontSize: 64,
+                      color: "#284632",
+                      fontWeight: 900,
+                    },
+                  },
+                  { type: "bold" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+});
+
+it("reads the effective style at the target start", () => {
+  expect(
+    firstTargetStyle(styleDoc, {
+      blockId: "block",
+      target: { kind: "block", from: 0, to: 0 },
+    }),
+  ).toEqual({
+    fontId: "sans-400",
+    fontSize: 64,
+    color: "#284632",
+    fontWeight: 400,
+  });
+  expect(
+    firstTargetStyle(styleDoc, {
+      blockId: "block",
+      target: { kind: "range", from: 3, to: 5 },
+    }),
+  ).toEqual({
+    fontId: "serif-400",
+    fontSize: 72,
+    color: "#445566",
+    fontWeight: 400,
+  });
+  expect(
+    firstTargetStyle(styleDoc, {
+      blockId: "block",
+      target: { kind: "cursor", from: 7, to: 7 },
+    }),
+  ).toEqual({
+    fontId: "sans-400",
+    fontSize: 64,
+    color: "#284632",
+    fontWeight: 700,
+  });
+});
+
 it("normalizes empty paragraphs and strips null mark attrs", () => {
   expect(
     canonicalRichText({ type: "doc", content: [{ type: "paragraph" }] }),

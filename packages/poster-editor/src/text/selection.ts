@@ -2,6 +2,7 @@ import { getSchema, type Editor } from "@tiptap/react";
 import { Transform } from "@tiptap/pm/transform";
 import type {
   InlineStyle,
+  PosterDocument,
   RichNode,
   RichMark,
 } from "@fastposter/poster-schema";
@@ -11,8 +12,23 @@ export type TextTarget = {
   from: number;
   to: number;
 };
+export type FontTarget = { blockId: string; target: TextTarget };
 export type InlineStylePatch = Partial<InlineStyle>;
 const schema = getSchema(richTextExtensions());
+export const richTextSchema = schema;
+type MarkLike = { type: { name: string }; attrs: Record<string, unknown> };
+export function effectiveInlineStyle(
+  marks: readonly MarkLike[],
+  defaults: InlineStyle,
+): InlineStyle {
+  const mark = marks.find((m) => m.type.name === "textStyle");
+  const attrs = Object.fromEntries(
+    Object.entries(mark?.attrs ?? {}).filter(([, v]) => v != null),
+  );
+  const style = { ...defaults, ...attrs } as InlineStyle;
+  if (marks.some((m) => m.type.name === "bold")) style.fontWeight = 700;
+  return style;
+}
 export function canonicalRichText(value: unknown): RichNode {
   const n = value as RichNode;
   const out: RichNode = { type: n.type };
@@ -73,16 +89,8 @@ export function selectionStyle(
     Math.max(0, from),
     Math.min(doc.content.size, to),
     (node) => {
-      if (node.isText) {
-        const mark = node.marks.find((m) => m.type.name === "textStyle");
-        const attrs = Object.fromEntries(
-          Object.entries(mark?.attrs ?? {}).filter(([, v]) => v != null),
-        );
-        const style = { ...defaults, ...attrs };
-        if (node.marks.some((m) => m.type.name === "bold"))
-          style.fontWeight = 700;
-        values.push(style);
-      }
+      if (node.isText)
+        values.push(effectiveInlineStyle(node.marks, defaults));
     },
   );
   if (!values.length) return { ...defaults };
@@ -93,6 +101,25 @@ export function selectionStyle(
     if (values.some((v) => v[key] !== values[0][key]))
       (result as Record<string, unknown>)[key] = null;
   return result;
+}
+export function firstTargetStyle(
+  doc: PosterDocument,
+  target: FontTarget,
+): InlineStyle {
+  const block = doc.textBlocks.find((b) => b.id === target.blockId);
+  if (!block) throw Error("文字块不存在");
+  if (target.target.kind === "block") return { ...block.defaultStyle };
+  const node = schema.nodeFromJSON(block.content);
+  let found: InlineStyle | undefined;
+  let previous: InlineStyle | undefined;
+  node.nodesBetween(0, node.content.size, (child, pos) => {
+    if (!child.isText) return;
+    const style = effectiveInlineStyle(child.marks, block.defaultStyle);
+    if (pos <= target.target.from && target.target.from < pos + child.nodeSize)
+      found = style;
+    if (pos < target.target.from) previous = style;
+  });
+  return found ?? previous ?? { ...block.defaultStyle };
 }
 export function captureSelection(editor: Editor) {
   const { from, to } = editor.state.selection;

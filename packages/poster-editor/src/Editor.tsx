@@ -6,8 +6,13 @@ import {
   captureSelection,
   restoreSelection,
   applyTextStyle,
+  type FontTarget,
   type InlineStylePatch,
 } from "./text/selection";
+import {
+  prepareFontChange,
+  type PreparedFontChange,
+} from "./fonts/prepare-change";
 import { BottomSheet } from "@fastposter/ui";
 import {
   useEffect,
@@ -228,9 +233,65 @@ export function Editor({
       setCopyBusy(false);
     }
   }
+  function fontTarget(blockId: string): FontTarget {
+    if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
+      const snapshot = textSelection.current ?? captureSelection(activeEditor);
+      return {
+        blockId,
+        target:
+          snapshot.from !== snapshot.to
+            ? { kind: "range", from: snapshot.from, to: snapshot.to }
+            : { kind: "cursor", from: snapshot.from, to: snapshot.to },
+      };
+    }
+    return { blockId, target: { kind: "block", from: 0, to: 0 } };
+  }
+  function applyPreparedFontChange(change: PreparedFontChange) {
+    const editor = activeEditor;
+    if (state.mode === "edit" && editor && !editor.isDestroyed) {
+      const block = change.nextDocument.textBlocks.find(
+        (b) => b.id === change.target.blockId,
+      );
+      if (!block) return;
+      const snapshot = textSelection.current ?? captureSelection(editor);
+      store.commit();
+      store.begin();
+      try {
+        if (change.target.target.kind === "cursor") {
+          if (change.removeItalic) editor.commands.unsetItalic();
+          editor.commands.setMark("textStyle", change.insertionStyle);
+        } else {
+          editor.commands.setContent(block.content, { emitUpdate: false });
+          restoreSelection(editor, snapshot);
+        }
+        store.update(change.nextDocument);
+        store.commit();
+        selectionChanged((v) => v + 1);
+      } catch (e) {
+        store.cancel();
+        throw e;
+      }
+    } else store.transact(() => change.nextDocument);
+  }
   function apply(patch: InlineStylePatch) {
     if (!selected) return;
     if (patch.fontId) {
+      const chosen = availableFonts.find((f) => f.assetId === patch.fontId);
+      if (chosen) {
+        try {
+          applyPreparedFontChange(
+            prepareFontChange(
+              state.document,
+              fontTarget(selected.id),
+              chosen,
+              availableFonts,
+            ),
+          );
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "更换字体失败");
+        }
+        return;
+      }
       const family = availableFonts.find(
         (f) => f.assetId === patch.fontId,
       )?.family;
