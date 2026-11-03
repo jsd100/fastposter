@@ -4,6 +4,8 @@
 
 环境：本机 Google Chrome（Playwright `workers:1`），隔离 Go/Vite 测试栈（每次运行新建一次性 MySQL schema）；桌面 1440×1000，触屏模拟 390×844（`hasTouch`、`deviceScaleFactor:2`）。移动端是视口/触摸模拟，不是真机验证。
 
+实施提交：`f702d18..dfb2a84`。Task 8 的采集脚本补充、验证结果与本文档在同一工作区完成；截图和原始日志保存在仓库忽略目录 `.superpowers/sdd/2026-11-03-editor-experience-implementation/task8-evidence/`，不进入提交。
+
 ## Task 1：共享焦点与 Select 留白
 
 ### 变更
@@ -33,3 +35,171 @@
 
 - 只在 Chrome 验证；触屏为模拟。绿色焦点在模板库、背景库、项目页搜索上由计算样式断言；后台搜索、Textarea 与数字输入组共享同一类和规则，但没有额外的逐控件浏览器断言。
 - 下拉菜单、弹窗与快捷键行为沿用前轮验证，本轮未重新采集真实 iOS Safari / 读屏器结果。
+
+## Task 2：作用域通知与错误展现
+
+### 变更
+
+- 新增 `NotificationsProvider`、`useNotify`、`useNotificationScope`、`useErrorNotice`：同一 id 更新而不是重复入队，普通通知 4 秒、操作失败 6 秒、持续阻断常驻，最多同时 3 条；通知作用域绑定身份 generation，切换账号后旧请求的回调不再显示旧通知。
+- 通知使用 Base UI Toast，顶部居中并保留移动端安全区；关闭与操作按钮可键盘访问。弹窗打开时 Portal 挂到弹窗容器，通知不会躲在模态层后面。
+- 上传、重命名、删除、复制、恢复、导出、后台资源/模板操作等错误迁移到统一通知；可重试操作提供 `重试` 动作，持续保存错误保留原常驻入口。
+- 字体样式降级、字段关联、冲突 Dialog 等既有反馈保留，没有减少恢复入口。
+
+### 验证
+
+- `packages/ui/src/notifications.test.ts` 覆盖去重、时长、上限和旧 generation 不生效；属于 105 个单测的一部分。
+- `tests/e2e/notifications.spec.ts` 3/3：失败上传只产生一条 toast 且不抢编辑焦点；弹窗内 toast 可访问并可重试；切换账号清空旧通知。
+- `session-sync`、`ui-controls`、后台资源等受影响的 E2E 全量通过；失败和重试路径均断言后续请求成功，而不是只检查源码字符串。
+
+## Task 3：按真实内容识别图片格式
+
+### 变更
+
+- `safeName` 继续清洗基名与长度，但在探测到合法 png/jpeg/webp 后把缺失或错误的后缀纠正为 `.png`/`.jpg`/`.webp`；合法 jpeg 的 `.jpeg` 保留。伪造内容、损坏图片、动画和限额检查不变。
+- 字体上传仍使用严格的后缀错误提示：本任务只接受被验证的图片内容，不对字体文件做静默改名。
+
+### 验证
+
+- `go test ./server/internal/assets` 通过；HTTP 集成 `TestAssetHTTPUploadAndPrivateRead` 通过，覆盖“PNG 命名 .jpg”成功、Content-Type/下载名为 `.png`、损坏和伪装内容仍失败。
+- `tests/e2e/image-upload.spec.ts` 1/1：4×3 PNG 以 `.jpg` 上传后在编辑器、后台目录和导出中保持 4×3 PNG。
+- 用户实际附件（PNG 内容、`.jpg` 后缀、1152×2048、3,190,986 字节、SHA-256 `d56e0244…f36450`）实测：上传后画布 `data-width=1152`、`data-height=2048`，素材响应 `image/png`；导出为 1152×2048 PNG（3,237,208 字节，SHA-256 `cbf9ac3f…04d64`）。附件和导出图片都没有复制进仓库；临时验证脚本运行后删除。
+
+## Task 4：六家族内置字体与加载缓存
+
+### 变更
+
+- manifest 从 4 个字面扩展到 6 家族、11 个字面，原有四个字面 ID 不变；内置字体由 manifest 哈希校验后幂等 bootstrap，ListFonts 按 manifest 内置 ID 优先，限制仍为最多 100 个字面。
+- 新增完整字库与许可证：Noto Serif SC、LXGW WenKai、ZCOOL KuaiLe、ZCOOL XiaoWei；来源固定到 google/fonts commit 与 LXGW v1.530，没有用 Web 子集冒充完整字库。
+- `loadFonts` 以源 URL 和字面注册分别去重；失败会移除缓存以便重试；同源检查在读取缓存之前执行。
+
+### 字库体积（SHA-256 与 manifest 全部一致）
+
+| 文件 | 原始字节 | gzip -9 |
+| --- | ---: | ---: |
+| NotoSansSC-VF.ttf | 17,772,300 | 11,276,581 |
+| Inter-VF.ttf | 876,576 | 457,831 |
+| NotoSerifSC-VF.ttf | 25,125,512 | 15,454,598 |
+| LXGWWenKai-Regular.ttf | 25,928,940 | 12,904,505 |
+| ZCOOLKuaiLe-Regular.ttf | 1,514,968 | 1,107,887 |
+| ZCOOLXiaoWei-Regular.ttf | 6,313,808 | 3,415,563 |
+
+六个文件合计 77,532,104 字节（约 73.9 MiB），其中本任务新增四个文件合计 58,883,228 字节（约 56.2 MiB）。Noto Serif SC 与 LXGW WenKai 超过用户上传 20 MiB 限额，但走受控 bootstrap 路径，仍满足 30 MiB 解码上限；没有放宽用户上传限制。
+
+### 验证
+
+- `TestBuiltinManifestDeclaresSixFamilies`、`TestBuiltinFontsUpgradeIsIdempotent`、`TestBuiltinFontsRemainVisibleAtCatalogLimit`、`TestBuiltinFontsBootstrapIsImmutableAndReadable` 全部通过；升级两次不会重复插入，超过 100 个自定义字面时内置仍可发现。
+- `font-cache` 单测 2/2：同 key 只执行一次 loader，失败后再次调用可成功且不永久缓存拒绝的 Promise。
+- 六个中文字体的短句、标点、换行与覆盖测试通过；Inter 的中文缺字仍被识别。
+- 装载 11 个字面后 `editor-richtext` 4/4；新家族实际渲染、保存、重载和导出的版本一致性见 Task 6。
+
+## Task 5：范围预检与原子换字体
+
+### 变更
+
+- 新增 `prepareFontChange`（无副作用候选文档与只含目标文本的 probe）、`firstTargetStyle` 和 Editor 内部原子应用入口；引用与选区样式在同一事务提交，一次撤销同时恢复文字样式和字体引用。
+- 新家族缺少目标字重时保留可用字重并回退 400；不支持的粗体/斜体只清理目标范围；其他范围已有缺字不阻止当前选区预检。
+- 光标只更新插入样式与引用，不覆盖已有文字。
+
+### 验证
+
+- `prepare-change.test.ts`、`store.test.ts`、`selection.test.ts` 全部通过：只给“风景”换字体时外侧 marks/字号不变；整块切换、空光标、混合字重和 unsupported 样式只影响目标范围；probe 通过 `parseDocument`；一次 undo 恢复样式和引用。
+- `editor-richtext` 4/4、`editor-mobile` 3/3 保持通过。
+
+## Task 6：可搜索字体预览与竞态安全预检
+
+### 变更
+
+- `Combobox` 提供中文优先分类的可搜索家族列表；高亮只更新独立预览区并加载该家族，不调用 apply、不改变字体引用或 dirty 状态。
+- 换字体前加载候选字体并调用既有 `CheckFonts`；只有请求快照（作用域、文档、目标范围与样式）仍匹配才应用。选区、作品或账号变化后旧结果不应用、不弹旧 Toast。
+- 预检失败沿用 API 的缺字明细，保留原排版，并提供“改用思源黑体”或“重试”动作；样式降级只通知一次。
+- 旧字体 Select 测试改用真正仍为 Select 的字段（字重等），保留可访问名称和键盘操作。
+
+### 验证
+
+- `editor-fonts.spec.ts` 6/6：搜“宋体/文楷”能定位家族；高亮预览不修改文档；中文选区换 Inter 被拒绝且原文档仍可导出；英文选区换 Inter 成功；新中文字体实际渲染、保存、重载和导出同一版本；延迟请求后改选区/作品/账号不应用旧结果也不弹旧通知；字体文件首次失败后重试成功。
+- `admin-catalog` 2/2：后台上传的实际 500 字重字体在中文缺字时保持持续错误和可修复/可导出；`editor-richtext`、`editor-mobile`、`full-flow` 全部通过。
+- 搜索输入稳定性由 `useMemo` 保持 options/items 身份，避免 Base UI 在每次渲染时把查询重置为已选家族。
+
+## Task 7：步进数字控件与一致事务
+
+### 变更
+
+- `NumberField` 增加 `variant="stepper"`，提供减/输入/加结构、单位、`stepBase` 和交互开始/结束回调；保留原有 raw 草稿、Enter/Escape、IME 和导航保护。
+- 字号 1–4096（步长 1，px）、行高 0.5–5（0.1，倍）、字距 -100–1000（1，px）、透明度 0–100%（5，%）及 padding/描边/阴影效果均使用步进控件；透明度只在 StylePanel 边界做 `*100`/`/100`，文档模型仍是 0–1。
+- 混合选区以目标起始文字为 `stepBase`；一次按下/长按是一个 Editor 事务，指针释放、取消、失焦或卸载时收尾，避免阻塞 autosave 的 inTransaction。
+- 桌面面板窄时数字行单列，360px 底部面板保持可用；触屏步进按钮有效目标 44px。
+
+### 验证
+
+- `editor-settings.spec.ts` 4/4：字号 64→65→64、行高 1.5→1.6、负数/正数字距、透明度 50→55（文档 0.55）、边界禁用、动态 padding 上限、混合字号 64/80 从 64 步进到 65、长按一次撤销、触屏保持选区且不横向溢出。
+- `ui-controls` 15/15、`editor-richtext` 4/4、`editor-mobile` 3/3 均通过；控制台无新增错误。
+
+## Task 8：全流程验收
+
+### 截图与视觉
+
+- 采集命令：`FP_UI_BASELINE=1 FP_UI_BASELINE_OUT=<evidence>/screenshots pnpm test:e2e tests/e2e/ui-baseline.spec.ts`，2/2 通过（19.6s）。数据与视口沿用 Task 1：桌面 1440×1000，手机模拟 390×844、`hasTouch`、`deviceScaleFactor=2`；每次运行新建一次性数据库。
+- 本轮新增真实截图：`d-09-template-search-focus`、`d-10-font-menu-preview`、`d-11-font-rejection-toast`、`m-09-template-search-focus`、`m-10-font-menu-preview`、`m-11-font-rejection-toast`；原有 `d-04-editor-panel`、`m-05-editor-sheet` 覆盖步进组。
+- 与 Task 1 修复后基线 `/tmp/fastposter-task1-after3` 对比：编辑页顶部导航与画布区域 ImageMagick 归一化 RMSE 均为 0；项目页整页 0.00247，差异只落在两张卡片的时间戳文字；手机编辑页顶部 0.0000391；手机底部面板顶部为 0。画布、导航和布局没有无关位移。
+- 绿色焦点在模板库搜索框上可见并由 `ui-controls` 计算样式断言（`#88a471`、无蓝色 outline）；Select 普通/compact 的 10/8px 内距由 `the select trigger balances text and caret insets` 持续断言。字体预览在桌面与手机都显示高亮家族样张；拒绝 Toast 顶部居中、带“改用思源黑体”和关闭按钮，原文档保持不变。
+
+### 静态检查与构建
+
+- `pnpm contracts:check`：退出 0，本计划未修改生成契约。
+- `pnpm typecheck`：退出 0。
+- `pnpm test`：18 个文件、105 个用例全部通过。
+- `pnpm build --force`：8/8 任务成功，0 缓存。基线 `f702d18` 在临时 worktree 中用同一命令构建后对比：
+
+| 应用/产物 | 基线原始 | 最终原始 | 变化 | 基线 gzip | 最终 gzip | 变化 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| web JS | 1,013.60 kB | 1,086.32 kB | +72.72 kB | 320.49 kB | 344.13 kB | +23.64 kB |
+| web CSS | 33.08 kB | 38.37 kB | +5.29 kB | 7.91 kB | 8.73 kB | +0.82 kB |
+| admin JS | 1,014.09 kB | 1,086.61 kB | +72.52 kB | 318.29 kB | 341.50 kB | +23.21 kB |
+| admin CSS | 44.98 kB | 50.27 kB | +5.29 kB | 10.05 kB | 10.86 kB | +0.81 kB |
+| renderer JS | 311.44 kB | 311.79 kB | +0.35 kB | 95.03 kB | 95.20 kB | +0.17 kB |
+
+- 原有“超过 500 kB”警告仍在，没有新增构建失败或 chunk 拆分。增量来自通知、可搜索 Combobox、字体目录与步进控件；字体文件由 Go 资源路径提供，不进入前端 bundle。
+
+### 字体按需加载
+
+临时网络探针（1/1 通过，脚本运行后删除，JSON 保存在证据目录）：
+
+- 初始化只请求 `builtin-noto-sc-400/700/900` 三个字面 URL（同一 Noto Sans SC 变量字体家族，属于既有默认文档行为），没有请求 Noto Serif SC、LXGW WenKai、ZCOOL KuaiLe、ZCOOL XiaoWei 或 Inter。
+- 高亮霞鹜文楷新增且只新增 `builtin-lxgw-wenkai-400`；高亮思源宋体新增且只新增 `builtin-noto-serif-sc-400`。
+- 再次高亮霞鹜文楷、实际选中应用霞鹜文楷都没有新增请求；保留字体失败重试路径。
+- 保存并重新加载后只加载文档引用的 Noto Sans SC 与霞鹜文楷，不加载其他家族。
+- 限制说明：初始化会为 Noto Sans SC 三个字面各发一个 face URL（它们指向同一变量字体文件），这是本计划之前已有的初始化行为；本轮未增加其他家族，也未在预览/换字体时重复下载。
+
+### Go 与集成
+
+- `go test -count=1 ./server/... ./tools/...`：退出 0，15 个包全部 `ok`。
+- `python3 tools/test-integration.py -run 'TestAssetHTTPUploadAndPrivateRead|TestBuiltin' -count=1 -v`：实际命中 4 个测试并全部 PASS：`TestAssetHTTPUploadAndPrivateRead`、`TestBuiltinFontsUpgradeIsIdempotent`、`TestBuiltinFontsRemainVisibleAtCatalogLimit`、`TestBuiltinFontsBootstrapIsImmutableAndReadable`。
+- 没有用未命中的测试或跳过项补充通过数量。
+
+### 功能 E2E
+
+按注册次数拆组、顺序启动独立测试栈，每组独立日志；实际运行范围：
+
+| 组 | 文件 | 用例 | 注册数 | 结果 |
+| --- | --- | ---: | ---: | --- |
+| A | notifications、image-upload、session-sync、templates、copy | 7 | 6 | 7 passed (35.6s) |
+| B | editor-fonts、editor-mobile | 9 | 9 | 9 passed (31.6s) |
+| C | editor-settings、editor-richtext | 8 | 8 | 8 passed (23.3s) |
+| D | ui-controls（前 9 个用例） | 9 | 9 | 9 passed (23.2s) |
+| E | ui-controls（后 6 个用例） | 6 | 6 | 6 passed (13.2s) |
+| F | admin-catalog、autosave | 6 | 6 | 6 passed (42.8s) |
+| G | editor-geometry、export、full-flow、projects | 8 | 9 | 8 passed (38.2s) |
+
+合计 53 个功能用例通过。`ui-baseline` 是 opt-in 采集，2/2 通过，单独列出，不计入 53；网络探针与附件探针也是单独运行、脚本临时创建后删除，不计入功能用例。
+
+### 既有引用可重现
+
+- `editor-fonts` 用例 4 证明新家族保存、重载和导出使用同一 `assetId@version`；`admin-catalog` 用例 2 证明上传字体在资源下架后仍可加载/修复/导出；`templates` 与 `full-flow` 证明模板应用和重新导入模板包保持独立作品与既有字体引用。
+- 内置字体 bootstrap 的幂等、不可变和资源可读性由集成测试持续覆盖。
+- 本次没有首次安装、升级或字库获取失败的阻塞项。
+
+### 限制
+
+- Chrome only，手机为 390×844/360×800 触摸模拟，不是真机、iOS Safari 或读屏器实测。
+- 截图与日志位于 `.superpowers/` 忽略目录，不随提交分发；个人附件及导出图片只保存在本机临时目录。
+- 初始化仍会请求默认 Noto Sans SC 的三个字面 URL（同一文件），属于既有行为；如果后续要求进一步减少首屏字体流量，需要单独调整默认文档引用或内置字体 URL 复用策略。

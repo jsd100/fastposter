@@ -207,6 +207,8 @@ describeCapture("desktop 1440x1000", () => {
       page.getByRole("dialog", { name: "模板库" }),
     ).toBeVisible();
     await shoot(page, "d-03-template-picker");
+    await page.getByRole("textbox", { name: "搜索模板" }).focus();
+    await shoot(page, "d-09-template-search-focus");
     await page.getByRole("button", { name: "关闭", exact: true }).click();
 
     await page
@@ -226,6 +228,40 @@ describeCapture("desktop 1440x1000", () => {
       .poll(() => page.evaluate(() => window.getSelection()?.toString()))
       .toBe("风景");
     await shoot(page, "d-04-editor-panel");
+
+    const font = page.getByLabel("文字字体", { exact: true });
+    await font.click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await font.fill("文楷");
+    await page
+      .getByRole("listbox")
+      .getByRole("option", { name: "霞鹜文楷", exact: true })
+      .hover();
+    await expect(page.locator("[data-fp-font-preview]")).toContainText(
+      "霞鹜文楷",
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.fonts.check('16px "fp_builtin-lxgw-wenkai-400"', "海报"),
+        ),
+      )
+      .toBe(true);
+    await shoot(page, "d-10-font-menu-preview");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+
+    await font.click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page
+      .getByRole("listbox")
+      .getByRole("option", { name: "Inter", exact: true })
+      .click();
+    await expect(
+      page.getByTestId("notice").filter({ hasText: "缺少字形" }),
+    ).toBeVisible();
+    await shoot(page, "d-11-font-rejection-toast");
+    await page.getByTestId("notice-close").click();
 
     await page.getByRole("button", { name: "背景库", exact: true }).click();
     await expect(
@@ -269,6 +305,8 @@ describeCapture("mobile 390x844", () => {
     await page.getByRole("button", { name: "模板库", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "模板库" })).toBeVisible();
     await shoot(page, "m-03-template-picker");
+    await page.getByRole("textbox", { name: "搜索模板" }).focus();
+    await shoot(page, "m-09-template-search-focus");
     await page.getByRole("button", { name: "关闭", exact: true }).click();
 
     await page
@@ -291,6 +329,41 @@ describeCapture("mobile 390x844", () => {
     await page.getByRole("button", { name: "文字设置", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "文字设置" })).toBeVisible();
     await shoot(page, "m-05-editor-sheet");
+
+    const font = page.getByLabel("文字字体", { exact: true });
+    await font.click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await font.fill("文楷");
+    await page
+      .getByRole("listbox")
+      .getByRole("option", { name: "霞鹜文楷", exact: true })
+      .hover();
+    await expect(page.locator("[data-fp-font-preview]")).toContainText(
+      "霞鹜文楷",
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.fonts.check('16px "fp_builtin-lxgw-wenkai-400"', "海报"),
+        ),
+      )
+      .toBe(true);
+    await shoot(page, "m-10-font-menu-preview");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+
+    await font.click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page
+      .getByRole("listbox")
+      .getByRole("option", { name: "Inter", exact: true })
+      .click();
+    await expect(
+      page.getByTestId("notice").filter({ hasText: "缺少字形" }),
+    ).toBeVisible();
+    await shoot(page, "m-11-font-rejection-toast");
+    await page.getByTestId("notice-close").click();
+
     await page.getByRole("button", { name: "关闭", exact: true }).click();
     await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
 
