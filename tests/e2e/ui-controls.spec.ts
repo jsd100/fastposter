@@ -200,6 +200,7 @@ test("editor number fields keep drafts, bounds and Escape without touching the d
 
   await spacing.fill("-2.5");
   await expect(block).toHaveCSS("letter-spacing", "-2.5px");
+  await spacing.blur();
 
   await spacing.fill("40");
   await expect(block).toHaveCSS("letter-spacing", "40px");
@@ -237,6 +238,104 @@ test("editor number fields keep drafts, bounds and Escape without touching the d
   await spacing.fill("9");
   await expect(second).toHaveCSS("letter-spacing", "9px");
   await expect(block).toHaveCSS("letter-spacing", `${shown}px`);
+});
+
+test("short select options can be selected at the right edge of their menu row", async ({
+  page,
+}) => {
+  await openPoster(page, "ui_row_hit");
+  await selectTrigger(page, "文字字重").click();
+  const popup = page.locator("[data-fp-popup]");
+  const row = page.getByRole("option", { name: "700", exact: true });
+  const menuBox = (await popup.boundingBox())!;
+  const rowBox = (await row.boundingBox())!;
+  await page.mouse.click(
+    menuBox.x + menuBox.width - 15,
+    rowBox.y + rowBox.height / 2,
+  );
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(selectValue(page, "文字字重")).toHaveText("700");
+});
+
+test("Escape restores the number from before sequential typing", async ({
+  page,
+}) => {
+  await openPoster(page, "ui_cancel_typing");
+  const spacing = page.getByLabel("文字字距", { exact: true });
+  const block = page.locator("[data-text-block]").first();
+  await spacing.fill("8");
+  await spacing.blur();
+  await spacing.selectText();
+  await spacing.pressSequentially("123");
+  await expect(block).toHaveCSS("letter-spacing", "123px");
+  await spacing.press("Escape");
+  await expect(spacing).toHaveValue("8");
+  await expect(block).toHaveCSS("letter-spacing", "8px");
+});
+
+test("unfinished decimals stay drafts until a valid number is entered", async ({
+  page,
+}) => {
+  await openPoster(page, "ui_pending_decimal");
+  const spacing = page.getByLabel("文字字距", { exact: true });
+  const block = page.locator("[data-text-block]").first();
+  await spacing.fill("12");
+  await spacing.blur();
+  await spacing.fill("0.");
+  await expect(spacing).toHaveValue("0.");
+  await expect(block).toHaveCSS("letter-spacing", "12px");
+  await spacing.press("Control+Home");
+  await expect(spacing).toHaveValue("0.");
+  await spacing.dispatchEvent("keydown", {
+    key: "Enter",
+    keyCode: 229,
+    which: 229,
+  });
+  await expect(spacing).toHaveValue("0.");
+  await spacing.fill("-.");
+  await expect(block).toHaveCSS("letter-spacing", "12px");
+  await spacing.fill("-.5");
+  await expect(block).toHaveCSS("letter-spacing", "-0.5px");
+  await spacing.fill("invalid paste");
+  await expect(block).toHaveCSS("letter-spacing", "-0.5px");
+  await spacing.blur();
+  await expect(spacing).toHaveValue("-0.5");
+  await spacing.selectText();
+  await spacing.press("Backspace");
+  await spacing.pressSequentially("-.5");
+  await expect(spacing).toHaveValue("-.5");
+  await expect(block).toHaveCSS("letter-spacing", "-0.5px");
+});
+
+test("Enter validates invalid and unfinished drafts without leaving a stale display", async ({
+  page,
+}) => {
+  await openPoster(page, "ui_confirm_number");
+  const size = page.getByLabel("文字字号", { exact: true });
+  const block = page.locator("[data-text-block]").first();
+  await size.fill("4097");
+  await size.press("Enter");
+  await expect(size).toHaveValue("64");
+  await expect(block).toHaveCSS("font-size", "64px");
+  await size.fill("80");
+  await size.press("Enter");
+  await expect(block).toHaveCSS("font-size", "80px");
+  await size.fill("81.");
+  await size.press("Enter");
+  await expect(size).toHaveValue("80");
+  await expect(block).toHaveCSS("font-size", "80px");
+  await size.press("ArrowUp");
+  await expect(size).toHaveValue("81");
+  await expect(block).toHaveCSS("font-size", "81px");
+  await size.press("Escape");
+  await expect(size).toHaveValue("80");
+  await expect(block).toHaveCSS("font-size", "80px");
+  await size.fill("4096");
+  await size.press("Enter");
+  await size.fill("4097");
+  await size.press("ArrowUp");
+  await expect(size).toHaveValue("4096");
+  await expect(block).toHaveCSS("font-size", "4096px");
 });
 
 test("the select trigger keeps the native control's ink and insets", async ({
@@ -425,7 +524,10 @@ test("icon actions describe themselves on keyboard focus and disabled actions st
   await expect(tip).toHaveCount(0);
   await page.getByRole("button", { name: "复制文字块", exact: true }).focus();
   await page.keyboard.press("Tab");
-  const hint = page.getByRole("button", { name: "文字块前移一层", exact: true });
+  const hint = page.getByRole("button", {
+    name: "文字块前移一层",
+    exact: true,
+  });
   await expect(hint).toBeFocused();
   await expect(tip).toBeVisible();
   await expect(tip).toHaveText("文字块前移一层");
@@ -437,10 +539,7 @@ test("icon actions describe themselves on keyboard focus and disabled actions st
   await expect(redo).toBeDisabled();
   await redo.hover();
   await expect(tip).toHaveCount(0);
-  const before = await page
-    .locator("[data-text-block]")
-    .first()
-    .innerText();
+  const before = await page.locator("[data-text-block]").first().innerText();
   await redo.click({ force: true });
   await expect(redo).toBeDisabled();
   await expect(page.locator("[data-text-block]").first()).toHaveText(before);

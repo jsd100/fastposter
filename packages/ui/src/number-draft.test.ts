@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { classifyNumberDraft } from "./number-draft";
 
 describe("classifyNumberDraft", () => {
+  it.each([
+    ["１２．５", 12.5],
+    ["−2.5", -2.5],
+  ] as const)("accepts normalized numeric text %j", (raw, value) => {
+    expect(classifyNumberDraft(raw)).toEqual({ kind: "valid", value });
+  });
   it.each(["", " ", "-", ".", "-.", "1.", "12.", "0.", "4096."])(
     "treats %j as an unfinished draft instead of a number",
     (raw) => {
@@ -9,7 +15,7 @@ describe("classifyNumberDraft", () => {
     },
   );
 
-  it.each(["0", "-12.5", "1", "4096", "0.05", "-0.5", "1234"])(
+  it.each(["0", "-12.5", "1", "4096", "0.05", "-0.5", ".5", "-.5", "1234"])(
     "accepts %j as a finite number",
     (raw) => {
       expect(classifyNumberDraft(raw)).toEqual({
