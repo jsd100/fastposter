@@ -22,7 +22,13 @@ import type {
   RichNode,
   TextBlock,
 } from "@fastposter/poster-schema";
-import { Button, Dialog, NumberField, Status, Tooltip } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  NumberField,
+  Tooltip,
+  useErrorNotice,
+} from "@fastposter/ui";
 import { shouldIgnoreEditorShortcut } from "./keyboard";
 import {
   Plus,
@@ -117,6 +123,7 @@ export function Editor({
     [error, setError] = useState(""),
     [uploading, setUploading] = useState(false),
     [copyBusy, setCopyBusy] = useState(false);
+  useErrorNotice("editor:operation", error || null);
   useEffect(() => {
     if (document !== emitted.current) {
       emitted.current = document;
@@ -360,7 +367,6 @@ export function Editor({
           </Tooltip>
         </div>
       </div>
-      {error && <Status tone="error">{error}</Status>}
       {state.overflow && (
         <div className="overflow-notice" role="alert">
           文字超出画布，请调宽文本框、减小字号或调整位置后导出。正文已保留。

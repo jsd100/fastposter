@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient, routes, type UserDTO } from "@fastposter/api-client";
+import { useNotificationScope } from "@fastposter/ui";
 import { navigate } from "../../router";
 import { publishSessionEvent, subscribeSessionEvents } from "./sessionSync";
 type Session = {
@@ -17,6 +18,11 @@ type Session = {
   logout: () => Promise<void>;
 };
 const SessionContext = createContext<Session | null>(null);
+function NotificationScope() {
+  const { user } = useSession();
+  useNotificationScope(user ? user.id : "anonymous");
+  return null;
+}
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, updateUser] = useState<UserDTO | null>();
   const cache = useQueryClient();
@@ -98,6 +104,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
   return (
     <SessionContext.Provider value={{ user, setUser, logout }}>
+      <NotificationScope />
       {children}
     </SessionContext.Provider>
   );

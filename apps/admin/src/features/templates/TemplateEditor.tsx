@@ -7,7 +7,7 @@ import {
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, FormField, NumberField, Select, Status, TextInput } from "@fastposter/ui";
+import { Button, FormField, NumberField, Select, Status, TextInput, useErrorNotice } from "@fastposter/ui";
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
 import {
   loadFonts,
@@ -63,6 +63,15 @@ export function TemplateEditor({
     retry: false,
     staleTime: 60_000,
   });
+  useErrorNotice("admin:template-editor", error || null);
+  useErrorNotice(
+    "admin:template-editor-fonts",
+    fontQuery.error ? errorMessage(fontQuery.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void fontQuery.refetch() },
+    },
+  );
   const fontSignature = JSON.stringify(initial?.fonts ?? []);
   useEffect(() => {
     if (!fontQuery.data) return;
@@ -253,7 +262,6 @@ export function TemplateEditor({
           </Button>
         </div>
       </header>
-      {error && <Status tone="error">{error}</Status>}
       {!draft ? (
         <div className="template-editor-empty">
           <h2>{resource ? "模板文档不可用" : "选择模板背景"}</h2>
@@ -269,9 +277,6 @@ export function TemplateEditor({
       ) : !fontsReady ? (
         <div className="template-editor-empty">
           <Status>正在载入字体…</Status>
-          {fontQuery.error && (
-            <Status tone="error">{errorMessage(fontQuery.error)}</Status>
-          )}
         </div>
       ) : (
         <div className="template-editor-canvas">

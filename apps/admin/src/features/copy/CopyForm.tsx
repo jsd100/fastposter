@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { ResourceDTO } from "@fastposter/api-client";
 import { routes } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Status, Textarea } from "@fastposter/ui";
+import { Button, Dialog, FormField, Select, Textarea, useErrorNotice } from "@fastposter/ui";
 import { errorMessage, request } from "../../api";
 import { flattenCategories } from "./CategoryTree";
 
@@ -39,6 +39,7 @@ export function CategoryForm({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [confirming, setConfirming] = useState(false);
+  useErrorNotice("admin:copy-category", error || null);
   const blocked = category
     ? descendants(categories, category.id)
     : new Set<string>();
@@ -133,7 +134,6 @@ export function CategoryForm({
           />
           发布分类
         </label>
-        {error && <Status tone="error">{error}</Status>}
         {confirming && (
           <div className="inline-confirm">
             <span>删除后无法恢复，确认删除这个空分类？</span>
@@ -194,6 +194,7 @@ export function CopyForm({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [confirming, setConfirming] = useState(false);
+  useErrorNotice("admin:copy-form", error || null);
   const options = flattenCategories(categories);
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -291,7 +292,6 @@ export function CopyForm({
           />
           发布文案
         </label>
-        {error && <Status tone="error">{error}</Status>}
         {confirming && (
           <div className="inline-confirm">
             <span>确认删除这条文案？</span>

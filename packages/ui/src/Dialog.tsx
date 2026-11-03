@@ -1,5 +1,6 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import type { ReactElement, ReactNode } from "react";
+import { useEffect, useState, type ReactElement, type ReactNode } from "react";
+import { registerModalLayer } from "./modal-layer";
 import styles from "./Dialog.module.css";
 
 export function Dialog({
@@ -15,6 +16,11 @@ export function Dialog({
   className?: string;
   align?: "center" | "bottom";
 }): ReactElement {
+  const [popup, setPopup] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!popup) return;
+    return registerModalLayer(popup);
+  }, [popup]);
   return (
     <DialogPrimitive.Root
       open
@@ -26,6 +32,7 @@ export function Dialog({
         <div className={styles.shell}>
           <DialogPrimitive.Backdrop className={styles.backdrop} />
           <DialogPrimitive.Popup
+            ref={setPopup}
             data-fp-overlay=""
             className={`dialog ${align === "bottom" ? styles.bottom : styles.center} ${className}`}
           >

@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type AssetDTO } from "@fastposter/api-client";
-import { Button, Dialog, Select, Status, TextInput } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  Select,
+  Status,
+  TextInput,
+  useErrorNotice,
+} from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
 export function BackgroundPicker({
@@ -38,6 +45,22 @@ export function BackgroundPicker({
       }),
     retry: false,
   });
+  useErrorNotice(
+    "catalog:backgrounds",
+    q.error ? errorMessage(q.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void q.refetch() },
+    },
+  );
+  useErrorNotice(
+    "catalog:background-categories",
+    categories.error ? errorMessage(categories.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void categories.refetch() },
+    },
+  );
   return (
     <Dialog title="背景库" className="background-picker" onClose={onClose}>
       <p>选择预设背景。不同尺寸会调整画布和文字位置，字号保持不变。</p>
@@ -67,7 +90,6 @@ export function BackgroundPicker({
           ]}
         />
       </div>
-      {q.error && <Status tone="error">{errorMessage(q.error)}</Status>}
       <div className="background-picker-grid">
         {q.data?.resources.map(
           (r) =>

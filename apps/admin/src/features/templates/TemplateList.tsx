@@ -6,7 +6,7 @@ import {
   type ResourceDTO,
   type ResourceReply,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Status, TextInput } from "@fastposter/ui";
+import { Button, Dialog, FormField, Select, Status, TextInput, useErrorNotice } from "@fastposter/ui";
 import {
   loadFonts,
   PosterThumbnail,
@@ -57,6 +57,15 @@ export function TemplatesPage() {
     retry: false,
     staleTime: 60_000,
   });
+  useErrorNotice(
+    "admin:templates",
+    q.error ? errorMessage(q.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void q.refetch() },
+    },
+  );
+  useErrorNotice("admin:template-action", error || null);
   const documents = useMemo(() => {
     const map = new Map<string, PosterDocument>();
     for (const resource of q.data?.resources ?? []) {
@@ -221,9 +230,6 @@ export function TemplatesPage() {
         />
         <Button onClick={() => setNewCategory(true)}>添加分类</Button>
       </div>
-      {(error || q.error) && (
-        <Status tone="error">{error || errorMessage(q.error)}</Status>
-      )}
       <div className="admin-resource-grid">
         {q.data?.resources.map((resource) => {
           const document = documents.get(resource.id);
@@ -349,7 +355,6 @@ export function TemplatesPage() {
               maxLength={120}
               required
             />
-            {error && <Status tone="error">{error}</Status>}
             <div className="dialog-actions">
               <Button type="button" onClick={() => setNewCategory(false)}>
                 取消
@@ -379,6 +384,7 @@ function TemplatePreviewDialog({
   const [document, setDocument] = useState<PosterDocument>();
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
+  useErrorNotice("admin:template-preview", error || null);
   const fonts = useQuery({
     queryKey: ["font-catalog"],
     queryFn: () => request(routes.ListFonts, {}),
@@ -430,7 +436,6 @@ function TemplatePreviewDialog({
   }, [resource, fonts.data]);
   return (
     <Dialog title={`模板预览 · ${resource.title}`} className="template-preview-dialog" onClose={close}>
-      {error && <Status tone="error">{error}</Status>}
       {document && ready ? (
         <PosterThumbnail
           document={document}

@@ -6,7 +6,14 @@ import {
   type ProjectReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, Dialog, Select, Status, TextInput } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  Select,
+  Status,
+  TextInput,
+  useErrorNotice,
+} from "@fastposter/ui";
 import {
   loadFonts,
   PosterThumbnail,
@@ -59,6 +66,19 @@ export function TemplatePicker({
     retry: false,
     staleTime: 60_000,
   });
+  useErrorNotice("template:action", error || null);
+  useErrorNotice("template:list", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
+  useErrorNotice(
+    "template:categories",
+    categories.error ? errorMessage(categories.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void categories.refetch() },
+    },
+  );
   const documents = useMemo(() => {
     const map = new Map<string, PosterDocument>();
     for (const resource of q.data?.resources ?? []) {
@@ -190,8 +210,6 @@ export function TemplatePicker({
           onChange={(e) => void importPackage(e.target.files?.[0])}
         />
       </div>
-      {error && <Status tone="error">{error}</Status>}
-      {q.error && <Status tone="error">{errorMessage(q.error)}</Status>}
       <div className="template-picker-grid">
         {q.data?.resources.map((resource) => {
           const document = documents.get(resource.id);

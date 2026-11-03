@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { routes, type UserDTO } from "@fastposter/api-client";
-import { Button, Dialog, Status, TextInput, Textarea } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  TextInput,
+  Textarea,
+  useErrorNotice,
+} from "@fastposter/ui";
 import { request, errorMessage } from "../api";
 function Empty() {
   return <p className="admin-empty">暂无记录</p>;
@@ -12,7 +18,10 @@ export function Overview() {
     queryFn: () => request(routes.AdminOverview, {}),
     retry: false,
   });
-  if (q.error) return <Status tone="error">{errorMessage(q.error)}</Status>;
+  useErrorNotice("admin:overview", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
   const o = q.data?.overview;
   return (
     <>
@@ -60,6 +69,11 @@ export function UsersPage() {
     queryFn: () => request(routes.AdminUsers, { page, pageSize: 24, keyword }),
     retry: false,
   });
+  useErrorNotice("admin:users", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
+  useErrorNotice("admin:user-action", error || null);
   async function confirm() {
     if (!target) return;
     setBusy(true);
@@ -96,7 +110,6 @@ export function UsersPage() {
           setPage(1);
         }}
       />
-      {q.error && <Status tone="error">{errorMessage(q.error)}</Status>}
       <div className="table-wrap">
         <table>
           <thead>
@@ -182,7 +195,6 @@ export function UsersPage() {
           ) : (
             <>
               <p>确认对“{target.user.username}”执行此操作？</p>
-              {error && <Status tone="error">{error}</Status>}
               <div className="dialog-actions">
                 <Button onClick={() => setTarget(null)}>取消</Button>
                 <Button
@@ -209,6 +221,10 @@ export function ProjectsPage() {
       request(routes.AdminProjects, { page, pageSize: 24, keyword }),
     retry: false,
   });
+  useErrorNotice("admin:projects", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
   return (
     <>
       <h1>
@@ -227,7 +243,6 @@ export function ProjectsPage() {
           setPage(1);
         }}
       />
-      {q.error && <Status tone="error">{errorMessage(q.error)}</Status>}
       <div className="table-wrap">
         <table>
           <thead>
@@ -272,6 +287,10 @@ export function JobsPage() {
     retry: false,
     refetchInterval: 5000,
   });
+  useErrorNotice("admin:jobs", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
   return (
     <>
       <h1>
@@ -280,7 +299,6 @@ export function JobsPage() {
       <p className="admin-subtitle">
         查看队列状态与错误类型。结果图片和正文详情仅作品所有者可读取。
       </p>
-      {q.error && <Status tone="error">{errorMessage(q.error)}</Status>}
       <div className="table-wrap">
         <table>
           <thead>
@@ -328,6 +346,10 @@ export function AuditPage() {
     queryFn: () => request(routes.AdminAudit, { page, pageSize: 24 }),
     retry: false,
   });
+  useErrorNotice("admin:audit", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
   return (
     <>
       <h1>
@@ -336,7 +358,6 @@ export function AuditPage() {
       <p className="admin-subtitle">
         记录操作者、动作和目标 ID；不记录密码、会话或私有文案。
       </p>
-      {q.error && <Status tone="error">{errorMessage(q.error)}</Status>}
       <div className="table-wrap">
         <table>
           <thead>

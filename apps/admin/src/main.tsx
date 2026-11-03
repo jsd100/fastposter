@@ -7,7 +7,15 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { apiClient, routes, type UserDTO } from "@fastposter/api-client";
-import { Button, FormField, Status } from "@fastposter/ui";
+import {
+  Button,
+  FormField,
+  NotificationsProvider,
+  Status,
+  useErrorNotice,
+  useNotificationScope,
+  useNotify,
+} from "@fastposter/ui";
 import { AdminLayout } from "./AdminLayout";
 import {
   Overview,
@@ -29,7 +37,8 @@ function AdminApp() {
   const path = usePath();
   const client = useQueryClient();
   const [user, setUser] = useState<UserDTO | null>();
-  const [error, setError] = useState("");
+  const notify = useNotify();
+  useNotificationScope(user ? user.id : "anonymous");
   useEffect(() => {
     let active = true;
     apiClient
@@ -104,10 +113,11 @@ function AdminApp() {
             setUser(null);
             navigate("/admin/login");
           })
-          .catch((e) => setError(errorMessage(e)))
+          .catch((e) =>
+            notify.show({ tone: "error", title: errorMessage(e) }),
+          )
       }
     >
-      {error && <Status tone="error">{error}</Status>}
       {path === "/admin/users" ? (
         <UsersPage />
       ) : path === "/admin/projects" ? (
@@ -135,6 +145,7 @@ function Login({ onUser }: { onUser: (user: UserDTO) => void }) {
     [password, setPassword] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useErrorNotice("admin:login", error || null);
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -174,9 +185,7 @@ function Login({ onUser }: { onUser: (user: UserDTO) => void }) {
           autoComplete="current-password"
           required
         />
-        {error && <Status tone="error">{error}</Status>}
-        <Button variant="primary" busy={busy} type="submit">
-          登录管理后台
+        <Button variant="primary" busy={busy} type="submit">          登录管理后台
         </Button>
       </form>
       <p className="admin-login-note">
@@ -187,6 +196,8 @@ function Login({ onUser }: { onUser: (user: UserDTO) => void }) {
 }
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={cache}>
-    <AdminApp />
+    <NotificationsProvider>
+      <AdminApp />
+    </NotificationsProvider>
   </QueryClientProvider>,
 );

@@ -1,7 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type ResourceDTO } from "@fastposter/api-client";
-import { Button, Dialog, Select, Status, TextInput } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  Select,
+  Status,
+  TextInput,
+  useErrorNotice,
+} from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
 
@@ -88,6 +95,22 @@ export function CopyPicker({
       }),
     retry: false,
   });
+  useErrorNotice(
+    "catalog:copy-categories",
+    categories.error ? errorMessage(categories.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void categories.refetch() },
+    },
+  );
+  useErrorNotice(
+    "catalog:copies",
+    copies.error ? errorMessage(copies.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void copies.refetch() },
+    },
+  );
   return (
     <Dialog title="文案库" className="copy-picker" onClose={onClose}>
       <p>
@@ -104,9 +127,6 @@ export function CopyPicker({
           }}
         />
       </div>
-      {categories.error && (
-        <Status tone="error">{errorMessage(categories.error)}</Status>
-      )}
       {categories.isPending && <Status>正在加载文案分类…</Status>}
       {levels.length > 0 && (
         <div className="copy-category-path">
@@ -136,9 +156,6 @@ export function CopyPicker({
             />
           ))}
         </div>
-      )}
-      {copies.error && (
-        <Status tone="error">{errorMessage(copies.error)}</Status>
       )}
       <div className="copy-picker-list">
         {copies.data?.resources.map((row) => (

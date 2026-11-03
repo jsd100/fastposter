@@ -5,19 +5,16 @@ import { FileText } from "lucide-react";
 export function CopyList({
   resources,
   loading,
-  error,
   busy,
   onEdit,
   onToggle,
 }: {
   resources: ResourceDTO[];
   loading: boolean;
-  error: string;
   busy: string;
   onEdit: (copy: ResourceDTO) => void;
   onToggle: (copy: ResourceDTO) => void;
 }) {
-  if (error) return <Status tone="error">{error}</Status>;
   if (loading) return <Status>正在加载文案…</Status>;
   if (!resources.length)
     return (

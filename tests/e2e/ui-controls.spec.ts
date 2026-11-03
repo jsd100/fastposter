@@ -49,7 +49,9 @@ test("password form submits explicitly and secondary actions do not submit", asy
     .getByLabel("新密码", { exact: true })
     .fill("a brand new test password");
   await page.getByRole("button", { name: "更新密码", exact: true }).click();
-  await expect(page.getByRole("alert")).toHaveText("当前密码不正确");
+  await expect(
+    page.getByTestId("notice").filter({ hasText: "当前密码不正确" }),
+  ).toBeVisible();
   await expect(page).toHaveURL(/\/password$/);
   expect(passwordRequests).toBe(1);
 

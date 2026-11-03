@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { apiClient, routes } from "@fastposter/api-client";
-import { Button, FormField, Status } from "@fastposter/ui";
+import { Button, FormField, useErrorNotice } from "@fastposter/ui";
 import { errorMessage } from "../../api";
 import { Link, navigate } from "../../router";
 import { useSession } from "./Session";
@@ -12,6 +12,7 @@ export function PasswordPage() {
     [token, setToken] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  useErrorNotice("auth:password", error || null);
   const reset = new URLSearchParams(location.search).get("reset") === "1";
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -71,7 +72,6 @@ export function PasswordPage() {
           onChange={(e) => setNext(e.target.value)}
           required
         />
-        {error && <Status tone="error">{error}</Status>}
         <Button variant="primary" busy={busy} type="submit">
           更新密码
         </Button>

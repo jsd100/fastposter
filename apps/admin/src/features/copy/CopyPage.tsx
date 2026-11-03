@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { routes, type ResourceDTO } from "@fastposter/api-client";
-import { Button, Status, TextInput } from "@fastposter/ui";
+import { Button, TextInput, useErrorNotice } from "@fastposter/ui";
 import { Plus } from "lucide-react";
 import { errorMessage, request } from "../../api";
 import { Pager } from "../Metadata";
@@ -44,6 +44,23 @@ export function CopyPage() {
     retry: false,
   });
   const categoryRows = categories.data?.resources ?? [];
+  useErrorNotice(
+    "admin:copy-categories",
+    categories.error ? errorMessage(categories.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void categories.refetch() },
+    },
+  );
+  useErrorNotice(
+    "admin:copy-list",
+    copies.error ? errorMessage(copies.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void copies.refetch() },
+    },
+  );
+  useErrorNotice("admin:copy-action", error || null);
   useEffect(() => {
     if (
       selected &&
@@ -125,16 +142,9 @@ export function CopyPage() {
               {selectedTitle ? `分类：${selectedTitle}` : "全部分类"}
             </span>
           </div>
-          {categories.error && (
-            <Status tone="error">{errorMessage(categories.error)}</Status>
-          )}
-          {(error || copies.error) && (
-            <Status tone="error">{error || errorMessage(copies.error)}</Status>
-          )}
           <CopyList
             resources={copies.data?.resources ?? []}
             loading={copies.isPending}
-            error=""
             busy={busy}
             onEdit={setEditingCopy}
             onToggle={toggle}

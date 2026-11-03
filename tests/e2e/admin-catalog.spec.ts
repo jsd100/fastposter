@@ -128,7 +128,10 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
   await chooseOption(page, "文字字体", "Test Inter");
   await expect(selectValue(page, "文字字重")).toHaveText("500");
   await expect(
-    page.getByRole("alert").filter({ hasText: "缺少字形" }),
+    page.getByTestId("notice").filter({ hasText: "缺少字形" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".status-error").filter({ hasText: "缺少字形" }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "导出 PNG", exact: true }),
@@ -137,7 +140,10 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
   await page.getByRole("textbox", { name: "海报文字编辑" }).fill("Poster 2026");
   await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
   await expect(
-    page.getByRole("alert").filter({ hasText: "缺少字形" }),
+    page.getByTestId("notice").filter({ hasText: "缺少字形" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".status-error").filter({ hasText: "缺少字形" }),
   ).toHaveCount(0);
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   await admin

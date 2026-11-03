@@ -7,7 +7,15 @@ import {
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Status, TextInput, Textarea } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  FormField,
+  Select,
+  TextInput,
+  Textarea,
+  useErrorNotice,
+} from "@fastposter/ui";
 import { Plus, ImagePlus, Type } from "lucide-react";
 import { request, errorMessage } from "../api";
 import { Pager } from "./Metadata";
@@ -45,6 +53,15 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
   });
   const refresh = () =>
     cache.invalidateQueries({ queryKey: ["admin", "resources", kind] });
+  useErrorNotice(
+    "admin:resources",
+    q.error ? errorMessage(q.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void q.refetch() },
+    },
+  );
+  useErrorNotice("admin:resource-action", error || null);
   async function publish(resource: ResourceDTO) {
     setBusy(true);
     setError("");
@@ -126,9 +143,6 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         />
         <Button onClick={() => setNewCategory(true)}>添加分类</Button>
       </div>
-      {(error || q.error) && (
-        <Status tone="error">{error || errorMessage(q.error)}</Status>
-      )}
       <div className="admin-resource-grid">
         {q.data?.resources.map((r) => (
           <article
@@ -234,7 +248,6 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
               maxLength={120}
               required
             />
-            {error && <Status tone="error">{error}</Status>}
             <div className="dialog-actions">
               <Button type="button" onClick={() => setNewCategory(false)}>
                 取消
@@ -273,6 +286,7 @@ function ResourceForm({
     [file, setFile] = useState<File | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  useErrorNotice("admin:resource-form", error || null);
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -431,7 +445,6 @@ function ResourceForm({
           />
           立即发布
         </label>
-        {error && <Status tone="error">{error}</Status>}
         <div className="dialog-actions">
           <Button type="button" disabled={busy} onClick={close}>
             取消

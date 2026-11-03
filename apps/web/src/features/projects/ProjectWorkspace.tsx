@@ -14,7 +14,7 @@ import { apiClient, routes, type AssetReply } from "@fastposter/api-client";
 import { loadFonts, type FontSource } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
-import { Status, Button } from "@fastposter/ui";
+import { Status, Button, useErrorNotice } from "@fastposter/ui";
 import { ArrowLeft, Save, Package } from "lucide-react";
 import { request, errorMessage, download } from "../../api";
 import { Link } from "../../router";
@@ -26,11 +26,18 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
     queryFn: () => request(routes.GetProject, { id: projectId }),
     retry: false,
   });
+  useErrorNotice(
+    "project:load",
+    query.error ? errorMessage(query.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void query.refetch() },
+    },
+  );
   if (query.error)
     return (
       <main className="simple-page">
         <Link href="/projects">返回作品</Link>
-        <Status tone="error">{errorMessage(query.error)}</Status>
       </main>
     );
   if (!query.data || query.isFetching)
@@ -69,6 +76,17 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
     retry: false,
     staleTime: 60_000,
   });
+  useErrorNotice("workspace:operation", error || null);
+  useErrorNotice(
+    "workspace:fonts",
+    fontQuery.error ? errorMessage(fontQuery.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void fontQuery.refetch() },
+    },
+  );
+  useErrorNotice("workspace:glyphs", glyphError || null, { persistent: true });
+  useErrorNotice("workspace:drafts", auto.draftError || null);
   const fontSignature = JSON.stringify(doc.fonts);
   const initialFonts = useMemo(() => doc.fonts, [fontSignature]);
   useEffect(() => {
@@ -268,7 +286,6 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
                 恢复本地草稿
               </Button>
             </div>
-            {error && <Status tone="error">{error}</Status>}
           </Dialog>
         ) : (
           <Status>正在检查本地草稿…</Status>
@@ -319,9 +336,6 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
           }
         />
       </header>
-      {(error || fontQuery.error) && (
-        <Status tone="error">{error || errorMessage(fontQuery.error)}</Status>
-      )}
       {!readyFonts.length && !error && !fontQuery.error && (
         <Status>正在载入字体…</Status>
       )}
@@ -329,7 +343,6 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         <Status tone="error">{errorMessage(auto.state.error)}</Status>
       )}
       {glyphError && <Status tone="error">{glyphError}</Status>}
-      {auto.draftError && <Status tone="error">{auto.draftError}</Status>}
       {auto.state.status === "offline" && (
         <Status>连接恢复后可点击保存重试。</Status>
       )}
@@ -355,7 +368,6 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       {auto.state.status === "conflict" && (
         <ConflictDialog
           busy={busy}
-          error={error}
           onCopy={() => void copyLocal()}
           onCloud={() =>
             void auto.loadCloud().catch((e) => setError(errorMessage(e)))

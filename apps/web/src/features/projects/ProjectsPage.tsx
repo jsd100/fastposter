@@ -15,6 +15,7 @@ import {
   Status,
   TextInput,
   Tooltip,
+  useErrorNotice,
 } from "@fastposter/ui";
 import {
   FolderOpen,
@@ -53,6 +54,7 @@ export function ProjectsPage() {
     [dragging, setDragging] = useState(false),
     [templatesOpen, setTemplatesOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const retry = useRef<(() => void) | null>(null);
   useEffect(() => {
     const id = setTimeout(() => {
       setKeyword(search);
@@ -70,6 +72,22 @@ export function ProjectsPage() {
   });
   const refresh = () =>
     cache.invalidateQueries({ queryKey: ["projects", user!.id] });
+  useErrorNotice("projects:action", error || null, {
+    action: { label: "重试", onClick: () => retry.current?.() },
+  });
+  useErrorNotice("projects:upload", uploadError || null, {
+    action: pendingFile
+      ? { label: "重试导入", onClick: () => void upload(pendingFile) }
+      : undefined,
+  });
+  useErrorNotice(
+    "projects:list",
+    query.error ? errorMessage(query.error) : null,
+    {
+      persistent: true,
+      action: { label: "重新加载", onClick: () => void query.refetch() },
+    },
+  );
   async function upload(file: File) {
     if (uploading) return;
     setUploadError("");
@@ -118,11 +136,13 @@ export function ProjectsPage() {
     }
     if (busy) return;
     setBusy(true);
+    retry.current = () => void act(action, project);
     try {
       await request(
         action === "clone" ? routes.CloneProject : routes.RestoreProject,
         { id: project.id },
       );
+      retry.current = null;
       await refresh();
     } catch (e) {
       setError(errorMessage(e));
@@ -134,6 +154,7 @@ export function ProjectsPage() {
     if (!dialog || busy) return;
     setBusy(true);
     setError("");
+    retry.current = () => void confirm();
     try {
       if (dialog.action === "rename") {
         await request(routes.SaveProject, {
@@ -145,6 +166,7 @@ export function ProjectsPage() {
       } else {
         await request(routes.DeleteProject, { id: dialog.project.id });
       }
+      retry.current = null;
       setDialog(null);
       await refresh();
     } catch (e) {
@@ -324,28 +346,7 @@ export function ProjectsPage() {
               <span className="spinner" /> 正在导入并保存原图，请稍候…
             </Status>
           )}
-          {uploadError && (
-            <Status tone="error">
-              {uploadError}
-              {pendingFile && (
-                <Button
-                  variant="ghost"
-                  onClick={() => void upload(pendingFile)}
-                >
-                  重试导入
-                </Button>
-              )}
-            </Status>
-          )}
-          {error && <Status tone="error">{error}</Status>}
-          {query.error ? (
-            <Status tone="error">
-              {errorMessage(query.error)}
-              <Button variant="ghost" onClick={() => void query.refetch()}>
-                重新加载
-              </Button>
-            </Status>
-          ) : (
+          {query.error ? null : (
             <ProjectListView
               projects={query.data?.projects ?? []}
               loading={query.isPending}
@@ -410,7 +411,6 @@ export function ProjectsPage() {
             ) : (
               <p>“{dialog.project.title}”将移入回收站，可在 30 天内恢复。</p>
             )}
-            {error && <Status tone="error">{error}</Status>}
             <div className="dialog-actions">
               <Button
                 type="button"

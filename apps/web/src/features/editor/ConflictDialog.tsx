@@ -1,19 +1,16 @@
-import { Button, Dialog, Status } from "@fastposter/ui";
+import { Button, Dialog } from "@fastposter/ui";
 export function ConflictDialog({
   busy,
-  error,
   onCloud,
   onCopy,
 }: {
   busy: boolean;
-  error?: string;
   onCloud: () => void;
   onCopy: () => void;
 }) {
   return (
     <Dialog title="作品版本冲突" onClose={() => {}}>
       <p>这张作品已在其他窗口或设备更新。本地修改已保留，请选择如何继续。</p>
-      {error && <Status tone="error">{error}</Status>}
       <div className="conflict-actions">
         <Button disabled={busy} onClick={onCloud}>
           加载云端版本

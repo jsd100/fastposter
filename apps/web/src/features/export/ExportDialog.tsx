@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type JobDTO, type ProjectDTO } from "@fastposter/api-client";
-import { Button, Dialog, Status } from "@fastposter/ui";
+import { Button, Dialog, Status, useErrorNotice } from "@fastposter/ui";
 import { Download, CheckCircle2 } from "lucide-react";
 import { request, errorMessage } from "../../api";
 export function ExportControls({
@@ -34,6 +34,15 @@ export function ExportControls({
   });
   const current = query.data?.job ?? job;
   const running = current?.status === "queued" || current?.status === "running";
+  useErrorNotice("export:start", error || null);
+  useErrorNotice(
+    "export:job",
+    query.error ? errorMessage(query.error) : null,
+    {
+      persistent: true,
+      action: { label: "重试查询", onClick: () => void query.refetch() },
+    },
+  );
   async function start() {
     if (busy) return;
     setOpen(true);
@@ -78,13 +87,6 @@ export function ExportControls({
               正在保存最新修改并创建导出…
             </Status>
           ) : null}
-          {error && <Status tone="error">{error}</Status>}
-          {query.error && (
-            <Status tone="error">
-              {errorMessage(query.error)}
-              <Button onClick={() => void query.refetch()}>重试查询</Button>
-            </Status>
-          )}
           {current && !busy && (
             <>
               <div className="export-version">

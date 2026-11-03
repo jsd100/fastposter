@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { apiClient, routes } from "@fastposter/api-client";
-import { Button, FormField, Status } from "@fastposter/ui";
+import { Button, FormField, useErrorNotice } from "@fastposter/ui";
 import { ArrowUpRight, Layers3, MousePointer2, Download } from "lucide-react";
 import { Link, navigate } from "../../router";
 import { errorMessage } from "../../api";
@@ -11,6 +11,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const session = useSession();
+  useErrorNotice("auth:form", error || null);
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -114,7 +115,6 @@ export function AuthPage({ register = false }: { register?: boolean }) {
               register ? "至少 8 个字符，建议混合字母、数字和符号。" : undefined
             }
           />
-          {error && <Status tone="error">{error}</Status>}
           <Button variant="primary" busy={busy} type="submit">
             {register ? "创建账号" : "登录"}
             <ArrowUpRight size={17} />
