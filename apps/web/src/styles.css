@@ -557,6 +557,81 @@ summary:focus-visible {
   color: #a5ad9d;
   margin-top: 6px;
 }
+.trash-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.deletion-queue {
+  margin-bottom: 22px;
+  padding: 15px 16px;
+  border: 1px solid #f0dfd2;
+  border-radius: 10px;
+  background: #fffaf6;
+}
+.deletion-queue-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.deletion-queue-head p {
+  margin-top: 6px;
+  font-size: 10px;
+  color: #a58c79;
+}
+.deletion-queue-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+}
+.deletion-queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 13px;
+  border: 1px solid #f0e6dc;
+  border-radius: 8px;
+  background: #fff;
+}
+.deletion-queue-info {
+  min-width: 0;
+}
+.deletion-queue-info h3 {
+  font-size: 12px;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.deletion-queue-info p {
+  margin-top: 5px;
+  font-size: 9px;
+  color: #a5ad9d;
+}
+.deletion-queue-info small {
+  display: block;
+  margin-top: 3px;
+  font-size: 8px;
+  color: #b7c0ad;
+  word-break: break-all;
+}
+.deletion-queue-item > div:last-child {
+  flex-shrink: 0;
+}
+@media (max-width: 680px) {
+  .deletion-queue-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .trash-actions {
+    flex-direction: column;
+  }
+}
 .project-menu {
   position: relative;
 }
