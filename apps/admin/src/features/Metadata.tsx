@@ -1,14 +1,23 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { routes, type UserDTO } from "@fastposter/api-client";
+import {
+  routes,
+  type ProjectMetadataDTO,
+  type UserDTO,
+} from "@fastposter/api-client";
 import {
   Button,
   Dialog,
+  ProjectDeletionConfirm,
   TextInput,
   Textarea,
   useErrorNotice,
 } from "@fastposter/ui";
 import { request, errorMessage } from "../api";
+import {
+  canPermanentlyDelete,
+  ProjectDeletionQueue,
+} from "./projects/ProjectDeletionQueue";
 function Empty() {
   return <p className="admin-empty">暂无记录</p>;
 }
@@ -100,7 +109,8 @@ export function UsersPage() {
       <p className="admin-subtitle">
         禁用即时撤销会话；恢复账号后仍须重新登录。
       </p>
-      <TextInput variant="bare"
+      <TextInput
+        variant="bare"
         className="admin-search"
         aria-label="搜索用户"
         placeholder="搜索用户名"
@@ -185,7 +195,8 @@ export function UsersPage() {
                 已撤销旧密码和所有会话。将以下令牌交给本人，在 30 分钟内前往{" "}
                 <code>/password?reset=1</code> 设置新密码。令牌只显示本次。
               </p>
-              <Textarea variant="bare"
+              <Textarea
+                variant="bare"
                 readOnly
                 aria-label="一次性重置令牌"
                 className="reset-token"
@@ -212,19 +223,51 @@ export function UsersPage() {
     </>
   );
 }
+type ProjectStatus = "all" | "normal" | "trash";
 export function ProjectsPage() {
   const [page, setPage] = useState(1),
-    [keyword, setKeyword] = useState("");
+    [keyword, setKeyword] = useState(""),
+    [status, setStatus] = useState<ProjectStatus>("all"),
+    [target, setTarget] = useState<ProjectMetadataDTO | null>(null),
+    [busy, setBusy] = useState(false),
+    [actionError, setActionError] = useState("");
+  const cache = useQueryClient();
   const q = useQuery({
-    queryKey: ["admin", "projects", page, keyword],
+    queryKey: ["admin", "projects", page, keyword, status],
     queryFn: () =>
-      request(routes.AdminProjects, { page, pageSize: 24, keyword }),
+      request(routes.AdminProjects, {
+        page,
+        pageSize: 24,
+        keyword,
+        status: status === "all" ? undefined : status,
+      }),
     retry: false,
   });
   useErrorNotice("admin:projects", q.error ? errorMessage(q.error) : null, {
     persistent: true,
     action: { label: "重新加载", onClick: () => void q.refetch() },
   });
+  useErrorNotice("admin:project-deletion", actionError || null);
+  async function confirmDelete() {
+    if (!target) return;
+    setBusy(true);
+    setActionError("");
+    try {
+      await request(routes.AdminPermanentlyDeleteProject, { id: target.id });
+      setTarget(null);
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: ["admin", "projects"] }),
+        cache.invalidateQueries({ queryKey: ["admin", "deletions"] }),
+        cache.invalidateQueries({ queryKey: ["admin", "jobs"] }),
+        cache.invalidateQueries({ queryKey: ["admin", "overview"] }),
+        cache.invalidateQueries({ queryKey: ["admin", "audit"] }),
+      ]);
+    } catch (e) {
+      setActionError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <h1>
@@ -233,16 +276,33 @@ export function ProjectsPage() {
       <p className="admin-subtitle">
         仅显示名称、归属、尺寸与版本。海报正文和私有图片不向管理员开放。
       </p>
-      <TextInput variant="bare"
-        className="admin-search"
-        aria-label="搜索作品元数据"
-        placeholder="搜索作品名称"
-        value={keyword}
-        onChange={(e) => {
-          setKeyword(e.target.value);
-          setPage(1);
-        }}
-      />
+      <ProjectDeletionQueue />
+      <div className="admin-filters">
+        <TextInput
+          variant="bare"
+          className="admin-search"
+          aria-label="搜索作品元数据"
+          placeholder="搜索作品名称"
+          value={keyword}
+          onChange={(e) => {
+            setKeyword(e.target.value);
+            setPage(1);
+          }}
+        />
+        <select
+          className="select"
+          aria-label="筛选作品状态"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value as ProjectStatus);
+            setPage(1);
+          }}
+        >
+          <option value="all">全部状态</option>
+          <option value="normal">正常</option>
+          <option value="trash">回收站</option>
+        </select>
+      </div>
       <div className="table-wrap">
         <table>
           <thead>
@@ -253,6 +313,7 @@ export function ProjectsPage() {
               <th>版本</th>
               <th>状态</th>
               <th>更新时间</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -269,6 +330,19 @@ export function ProjectsPage() {
                 <td>{p.revision}</td>
                 <td>{p.deletedAt ? "回收站" : "正常"}</td>
                 <td>{date(p.updatedAt)}</td>
+                <td>
+                  {canPermanentlyDelete(p) && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setActionError("");
+                        setTarget(p);
+                      }}
+                    >
+                      彻底删除
+                    </Button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -276,6 +350,19 @@ export function ProjectsPage() {
         {q.data?.projects.length === 0 && <Empty />}
       </div>
       <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
+      {target && (
+        <ProjectDeletionConfirm
+          admin
+          project={{
+            id: target.id,
+            title: target.title,
+            ownerId: target.ownerId,
+          }}
+          busy={busy}
+          onConfirm={() => void confirmDelete()}
+          onClose={() => setTarget(null)}
+        />
+      )}
     </>
   );
 }

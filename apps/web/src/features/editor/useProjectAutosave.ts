@@ -57,6 +57,10 @@ export function useProjectAutosave(userId: string, initial: ProjectDTO) {
   const [ready, setReady] = useState(false),
     [recovery, setRecovery] = useState<Draft | null>(null),
     [draftError, setDraftError] = useState("");
+  const stopDeleted = useMemo(
+    () => () => controller.stopDeleted(),
+    [controller],
+  );
   useEffect(() => {
     let active = true;
     drafts.activate(userId);
@@ -135,6 +139,7 @@ export function useProjectAutosave(userId: string, initial: ProjectDTO) {
     loadCloud,
     setInteraction,
     setUploading,
+    stopDeleted,
     pendingFiles,
     flush: async () => {
       const result = await controller.flush();

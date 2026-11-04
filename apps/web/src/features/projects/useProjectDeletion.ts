@@ -9,6 +9,8 @@ import {
 } from "@fastposter/api-client";
 import { useNotify } from "@fastposter/ui";
 import { request } from "../../api";
+import { drafts } from "../editor/drafts";
+import { publishProjectDeletion } from "../editor/projectDeletionSync";
 
 export const DELETION_PAGE_SIZE = 24;
 export const DELETION_POLL_INTERVAL = 2000;
@@ -116,6 +118,18 @@ export function useProjectDeletion(
       const { deletion } = await request(routes.PermanentlyDeleteProject, {
         id: projectId,
       });
+      const cleanup = drafts.blockProject(userId, projectId);
+      publishProjectDeletion({ userId, projectId });
+      try {
+        await cleanup;
+      } catch {
+        show({
+          id: `project-deletion-draft:${userId}:${projectId}`,
+          tone: "error",
+          title: "作品已删除，但本地草稿清理失败。",
+          description: "请在浏览器站点设置中清除本站数据，移除本地副本。",
+        });
+      }
       await Promise.all([
         cache.invalidateQueries({ queryKey: ["projects", userId] }),
         cache.invalidateQueries({ queryKey: ["project-deletions", userId] }),

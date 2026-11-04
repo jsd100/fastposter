@@ -5,6 +5,10 @@ import { useProjectAutosave } from "../editor/useProjectAutosave";
 import { SaveStatus } from "../editor/SaveStatus";
 import { ConflictDialog } from "../editor/ConflictDialog";
 import { drafts } from "../editor/drafts";
+import {
+  matchesProjectDeletion,
+  subscribeProjectDeletions,
+} from "../editor/projectDeletionSync";
 import { Dialog } from "@fastposter/ui";
 import { replaceBackground } from "@fastposter/poster-editor";
 import { navigate } from "../../router";
@@ -87,6 +91,24 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
   );
   useErrorNotice("workspace:glyphs", glyphError || null, { persistent: true });
   useErrorNotice("workspace:drafts", auto.draftError || null);
+  useEffect(
+    () =>
+      subscribeProjectDeletions((event) => {
+        if (matchesProjectDeletion(event, user!.id, initial.id))
+          auto.stopDeleted();
+      }),
+    [auto.stopDeleted, user, initial.id],
+  );
+  useEffect(() => {
+    if (auto.state.status !== "deleted") return;
+    let active = true;
+    drafts.blockProject(user!.id, initial.id).catch((e) => {
+      if (active) setError(`本地草稿清理失败：${errorMessage(e)}`);
+    });
+    return () => {
+      active = false;
+    };
+  }, [auto.state.status, user, initial.id]);
   const fontSignature = JSON.stringify(doc.fonts);
   const initialFonts = useMemo(() => doc.fonts, [fontSignature]);
   useEffect(() => {
@@ -153,7 +175,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
   }, [documentValue, auto.ready]);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
-      if (auto.state.status !== "saved") {
+      if (auto.state.status !== "saved" && auto.state.status !== "deleted") {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -264,7 +286,9 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
     return (
       <main className="simple-page">
         <Link href="/projects">返回作品</Link>
-        {auto.recovery ? (
+        {auto.state.status === "deleted" ? (
+          <Status tone="error">作品已被彻底删除，无法继续编辑。</Status>
+        ) : auto.recovery ? (
           <Dialog title="发现本地草稿" onClose={() => {}}>
             <p>
               本机有尚未确认的修改。恢复后若云端版本更新，会继续保留为冲突草稿。
@@ -304,7 +328,9 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         <Button
           aria-label="保存作品"
           disabled={
-            auto.state.status === "saved" || auto.state.status === "blocked"
+            auto.state.status === "saved" ||
+            auto.state.status === "blocked" ||
+            auto.state.status === "deleted"
           }
           busy={busy || auto.state.status === "saving"}
           onClick={() => void save()}
@@ -316,7 +342,9 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
           aria-label="导出模板包"
           busy={packBusy}
           disabled={
-            auto.state.status === "blocked" || auto.state.status === "conflict"
+            auto.state.status === "blocked" ||
+            auto.state.status === "conflict" ||
+            auto.state.status === "deleted"
           }
           onClick={() => void exportPackage()}
         >
@@ -331,6 +359,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
           blocked={
             auto.state.status === "blocked" ||
             auto.state.status === "conflict" ||
+            auto.state.status === "deleted" ||
             !readyFonts.length ||
             fontsBusy
           }
@@ -345,6 +374,12 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       {glyphError && <Status tone="error">{glyphError}</Status>}
       {auto.state.status === "offline" && (
         <Status>连接恢复后可点击保存重试。</Status>
+      )}
+      {auto.state.status === "deleted" && (
+        <Status tone="error">
+          作品已被彻底删除，无法继续保存到原作品。
+          <Link href="/projects">返回作品</Link>
+        </Status>
       )}
       {auto.pendingFiles.current.length > 0 && (
         <Status>

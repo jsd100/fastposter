@@ -238,6 +238,63 @@ td .button {
   font-size: 11px;
   color: #b0bda1;
 }
+.admin-deletion-queue {
+  margin-bottom: 26px;
+  border: 1px solid #e3ead9;
+  background: #fbfcf8;
+  border-radius: 8px;
+  padding: 18px;
+}
+.admin-queue-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 550;
+  color: #637d4e;
+}
+.admin-queue-head p {
+  font-size: 10px;
+  color: #92a37f;
+  margin-top: 6px;
+}
+.admin-queue-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.admin-queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: white;
+  border: 1px solid #e7eddf;
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+.admin-queue-info h3 {
+  font-size: 12px;
+  font-weight: 550;
+  color: #637d4e;
+}
+.admin-queue-info p {
+  font-size: 10px;
+  color: #92a37f;
+  margin-top: 4px;
+}
+.admin-queue-info small {
+  display: block;
+  font-size: 8px;
+  color: #b0bca3;
+  margin-top: 4px;
+}
+@media (max-width: 680px) {
+  .admin-queue-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 .admin-title-row {
   display: flex;
   align-items: center;
