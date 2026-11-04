@@ -6,7 +6,7 @@
 2. 将 `deploy/local.env.example` 复制为仓库根 `.env.local` 并填写本机凭据；该文件禁止提交。创建独立 `fastposter` 数据库和 `fastposter_test_*` 测试库，字符集 utf8mb4。
 3. `pnpm install --frozen-lockfile`；`go mod download`。如 Go 代理直连不可用，请在命令环境设置本机已有 HTTPS_PROXY，不修改全局网络配置。
 4. `go run ./tools/doctor -check all` 检查配置、实际数据库/Redis连接、Chrome 和 ImageMagick。
-5. `pnpm dev` 启动服务；Ctrl-C 只停止此启动器创建的进程组。用户站 5173，管理站 5174，网关 8080，Kitex 8888。
+5. `pnpm dev` 启动服务；Ctrl-C 只停止此启动器创建的进程组。用户站 5173，管理站 5174，网关 8080，Kitex 8888。网关、核心服务、导出 worker 和清理 worker 都会启动，两个 worker 不监听网页端口。
 
 表结构通过 `go run ./server/cmd/migrate -direction up` 显式应用，不在应用启动时自动改表。回滚需要 `-direction down -allow-destructive-down`，会删除本应用的表。
 
@@ -22,7 +22,11 @@
 
 生产 HTTPS 配置必须设置 `COOKIE_SECURE=true`，并将 `APP_ORIGINS` 改为实际前端 HTTPS origin；本机默认允许 5173/5174/8080 的 localhost 和 127.0.0.1。修改配置后重启服务。
 
-APP_DATA_DIR 相对仓库根解析，默认 `var/data`，所有进程共享这一目录。私有文件只能经授权 HTTP 接口读取。网关、核心服务和导出 worker 启动时会检查该目录：不可写直接退出，剩余空间低于 512 MiB 记录警告。
+APP_DATA_DIR 相对仓库根解析，默认 `var/data`，所有进程共享这一目录。私有文件只能经授权 HTTP 接口读取。网关、核心服务、导出 worker 和清理 worker 启动时会检查该目录：不可写直接退出，剩余空间低于 512 MiB 记录警告。
+
+原生启动顺序：先应用迁移，再启动核心服务、网关、导出 worker、清理 worker 和前端。清理 worker 启动时校验数据库 schema 版本，不匹配会直接退出，因此升级时先停止清理 worker，执行 `migrate -direction up`，再重新启动它；回滚时同样先停 worker，避免旧代码继续处理新表。停机顺序与启动相反：先停网关和两个 worker，再停核心服务，最后停止前端。
+
+彻底删除作品的请求只把任务和文件清单写入数据库，实际文件由清理 worker 异步删除。删除失败会按 5 秒起、最长 5 分钟退避重试且不会放弃；重复日志说明文件仍被占用或存储不可写，应先修复目录权限或磁盘问题，不要手工删除任务行或数据文件。
 
 日常健康检查、存储清理和备份恢复见 [backup.md](backup.md)。最常用的命令：
 

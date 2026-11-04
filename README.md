@@ -212,8 +212,8 @@ pnpm dev
 启动器会依次：
 
 1. 构建 `apps/renderer/dist`，供 Chrome worker 加载。
-2. 将 `core`、`gateway`、`export-worker` 构建到 `.tools/bin`。
-3. 启动核心服务、网关、导出 worker，以及两个 Vite 前端。
+2. 将 `core`、`gateway`、`export-worker`、`cleanup-worker` 构建到 `.tools/bin`。
+3. 启动核心服务、网关、导出 worker、清理 worker，以及两个 Vite 前端。
 
 首次启动核心服务会按字体清单向数据库和本地存储补齐内置字体，可能比后续启动稍慢。保留这个终端运行服务，并在浏览器打开：
 
@@ -224,7 +224,7 @@ pnpm dev
 | 网关健康检查   | [http://127.0.0.1:8080/api/v1/health](http://127.0.0.1:8080/api/v1/health) | 检查网关与核心 RPC 连通性   |
 | Kitex 核心 RPC | `127.0.0.1:8888`                                                           | 内部 RPC 地址，不是网页入口 |
 
-导出 worker 不单独监听网页端口。`pnpm dev` 也不需要启动 renderer 的 Vite 开发服务，worker 使用已构建的文件。
+导出 worker 与清理 worker 都不单独监听网页端口。`pnpm dev` 也不需要启动 renderer 的 Vite 开发服务，worker 使用已构建的文件。
 
 ### 9. 确认启动成功
 
@@ -341,7 +341,7 @@ pnpm dev
 pnpm --filter @fastposter/renderer build
 ```
 
-然后分别在五个终端执行：
+然后分别在六个终端执行：
 
 ```sh
 # 终端 1：业务核心服务
@@ -359,12 +359,17 @@ go run ./server/cmd/export-worker
 ```
 
 ```sh
-# 终端 4：用户站
+# 终端 4：清理 worker
+go run ./server/cmd/cleanup-worker
+```
+
+```sh
+# 终端 5：用户站
 pnpm --filter @fastposter/web dev
 ```
 
 ```sh
-# 终端 5：管理站
+# 终端 6：管理站
 pnpm --filter @fastposter/admin dev
 ```
 
