@@ -922,6 +922,20 @@ func (p *ProjectCall) FastRead(buf []byte) (int, error) {
 					goto SkipFieldError
 				}
 			}
+		case 7:
+			if fieldTypeId == thrift.STRUCT {
+				l, err = p.FastReadField7(buf[offset:])
+				offset += l
+				if err != nil {
+					goto ReadFieldError
+				}
+			} else {
+				l, err = thrift.Binary.Skip(buf[offset:], fieldTypeId)
+				offset += l
+				if err != nil {
+					goto SkipFieldError
+				}
+			}
 		default:
 			l, err = thrift.Binary.Skip(buf[offset:], fieldTypeId)
 			offset += l
@@ -1027,6 +1041,18 @@ func (p *ProjectCall) FastReadField6(buf []byte) (int, error) {
 	return offset, nil
 }
 
+func (p *ProjectCall) FastReadField7(buf []byte) (int, error) {
+	offset := 0
+	_field := NewProjectDeletionListQuery()
+	if l, err := _field.FastRead(buf[offset:]); err != nil {
+		return offset, err
+	} else {
+		offset += l
+	}
+	p.DeletionQuery = _field
+	return offset, nil
+}
+
 func (p *ProjectCall) FastWrite(buf []byte) int {
 	return p.FastWriteNocopy(buf, nil)
 }
@@ -1040,6 +1066,7 @@ func (p *ProjectCall) FastWriteNocopy(buf []byte, w thrift.NocopyWriter) int {
 		offset += p.fastWriteField4(buf[offset:], w)
 		offset += p.fastWriteField5(buf[offset:], w)
 		offset += p.fastWriteField6(buf[offset:], w)
+		offset += p.fastWriteField7(buf[offset:], w)
 	}
 	offset += thrift.Binary.WriteFieldStop(buf[offset:])
 	return offset
@@ -1054,6 +1081,7 @@ func (p *ProjectCall) BLength() int {
 		l += p.field4Length()
 		l += p.field5Length()
 		l += p.field6Length()
+		l += p.field7Length()
 	}
 	l += thrift.Binary.FieldStopLength()
 	return l
@@ -1109,6 +1137,15 @@ func (p *ProjectCall) fastWriteField6(buf []byte, w thrift.NocopyWriter) int {
 	return offset
 }
 
+func (p *ProjectCall) fastWriteField7(buf []byte, w thrift.NocopyWriter) int {
+	offset := 0
+	if p.IsSetDeletionQuery() {
+		offset += thrift.Binary.WriteFieldBegin(buf[offset:], thrift.STRUCT, 7)
+		offset += p.DeletionQuery.FastWriteNocopy(buf[offset:], w)
+	}
+	return offset
+}
+
 func (p *ProjectCall) field1Length() int {
 	l := 0
 	l += thrift.Binary.FieldBeginLength()
@@ -1155,6 +1192,15 @@ func (p *ProjectCall) field6Length() int {
 	if p.IsSetSave() {
 		l += thrift.Binary.FieldBeginLength()
 		l += p.Save.BLength()
+	}
+	return l
+}
+
+func (p *ProjectCall) field7Length() int {
+	l := 0
+	if p.IsSetDeletionQuery() {
+		l += thrift.Binary.FieldBeginLength()
+		l += p.DeletionQuery.BLength()
 	}
 	return l
 }
@@ -2566,6 +2612,48 @@ func (p *AdminCall) FastRead(buf []byte) (int, error) {
 					goto SkipFieldError
 				}
 			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				l, err = p.FastReadField5(buf[offset:])
+				offset += l
+				if err != nil {
+					goto ReadFieldError
+				}
+			} else {
+				l, err = thrift.Binary.Skip(buf[offset:], fieldTypeId)
+				offset += l
+				if err != nil {
+					goto SkipFieldError
+				}
+			}
+		case 6:
+			if fieldTypeId == thrift.STRUCT {
+				l, err = p.FastReadField6(buf[offset:])
+				offset += l
+				if err != nil {
+					goto ReadFieldError
+				}
+			} else {
+				l, err = thrift.Binary.Skip(buf[offset:], fieldTypeId)
+				offset += l
+				if err != nil {
+					goto SkipFieldError
+				}
+			}
+		case 7:
+			if fieldTypeId == thrift.STRUCT {
+				l, err = p.FastReadField7(buf[offset:])
+				offset += l
+				if err != nil {
+					goto ReadFieldError
+				}
+			} else {
+				l, err = thrift.Binary.Skip(buf[offset:], fieldTypeId)
+				offset += l
+				if err != nil {
+					goto SkipFieldError
+				}
+			}
 		default:
 			l, err = thrift.Binary.Skip(buf[offset:], fieldTypeId)
 			offset += l
@@ -2645,6 +2733,44 @@ func (p *AdminCall) FastReadField4(buf []byte) (int, error) {
 	return offset, nil
 }
 
+func (p *AdminCall) FastReadField5(buf []byte) (int, error) {
+	offset := 0
+
+	var _field *string
+	if v, l, err := thrift.Binary.ReadString(buf[offset:]); err != nil {
+		return offset, err
+	} else {
+		offset += l
+		_field = &v
+	}
+	p.Id = _field
+	return offset, nil
+}
+
+func (p *AdminCall) FastReadField6(buf []byte) (int, error) {
+	offset := 0
+	_field := NewAdminProjectListQuery()
+	if l, err := _field.FastRead(buf[offset:]); err != nil {
+		return offset, err
+	} else {
+		offset += l
+	}
+	p.ProjectQuery = _field
+	return offset, nil
+}
+
+func (p *AdminCall) FastReadField7(buf []byte) (int, error) {
+	offset := 0
+	_field := NewProjectDeletionListQuery()
+	if l, err := _field.FastRead(buf[offset:]); err != nil {
+		return offset, err
+	} else {
+		offset += l
+	}
+	p.DeletionQuery = _field
+	return offset, nil
+}
+
 func (p *AdminCall) FastWrite(buf []byte) int {
 	return p.FastWriteNocopy(buf, nil)
 }
@@ -2656,6 +2782,9 @@ func (p *AdminCall) FastWriteNocopy(buf []byte, w thrift.NocopyWriter) int {
 		offset += p.fastWriteField2(buf[offset:], w)
 		offset += p.fastWriteField3(buf[offset:], w)
 		offset += p.fastWriteField4(buf[offset:], w)
+		offset += p.fastWriteField5(buf[offset:], w)
+		offset += p.fastWriteField6(buf[offset:], w)
+		offset += p.fastWriteField7(buf[offset:], w)
 	}
 	offset += thrift.Binary.WriteFieldStop(buf[offset:])
 	return offset
@@ -2668,6 +2797,9 @@ func (p *AdminCall) BLength() int {
 		l += p.field2Length()
 		l += p.field3Length()
 		l += p.field4Length()
+		l += p.field5Length()
+		l += p.field6Length()
+		l += p.field7Length()
 	}
 	l += thrift.Binary.FieldStopLength()
 	return l
@@ -2705,6 +2837,33 @@ func (p *AdminCall) fastWriteField4(buf []byte, w thrift.NocopyWriter) int {
 	return offset
 }
 
+func (p *AdminCall) fastWriteField5(buf []byte, w thrift.NocopyWriter) int {
+	offset := 0
+	if p.IsSetId() {
+		offset += thrift.Binary.WriteFieldBegin(buf[offset:], thrift.STRING, 5)
+		offset += thrift.Binary.WriteStringNocopy(buf[offset:], w, *p.Id)
+	}
+	return offset
+}
+
+func (p *AdminCall) fastWriteField6(buf []byte, w thrift.NocopyWriter) int {
+	offset := 0
+	if p.IsSetProjectQuery() {
+		offset += thrift.Binary.WriteFieldBegin(buf[offset:], thrift.STRUCT, 6)
+		offset += p.ProjectQuery.FastWriteNocopy(buf[offset:], w)
+	}
+	return offset
+}
+
+func (p *AdminCall) fastWriteField7(buf []byte, w thrift.NocopyWriter) int {
+	offset := 0
+	if p.IsSetDeletionQuery() {
+		offset += thrift.Binary.WriteFieldBegin(buf[offset:], thrift.STRUCT, 7)
+		offset += p.DeletionQuery.FastWriteNocopy(buf[offset:], w)
+	}
+	return offset
+}
+
 func (p *AdminCall) field1Length() int {
 	l := 0
 	l += thrift.Binary.FieldBeginLength()
@@ -2733,6 +2892,33 @@ func (p *AdminCall) field4Length() int {
 	if p.IsSetUser() {
 		l += thrift.Binary.FieldBeginLength()
 		l += p.User.BLength()
+	}
+	return l
+}
+
+func (p *AdminCall) field5Length() int {
+	l := 0
+	if p.IsSetId() {
+		l += thrift.Binary.FieldBeginLength()
+		l += thrift.Binary.StringLengthNocopy(*p.Id)
+	}
+	return l
+}
+
+func (p *AdminCall) field6Length() int {
+	l := 0
+	if p.IsSetProjectQuery() {
+		l += thrift.Binary.FieldBeginLength()
+		l += p.ProjectQuery.BLength()
+	}
+	return l
+}
+
+func (p *AdminCall) field7Length() int {
+	l := 0
+	if p.IsSetDeletionQuery() {
+		l += thrift.Binary.FieldBeginLength()
+		l += p.DeletionQuery.BLength()
 	}
 	return l
 }

@@ -44,9 +44,15 @@ func (g *Gateway) dispatch(ctx context.Context, r *app.RequestContext, name stri
 			return badInput(c, e)
 		}
 		return g.RPC.Projects(ctx, &common.ProjectCall{Context: c, Action: name, Id: &input.Id, Save: input})
-	case "GetProject", "DeleteProject", "CloneProject", "RestoreProject":
+	case "GetProject", "DeleteProject", "CloneProject", "RestoreProject", "PermanentlyDeleteProject", "GetProjectDeletion", "RetryProjectDeletion":
 		id := r.Param("id")
 		return g.RPC.Projects(ctx, &common.ProjectCall{Context: c, Action: name, Id: &id})
+	case "ListProjectDeletions":
+		input, e := bindInput[common.ProjectDeletionListQuery](r)
+		if e != nil {
+			return badInput(c, e)
+		}
+		return g.RPC.Projects(ctx, &common.ProjectCall{Context: c, Action: name, DeletionQuery: input})
 	case "GetAsset":
 		id := r.Param("id")
 		return g.RPC.Assets(ctx, &common.AssetCall{Context: c, Action: name, Id: &id})
@@ -111,12 +117,27 @@ func (g *Gateway) dispatch(ctx context.Context, r *app.RequestContext, name stri
 		return g.RPC.Admin(ctx, &common.AdminCall{Context: c, Action: name, User: input})
 	case "AdminOverview":
 		return g.RPC.Admin(ctx, &common.AdminCall{Context: c, Action: name})
-	case "AdminUsers", "AdminProjects", "AdminJobs", "AdminAudit":
+	case "AdminUsers", "AdminJobs", "AdminAudit":
 		input, e := bindInput[common.ListQuery](r)
 		if e != nil {
 			return badInput(c, e)
 		}
 		return g.RPC.Admin(ctx, &common.AdminCall{Context: c, Action: name, Query: input})
+	case "AdminProjects":
+		input, e := bindInput[common.AdminProjectListQuery](r)
+		if e != nil {
+			return badInput(c, e)
+		}
+		return g.RPC.Admin(ctx, &common.AdminCall{Context: c, Action: name, ProjectQuery: input})
+	case "AdminPermanentlyDeleteProject", "AdminGetProjectDeletion", "AdminRetryProjectDeletion":
+		id := r.Param("id")
+		return g.RPC.Admin(ctx, &common.AdminCall{Context: c, Action: name, Id: &id})
+	case "AdminListProjectDeletions":
+		input, e := bindInput[common.ProjectDeletionListQuery](r)
+		if e != nil {
+			return badInput(c, e)
+		}
+		return g.RPC.Admin(ctx, &common.AdminCall{Context: c, Action: name, DeletionQuery: input})
 	}
 	return notReadyReply(c), nil
 }

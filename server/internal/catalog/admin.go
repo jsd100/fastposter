@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fastposter/server/internal/auth"
+	"fastposter/server/internal/domain"
 	"fastposter/server/internal/storage"
 	"strconv"
 	"time"
@@ -37,6 +38,15 @@ func (s *Service) AdminProjects(ctx context.Context, p auth.Principal, f Filter)
 	if f.Keyword != "" {
 		where += " AND title LIKE ?"
 		args = append(args, "%"+f.Keyword+"%")
+	}
+	switch f.Status {
+	case "", "all":
+	case "normal":
+		where += " AND deleted_at IS NULL"
+	case "trash":
+		where += " AND deleted_at IS NOT NULL"
+	default:
+		return nil, 0, domain.E("INVALID_INPUT", "作品状态筛选无效")
 	}
 	var total int
 	if e = s.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM projects WHERE "+where, args...).Scan(&total); e != nil {

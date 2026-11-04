@@ -16,8 +16,8 @@ import (
 )
 
 type Filter struct {
-	Page, PageSize                        int
-	Keyword, CategoryID, ParentID, UserID string
+	Page, PageSize                                int
+	Keyword, CategoryID, ParentID, UserID, Status string
 }
 type ResourceInput struct {
 	ID, Kind, Title, CategoryID, ParentID, AssetID, Document, Body, Family, Style, License string

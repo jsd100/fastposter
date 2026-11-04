@@ -49,9 +49,31 @@ export interface ProjectMetadataDTO {
   updatedAt: string;
   deletedAt?: string;
 }
+export interface ProjectDeletionDTO {
+  id: string;
+  projectId: string;
+  ownerId: string;
+  state: string;
+  createdAt: string;
+  title?: string;
+  width?: number;
+  height?: number;
+  deletedAt?: string;
+  completedAt?: string;
+  errorCode?: string;
+}
 export interface AdminProjectListReply {
   requestId: string;
   projects: ProjectMetadataDTO[];
+  total: number;
+}
+export interface ProjectDeletionReply {
+  requestId: string;
+  deletion: ProjectDeletionDTO;
+}
+export interface ProjectDeletionListReply {
+  requestId: string;
+  deletions: ProjectDeletionDTO[];
   total: number;
 }
 export interface AssetDTO {
@@ -193,6 +215,8 @@ export interface PublicPayload {
   total?: number;
   resetToken?: string;
   metadataProjects?: ProjectMetadataDTO[];
+  deletion?: ProjectDeletionDTO;
+  deletions?: ProjectDeletionDTO[];
 }
 export interface IDRequest {
   id: string;
@@ -247,6 +271,19 @@ export interface ListQuery {
   pageSize?: number;
   keyword?: string;
   userId?: string;
+}
+export interface AdminProjectListQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  userId?: string;
+  status?: string;
+}
+export interface ProjectDeletionListQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  ownerId?: string;
 }
 export interface AdminUserInput {
   id: string;
@@ -317,9 +354,41 @@ export const routes = {
     method: "GET",
     path: "/api/v1/admin/projects",
     pathFields: [],
-    queryFields: ["page", "pageSize", "keyword", "userId"],
+    queryFields: ["page", "pageSize", "keyword", "userId", "status"],
     bodyFields: [],
-  } as Route<ListQuery, AdminProjectListReply>,
+  } as Route<AdminProjectListQuery, AdminProjectListReply>,
+  AdminPermanentlyDeleteProject: {
+    name: "AdminPermanentlyDeleteProject",
+    method: "DELETE",
+    path: "/api/v1/admin/projects/:id/permanent",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: [],
+  } as Route<IDRequest, ProjectDeletionReply>,
+  AdminListProjectDeletions: {
+    name: "AdminListProjectDeletions",
+    method: "GET",
+    path: "/api/v1/admin/project-deletions",
+    pathFields: [],
+    queryFields: ["page", "pageSize", "keyword", "ownerId"],
+    bodyFields: [],
+  } as Route<ProjectDeletionListQuery, ProjectDeletionListReply>,
+  AdminGetProjectDeletion: {
+    name: "AdminGetProjectDeletion",
+    method: "GET",
+    path: "/api/v1/admin/project-deletions/:id",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: [],
+  } as Route<IDRequest, ProjectDeletionReply>,
+  AdminRetryProjectDeletion: {
+    name: "AdminRetryProjectDeletion",
+    method: "POST",
+    path: "/api/v1/admin/project-deletions/:id/retry",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: [],
+  } as Route<IDRequest, ProjectDeletionReply>,
   AdminJobs: {
     name: "AdminJobs",
     method: "GET",
@@ -575,6 +644,38 @@ export const routes = {
     queryFields: [],
     bodyFields: [],
   } as Route<IDRequest, ProjectReply>,
+  PermanentlyDeleteProject: {
+    name: "PermanentlyDeleteProject",
+    method: "DELETE",
+    path: "/api/v1/projects/:id/permanent",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: [],
+  } as Route<IDRequest, ProjectDeletionReply>,
+  ListProjectDeletions: {
+    name: "ListProjectDeletions",
+    method: "GET",
+    path: "/api/v1/project-deletions",
+    pathFields: [],
+    queryFields: ["page", "pageSize", "keyword", "ownerId"],
+    bodyFields: [],
+  } as Route<ProjectDeletionListQuery, ProjectDeletionListReply>,
+  GetProjectDeletion: {
+    name: "GetProjectDeletion",
+    method: "GET",
+    path: "/api/v1/project-deletions/:id",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: [],
+  } as Route<IDRequest, ProjectDeletionReply>,
+  RetryProjectDeletion: {
+    name: "RetryProjectDeletion",
+    method: "POST",
+    path: "/api/v1/project-deletions/:id/retry",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: [],
+  } as Route<IDRequest, ProjectDeletionReply>,
   ApplyTemplate: {
     name: "ApplyTemplate",
     method: "POST",

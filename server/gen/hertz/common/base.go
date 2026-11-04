@@ -2147,6 +2147,708 @@ func (p *ProjectMetadataDTO) String() string {
 
 }
 
+type ProjectDeletionDTO struct {
+	ID          string  `thrift:"id,1,required" form:"id,required" json:"id,required" query:"id,required"`
+	ProjectId   string  `thrift:"projectId,2,required" form:"projectId,required" json:"projectId,required" query:"projectId,required"`
+	OwnerId     string  `thrift:"ownerId,3,required" form:"ownerId,required" json:"ownerId,required" query:"ownerId,required"`
+	State       string  `thrift:"state,4,required" form:"state,required" json:"state,required" query:"state,required"`
+	CreatedAt   string  `thrift:"createdAt,5,required" form:"createdAt,required" json:"createdAt,required" query:"createdAt,required"`
+	Title       *string `thrift:"title,6,optional" form:"title" json:"title,omitempty" query:"title"`
+	Width       *int32  `thrift:"width,7,optional" form:"width" json:"width,omitempty" query:"width"`
+	Height      *int32  `thrift:"height,8,optional" form:"height" json:"height,omitempty" query:"height"`
+	DeletedAt   *string `thrift:"deletedAt,9,optional" form:"deletedAt" json:"deletedAt,omitempty" query:"deletedAt"`
+	CompletedAt *string `thrift:"completedAt,10,optional" form:"completedAt" json:"completedAt,omitempty" query:"completedAt"`
+	ErrorCode   *string `thrift:"errorCode,11,optional" form:"errorCode" json:"errorCode,omitempty" query:"errorCode"`
+}
+
+func NewProjectDeletionDTO() *ProjectDeletionDTO {
+	return &ProjectDeletionDTO{}
+}
+
+func (p *ProjectDeletionDTO) InitDefault() {
+}
+
+func (p *ProjectDeletionDTO) GetID() (v string) {
+	return p.ID
+}
+
+func (p *ProjectDeletionDTO) GetProjectId() (v string) {
+	return p.ProjectId
+}
+
+func (p *ProjectDeletionDTO) GetOwnerId() (v string) {
+	return p.OwnerId
+}
+
+func (p *ProjectDeletionDTO) GetState() (v string) {
+	return p.State
+}
+
+func (p *ProjectDeletionDTO) GetCreatedAt() (v string) {
+	return p.CreatedAt
+}
+
+var ProjectDeletionDTO_Title_DEFAULT string
+
+func (p *ProjectDeletionDTO) GetTitle() (v string) {
+	if !p.IsSetTitle() {
+		return ProjectDeletionDTO_Title_DEFAULT
+	}
+	return *p.Title
+}
+
+var ProjectDeletionDTO_Width_DEFAULT int32
+
+func (p *ProjectDeletionDTO) GetWidth() (v int32) {
+	if !p.IsSetWidth() {
+		return ProjectDeletionDTO_Width_DEFAULT
+	}
+	return *p.Width
+}
+
+var ProjectDeletionDTO_Height_DEFAULT int32
+
+func (p *ProjectDeletionDTO) GetHeight() (v int32) {
+	if !p.IsSetHeight() {
+		return ProjectDeletionDTO_Height_DEFAULT
+	}
+	return *p.Height
+}
+
+var ProjectDeletionDTO_DeletedAt_DEFAULT string
+
+func (p *ProjectDeletionDTO) GetDeletedAt() (v string) {
+	if !p.IsSetDeletedAt() {
+		return ProjectDeletionDTO_DeletedAt_DEFAULT
+	}
+	return *p.DeletedAt
+}
+
+var ProjectDeletionDTO_CompletedAt_DEFAULT string
+
+func (p *ProjectDeletionDTO) GetCompletedAt() (v string) {
+	if !p.IsSetCompletedAt() {
+		return ProjectDeletionDTO_CompletedAt_DEFAULT
+	}
+	return *p.CompletedAt
+}
+
+var ProjectDeletionDTO_ErrorCode_DEFAULT string
+
+func (p *ProjectDeletionDTO) GetErrorCode() (v string) {
+	if !p.IsSetErrorCode() {
+		return ProjectDeletionDTO_ErrorCode_DEFAULT
+	}
+	return *p.ErrorCode
+}
+
+var fieldIDToName_ProjectDeletionDTO = map[int16]string{
+	1:  "id",
+	2:  "projectId",
+	3:  "ownerId",
+	4:  "state",
+	5:  "createdAt",
+	6:  "title",
+	7:  "width",
+	8:  "height",
+	9:  "deletedAt",
+	10: "completedAt",
+	11: "errorCode",
+}
+
+func (p *ProjectDeletionDTO) IsSetTitle() bool {
+	return p.Title != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetWidth() bool {
+	return p.Width != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetHeight() bool {
+	return p.Height != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetDeletedAt() bool {
+	return p.DeletedAt != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetCompletedAt() bool {
+	return p.CompletedAt != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetErrorCode() bool {
+	return p.ErrorCode != nil
+}
+
+func (p *ProjectDeletionDTO) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetID bool = false
+	var issetProjectId bool = false
+	var issetOwnerId bool = false
+	var issetState bool = false
+	var issetCreatedAt bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetProjectId = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetOwnerId = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetState = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetCreatedAt = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 8:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField8(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 9:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField9(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 10:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField10(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 11:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField11(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetID {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetProjectId {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetOwnerId {
+		fieldId = 3
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetState {
+		fieldId = 4
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetCreatedAt {
+		fieldId = 5
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectDeletionDTO[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_ProjectDeletionDTO[fieldId]))
+}
+
+func (p *ProjectDeletionDTO) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.ID = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.ProjectId = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.OwnerId = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.State = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.CreatedAt = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Title = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Width = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField8(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Height = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField9(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.DeletedAt = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField10(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.CompletedAt = _field
+	return nil
+}
+func (p *ProjectDeletionDTO) ReadField11(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ErrorCode = _field
+	return nil
+}
+
+func (p *ProjectDeletionDTO) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ProjectDeletionDTO"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+		if err = p.writeField8(oprot); err != nil {
+			fieldId = 8
+			goto WriteFieldError
+		}
+		if err = p.writeField9(oprot); err != nil {
+			fieldId = 9
+			goto WriteFieldError
+		}
+		if err = p.writeField10(oprot); err != nil {
+			fieldId = 10
+			goto WriteFieldError
+		}
+		if err = p.writeField11(oprot); err != nil {
+			fieldId = 11
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("id", thrift.STRING, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.ID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("projectId", thrift.STRING, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.ProjectId); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField3(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("ownerId", thrift.STRING, 3); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.OwnerId); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField4(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("state", thrift.STRING, 4); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.State); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField5(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("createdAt", thrift.STRING, 5); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.CreatedAt); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTitle() {
+		if err = oprot.WriteFieldBegin("title", thrift.STRING, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Title); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetWidth() {
+		if err = oprot.WriteFieldBegin("width", thrift.I32, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Width); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetHeight() {
+		if err = oprot.WriteFieldBegin("height", thrift.I32, 8); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Height); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDeletedAt() {
+		if err = oprot.WriteFieldBegin("deletedAt", thrift.STRING, 9); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.DeletedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCompletedAt() {
+		if err = oprot.WriteFieldBegin("completedAt", thrift.STRING, 10); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.CompletedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErrorCode() {
+		if err = oprot.WriteFieldBegin("errorCode", thrift.STRING, 11); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ErrorCode); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 end error: ", p), err)
+}
+
+func (p *ProjectDeletionDTO) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectDeletionDTO(%+v)", *p)
+
+}
+
 type AdminProjectListReply struct {
 	RequestId string                `thrift:"requestId,1,required" form:"requestId,required" json:"requestId,required" query:"requestId,required"`
 	Projects  []*ProjectMetadataDTO `thrift:"projects,2,required,list<ProjectMetadataDTO>" form:"projects,required" json:"projects,required" query:"projects,required"`
@@ -2418,6 +3120,487 @@ func (p *AdminProjectListReply) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("AdminProjectListReply(%+v)", *p)
+
+}
+
+type ProjectDeletionReply struct {
+	RequestId string              `thrift:"requestId,1,required" form:"requestId,required" json:"requestId,required" query:"requestId,required"`
+	Deletion  *ProjectDeletionDTO `thrift:"deletion,2,required" form:"deletion,required" json:"deletion,required" query:"deletion,required"`
+}
+
+func NewProjectDeletionReply() *ProjectDeletionReply {
+	return &ProjectDeletionReply{}
+}
+
+func (p *ProjectDeletionReply) InitDefault() {
+}
+
+func (p *ProjectDeletionReply) GetRequestId() (v string) {
+	return p.RequestId
+}
+
+var ProjectDeletionReply_Deletion_DEFAULT *ProjectDeletionDTO
+
+func (p *ProjectDeletionReply) GetDeletion() (v *ProjectDeletionDTO) {
+	if !p.IsSetDeletion() {
+		return ProjectDeletionReply_Deletion_DEFAULT
+	}
+	return p.Deletion
+}
+
+var fieldIDToName_ProjectDeletionReply = map[int16]string{
+	1: "requestId",
+	2: "deletion",
+}
+
+func (p *ProjectDeletionReply) IsSetDeletion() bool {
+	return p.Deletion != nil
+}
+
+func (p *ProjectDeletionReply) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequestId bool = false
+	var issetDeletion bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequestId = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetDeletion = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequestId {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetDeletion {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectDeletionReply[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_ProjectDeletionReply[fieldId]))
+}
+
+func (p *ProjectDeletionReply) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.RequestId = _field
+	return nil
+}
+func (p *ProjectDeletionReply) ReadField2(iprot thrift.TProtocol) error {
+	_field := NewProjectDeletionDTO()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Deletion = _field
+	return nil
+}
+
+func (p *ProjectDeletionReply) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ProjectDeletionReply"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectDeletionReply) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("requestId", thrift.STRING, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.RequestId); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ProjectDeletionReply) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("deletion", thrift.STRUCT, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Deletion.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *ProjectDeletionReply) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectDeletionReply(%+v)", *p)
+
+}
+
+type ProjectDeletionListReply struct {
+	RequestId string                `thrift:"requestId,1,required" form:"requestId,required" json:"requestId,required" query:"requestId,required"`
+	Deletions []*ProjectDeletionDTO `thrift:"deletions,2,required,list<ProjectDeletionDTO>" form:"deletions,required" json:"deletions,required" query:"deletions,required"`
+	Total     int32                 `thrift:"total,3,required" form:"total,required" json:"total,required" query:"total,required"`
+}
+
+func NewProjectDeletionListReply() *ProjectDeletionListReply {
+	return &ProjectDeletionListReply{}
+}
+
+func (p *ProjectDeletionListReply) InitDefault() {
+}
+
+func (p *ProjectDeletionListReply) GetRequestId() (v string) {
+	return p.RequestId
+}
+
+func (p *ProjectDeletionListReply) GetDeletions() (v []*ProjectDeletionDTO) {
+	return p.Deletions
+}
+
+func (p *ProjectDeletionListReply) GetTotal() (v int32) {
+	return p.Total
+}
+
+var fieldIDToName_ProjectDeletionListReply = map[int16]string{
+	1: "requestId",
+	2: "deletions",
+	3: "total",
+}
+
+func (p *ProjectDeletionListReply) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequestId bool = false
+	var issetDeletions bool = false
+	var issetTotal bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequestId = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetDeletions = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetTotal = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequestId {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetDeletions {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetTotal {
+		fieldId = 3
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectDeletionListReply[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_ProjectDeletionListReply[fieldId]))
+}
+
+func (p *ProjectDeletionListReply) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.RequestId = _field
+	return nil
+}
+func (p *ProjectDeletionListReply) ReadField2(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]*ProjectDeletionDTO, 0, size)
+	values := make([]ProjectDeletionDTO, size)
+	for i := 0; i < size; i++ {
+		_elem := &values[i]
+		_elem.InitDefault()
+
+		if err := _elem.Read(iprot); err != nil {
+			return err
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.Deletions = _field
+	return nil
+}
+func (p *ProjectDeletionListReply) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.Total = _field
+	return nil
+}
+
+func (p *ProjectDeletionListReply) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ProjectDeletionListReply"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectDeletionListReply) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("requestId", thrift.STRING, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.RequestId); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ProjectDeletionListReply) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("deletions", thrift.LIST, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteListBegin(thrift.STRUCT, len(p.Deletions)); err != nil {
+		return err
+	}
+	for _, v := range p.Deletions {
+		if err := v.Write(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteListEnd(); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *ProjectDeletionListReply) writeField3(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("total", thrift.I32, 3); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteI32(p.Total); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *ProjectDeletionListReply) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectDeletionListReply(%+v)", *p)
 
 }
 
@@ -8903,6 +10086,8 @@ type PublicPayload struct {
 	Total            *int32                `thrift:"total,14,optional" form:"total" json:"total,omitempty" query:"total"`
 	ResetToken       *string               `thrift:"resetToken,15,optional" form:"resetToken" json:"resetToken,omitempty" query:"resetToken"`
 	MetadataProjects []*ProjectMetadataDTO `thrift:"metadataProjects,16,optional,list<ProjectMetadataDTO>" form:"metadataProjects" json:"metadataProjects,omitempty" query:"metadataProjects"`
+	Deletion         *ProjectDeletionDTO   `thrift:"deletion,17,optional" form:"deletion" json:"deletion,omitempty" query:"deletion"`
+	Deletions        []*ProjectDeletionDTO `thrift:"deletions,18,optional,list<ProjectDeletionDTO>" form:"deletions" json:"deletions,omitempty" query:"deletions"`
 }
 
 func NewPublicPayload() *PublicPayload {
@@ -9051,6 +10236,24 @@ func (p *PublicPayload) GetMetadataProjects() (v []*ProjectMetadataDTO) {
 	return p.MetadataProjects
 }
 
+var PublicPayload_Deletion_DEFAULT *ProjectDeletionDTO
+
+func (p *PublicPayload) GetDeletion() (v *ProjectDeletionDTO) {
+	if !p.IsSetDeletion() {
+		return PublicPayload_Deletion_DEFAULT
+	}
+	return p.Deletion
+}
+
+var PublicPayload_Deletions_DEFAULT []*ProjectDeletionDTO
+
+func (p *PublicPayload) GetDeletions() (v []*ProjectDeletionDTO) {
+	if !p.IsSetDeletions() {
+		return PublicPayload_Deletions_DEFAULT
+	}
+	return p.Deletions
+}
+
 var fieldIDToName_PublicPayload = map[int16]string{
 	1:  "requestId",
 	2:  "user",
@@ -9068,6 +10271,8 @@ var fieldIDToName_PublicPayload = map[int16]string{
 	14: "total",
 	15: "resetToken",
 	16: "metadataProjects",
+	17: "deletion",
+	18: "deletions",
 }
 
 func (p *PublicPayload) IsSetUser() bool {
@@ -9128,6 +10333,14 @@ func (p *PublicPayload) IsSetResetToken() bool {
 
 func (p *PublicPayload) IsSetMetadataProjects() bool {
 	return p.MetadataProjects != nil
+}
+
+func (p *PublicPayload) IsSetDeletion() bool {
+	return p.Deletion != nil
+}
+
+func (p *PublicPayload) IsSetDeletions() bool {
+	return p.Deletions != nil
 }
 
 func (p *PublicPayload) Read(iprot thrift.TProtocol) (err error) {
@@ -9274,6 +10487,22 @@ func (p *PublicPayload) Read(iprot thrift.TProtocol) (err error) {
 		case 16:
 			if fieldTypeId == thrift.LIST {
 				if err = p.ReadField16(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 17:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField17(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 18:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField18(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -9556,6 +10785,37 @@ func (p *PublicPayload) ReadField16(iprot thrift.TProtocol) error {
 	p.MetadataProjects = _field
 	return nil
 }
+func (p *PublicPayload) ReadField17(iprot thrift.TProtocol) error {
+	_field := NewProjectDeletionDTO()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Deletion = _field
+	return nil
+}
+func (p *PublicPayload) ReadField18(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]*ProjectDeletionDTO, 0, size)
+	values := make([]ProjectDeletionDTO, size)
+	for i := 0; i < size; i++ {
+		_elem := &values[i]
+		_elem.InitDefault()
+
+		if err := _elem.Read(iprot); err != nil {
+			return err
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.Deletions = _field
+	return nil
+}
 
 func (p *PublicPayload) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -9625,6 +10885,14 @@ func (p *PublicPayload) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField16(oprot); err != nil {
 			fieldId = 16
+			goto WriteFieldError
+		}
+		if err = p.writeField17(oprot); err != nil {
+			fieldId = 17
+			goto WriteFieldError
+		}
+		if err = p.writeField18(oprot); err != nil {
+			fieldId = 18
 			goto WriteFieldError
 		}
 	}
@@ -10001,6 +11269,52 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 16 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 16 end error: ", p), err)
+}
+
+func (p *PublicPayload) writeField17(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDeletion() {
+		if err = oprot.WriteFieldBegin("deletion", thrift.STRUCT, 17); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Deletion.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 17 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 17 end error: ", p), err)
+}
+
+func (p *PublicPayload) writeField18(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDeletions() {
+		if err = oprot.WriteFieldBegin("deletions", thrift.LIST, 18); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRUCT, len(p.Deletions)); err != nil {
+			return err
+		}
+		for _, v := range p.Deletions {
+			if err := v.Write(oprot); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 18 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 18 end error: ", p), err)
 }
 
 func (p *PublicPayload) String() string {
