@@ -15,6 +15,7 @@ import (
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/testutil"
+	"fastposter/server/migrations"
 	"github.com/go-sql-driver/mysql"
 	"image/png"
 	"io"
@@ -145,6 +146,15 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 	if e = exportService.Complete(ctx, *lease, resultKey, previewKey, int64(len(result)), completedAt); e != nil {
 		t.Fatal(e)
 	}
+	if _, e = db.Exec("INSERT INTO project_deletions(id,project_id,owner_id,actor_id,title,width,height,deleted_at,state,attempts,next_attempt_at) VALUES('rec-del','rec-trash','rec-u1','rec-u1','待清理作品',1200,1600,UTC_TIMESTAMP(6),'retry_wait',2,UTC_TIMESTAMP(6)+INTERVAL 30 SECOND)"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("INSERT INTO project_deletion_assets(task_id,asset_id,asset_version,original_key,normalized_key,preview_key,state) VALUES('rec-del','rec-bg',1,?,?,'','retired')", string(background), string(background)); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("INSERT INTO project_deletion_files(task_id,file_key,state,source) VALUES('rec-del',?,'pending','asset-normalized')", string(background)); e != nil {
+		t.Fatal(e)
+	}
 	backgroundInfo, e := store.Stat(ctx, background)
 	if e != nil {
 		t.Fatal(e)
@@ -209,10 +219,10 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 	if e = json.Unmarshal(manifestRaw, &manifest); e != nil {
 		t.Fatal(e)
 	}
-	if manifest.Format != "fastposter-backup" || manifest.Version != 1 || manifest.SchemaVersion != 1 || manifest.DataFiles < 3 {
+	if manifest.Format != "fastposter-backup" || manifest.Version != 1 || manifest.SchemaVersion != migrations.CurrentVersion || manifest.DataFiles < 3 {
 		t.Fatalf("unexpected backup manifest: %+v", manifest)
 	}
-	if manifest.Counts["projects"] != 1 || manifest.Counts["export_jobs"] != 1 {
+	if manifest.Counts["projects"] != 1 || manifest.Counts["export_jobs"] != 1 || manifest.Counts["project_deletions"] != 1 || manifest.Counts["project_deletion_assets"] != 1 || manifest.Counts["project_deletion_files"] != 1 {
 		t.Fatalf("backup counts do not match source: %+v", manifest.Counts)
 	}
 	adminConfig := *baseConfig
@@ -255,6 +265,17 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer targetDBHandle.Close()
+	var restoredState string
+	var restoredFiles, restoredAssets int
+	if e = targetDBHandle.QueryRow("SELECT state FROM project_deletions WHERE id='rec-del'").Scan(&restoredState); e != nil || restoredState != "retry_wait" {
+		t.Fatalf("unfinished deletion task was not restored: %s %v", restoredState, e)
+	}
+	if e = targetDBHandle.QueryRow("SELECT COUNT(*) FROM project_deletion_files WHERE task_id='rec-del'").Scan(&restoredFiles); e != nil || restoredFiles != 1 {
+		t.Fatalf("restored deletion file work is wrong: %d %v", restoredFiles, e)
+	}
+	if e = targetDBHandle.QueryRow("SELECT COUNT(*) FROM project_deletion_assets WHERE task_id='rec-del'").Scan(&restoredAssets); e != nil || restoredAssets != 1 {
+		t.Fatalf("restored deletion asset work is wrong: %d %v", restoredAssets, e)
+	}
 	targetStore, e := storage.NewLocal(targetDir)
 	if e != nil {
 		t.Fatal(e)
