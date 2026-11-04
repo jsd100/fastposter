@@ -472,3 +472,19 @@ func TestDeletionQueriesAndRetry(t *testing.T) {
 		wantDeletionCode(t, e, "NOT_FOUND")
 	}
 }
+
+func TestDeletionListRetainsOldUnfinishedTasks(t *testing.T) {
+	f := newDeletionFixture(t)
+	ctx := context.Background()
+	f.project(t, "p-old", "u1", "过期未完成", true, `{"schemaVersion":1}`)
+	task, e := f.Service.Accept(ctx, deletionOwner, projectdeletions.OwnerScope, "p-old")
+	if e != nil {
+		t.Fatal(e)
+	}
+	f.exec(t, "UPDATE project_deletions SET created_at=UTC_TIMESTAMP(6)-INTERVAL 31 DAY,deleted_at=UTC_TIMESTAMP(6)-INTERVAL 31 DAY,state='retry_wait',next_attempt_at=UTC_TIMESTAMP(6)+INTERVAL 1 HOUR WHERE id=?", task.ID)
+
+	items, total, e := f.Service.List(ctx, deletionOwner, projectdeletions.OwnerScope, projectdeletions.Query{})
+	if e != nil || total != 1 || len(items) != 1 || items[0].ID != task.ID || items[0].State != "retry_wait" {
+		t.Fatalf("old unfinished task hidden: %d/%d %+v %v", len(items), total, items, e)
+	}
+}
