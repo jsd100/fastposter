@@ -10,7 +10,7 @@
 go run ./server/cmd/maintenance check
 ```
 
-默认命令，只读，不删除任何内容。它回报数据库 schema 版本、数据目录可写性与剩余空间、存储用量、被引用文件的数量/缺失/哈希不符、GC 试运行结果、在途导出和上传，以及各表行数。以下情况退出码非零：schema 不是 1、数据目录不可写、剩余空间低于 512 MiB（可用 `-min-free-mib` 调整）、任一被引用文件缺失或哈希不符。`-verify-files=false` 可跳过逐文件哈希。
+默认命令，只读，不删除任何内容。它回报数据库 schema 版本、数据目录可写性与剩余空间、存储用量、被引用文件的数量/缺失/哈希不符、GC 试运行结果、在途导出和上传，以及各表行数。以下情况退出码非零：schema 不是 2、数据目录不可写、剩余空间低于 512 MiB（可用 `-min-free-mib` 调整）、任一被引用文件缺失或哈希不符。`-verify-files=false` 可跳过逐文件哈希。
 
 网关、核心服务和导出 worker 在启动时也会检查数据目录：不可写直接退出，剩余空间低于 512 MiB 只记录警告，不阻止启动。上线前应先运行 `check`。
 
@@ -46,6 +46,8 @@ go run ./server/cmd/maintenance backup -dest /Volumes/backup/fastposter-20261030
 3. 用 `mysqldump --single-transaction` 导出业务库，只导出该库。
 4. 复制 `APP_DATA_DIR` 中除 `tmp`、`.work`、门禁与写锁文件外的常规文件；遇到符号链接直接拒绝。
 5. 写入 `manifest.json`（格式版本、schema 版本、dump 大小与 SHA-256、文件数量/字节数、各表行数），同步落盘后原子重命名为最终目录。失败会清理 `.partial`，不会留下看似完整的备份。
+
+备份包含 schema 2 的 `project_deletions`、`project_deletion_assets`、`project_deletion_files` 三张表，因此未完成的彻底删除任务（含逐文件工作清单）会随数据库一起恢复，恢复后的清理进程可以接管过期租约继续执行。new binary 只接受 schema 2 的备份；schema 1 的旧备份必须用生成它的旧版本二进制恢复，再运行 `go run ./server/cmd/migrate -direction up` 升级到 schema 2，不能直接导入新实例，否则会丢失删除任务。
 
 门禁文件记录 PID 和开始时间：进程崩溃后其他进程可通过 PID 是否存活判断并解除暂停；两把锁由操作系统在进程退出时释放。备份结束（成功或失败）都会移除门禁文件。
 

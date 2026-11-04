@@ -14,6 +14,7 @@ import (
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/templates"
 	"fastposter/server/internal/transport"
+	"fastposter/server/migrations"
 	"github.com/cloudwego/kitex/server"
 	"github.com/redis/go-redis/v9"
 	"log"
@@ -37,7 +38,7 @@ func main() {
 	}
 	defer db.Close()
 	var version int
-	if e = db.QueryRow("SELECT MAX(version) FROM _schema_migrations").Scan(&version); e != nil || version != 1 {
+	if e = db.QueryRow("SELECT COALESCE(MAX(version),0) FROM _schema_migrations").Scan(&version); e != nil || version != migrations.CurrentVersion {
 		log.Fatal("database schema is not ready; run go run ./server/cmd/migrate -direction up")
 	}
 	var limiterRedis *redis.Client

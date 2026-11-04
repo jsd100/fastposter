@@ -10,6 +10,7 @@ import (
 	"fastposter/internal/config"
 	"fastposter/server/internal/app"
 	"fastposter/server/internal/storage"
+	"fastposter/server/migrations"
 	"flag"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
@@ -27,14 +28,14 @@ import (
 	"time"
 )
 
-const requiredSchemaVersion = 1
+const requiredSchemaVersion = migrations.CurrentVersion
 const backupFormat = "fastposter-backup"
 const backupVersion = 1
 
 var appTables = []string{
 	"_schema_migrations", "users", "sessions", "password_reset_tokens", "projects", "project_revisions",
 	"assets", "asset_versions", "asset_refs", "resources", "resource_versions", "staged_uploads",
-	"export_jobs", "admin_audit_logs",
+	"export_jobs", "admin_audit_logs", "project_deletions", "project_deletion_assets", "project_deletion_files",
 }
 var databaseNamePattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
