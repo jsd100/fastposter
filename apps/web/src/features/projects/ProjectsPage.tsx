@@ -1,3 +1,4 @@
+import { BrandIcon } from "@fastposter/ui";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -55,6 +56,7 @@ export function ProjectsPage() {
     [templatesOpen, setTemplatesOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const retry = useRef<(() => void) | null>(null);
+  const confirmRef = useRef<(() => Promise<void>) | null>(null);
   useEffect(() => {
     const id = setTimeout(() => {
       setKeyword(search);
@@ -129,6 +131,7 @@ export function ProjectsPage() {
   }
   async function act(action: ProjectAction, project: ProjectDTO) {
     setError("");
+    retry.current = null;
     if (action === "rename" || action === "delete") {
       setName(project.title);
       setDialog({ action, project });
@@ -154,7 +157,7 @@ export function ProjectsPage() {
     if (!dialog || busy) return;
     setBusy(true);
     setError("");
-    retry.current = () => void confirm();
+    retry.current = () => void confirmRef.current?.();
     try {
       if (dialog.action === "rename") {
         await request(routes.SaveProject, {
@@ -177,6 +180,12 @@ export function ProjectsPage() {
       setBusy(false);
     }
   }
+  confirmRef.current = confirm;
+  function closeDialog() {
+    setDialog(null);
+    setError("");
+    retry.current = null;
+  }
   const select = (next: boolean) => {
     setTrash(next);
     setPage(1);
@@ -194,9 +203,7 @@ export function ProjectsPage() {
     <div className="workspace-shell">
       <aside className="workspace-sidebar">
         <Link href="/projects" className="brand">
-          <span className="brand-mark">
-            F<span>p</span>
-          </span>
+          <BrandIcon />
           FastPoster
         </Link>
         <div className="sidebar-caption">创作空间</div>
@@ -390,7 +397,7 @@ export function ProjectsPage() {
         <Dialog
           title={dialog.action === "rename" ? "重命名作品" : "移到回收站"}
           onClose={() => {
-            if (!busy) setDialog(null);
+            if (!busy) closeDialog();
           }}
         >
           <form
@@ -412,11 +419,7 @@ export function ProjectsPage() {
               <p>“{dialog.project.title}”将移入回收站，可在 30 天内恢复。</p>
             )}
             <div className="dialog-actions">
-              <Button
-                type="button"
-                onClick={() => setDialog(null)}
-                disabled={busy}
-              >
+              <Button type="button" onClick={closeDialog} disabled={busy}>
                 取消
               </Button>
               <Button

@@ -32,6 +32,46 @@ async function expectZipMagic(downloadPath: string | null) {
   expect(body.subarray(0, 2).toString()).toBe("PK");
 }
 
+test("blank template editor loads only the fonts it needs", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  const fontRequests: string[] = [];
+  admin.on("request", (request) => {
+    if (/\/api\/v1\/assets\/builtin-/.test(request.url()))
+      fontRequests.push(request.url());
+  });
+  await loginAdmin(admin);
+  await admin.getByRole("link", { name: "模板", exact: true }).click();
+  await expect(admin).toHaveURL(/\/admin\/templates$/);
+  fontRequests.length = 0;
+  await admin.getByRole("button", { name: "新建模板", exact: true }).click();
+  const editor = admin.getByRole("dialog", { name: "模板编辑器" });
+  await editor
+    .getByLabel("模板背景图片文件", { exact: true })
+    .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+  await expect(
+    editor.getByRole("button", { name: "添加文字", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await admin.waitForTimeout(1500);
+  expect(fontRequests.filter((url) => /-(700|900)\//.test(url))).toEqual([]);
+  expect(
+    fontRequests.filter((url) =>
+      /builtin-(inter|lxgw|zcool|noto-serif)/.test(url),
+    ),
+  ).toEqual([]);
+  await editor.getByRole("button", { name: "添加文字", exact: true }).click();
+  await admin.waitForTimeout(1500);
+  expect(
+    fontRequests.filter((url) =>
+      /builtin-(inter|lxgw|zcool|noto-serif)/.test(url),
+    ),
+  ).toEqual([]);
+  await adminContext.close();
+});
+
 test("administrator publishes a template, user applies and re-imports an independent package, unpublication preserves the applied work", async ({
   browser,
   page,

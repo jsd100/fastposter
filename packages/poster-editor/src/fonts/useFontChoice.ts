@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { loadFonts, type FontSource } from "@fastposter/poster-renderer";
-import type { PosterDocument } from "@fastposter/poster-schema";
+import type { InlineStyle, PosterDocument } from "@fastposter/poster-schema";
 import { useNotify } from "@fastposter/ui";
-import { prepareFontChange, type PreparedFontChange } from "./prepare-change";
+import {
+  prepareFontChange,
+  type FontChoiceIntent,
+  type PreparedFontChange,
+} from "./prepare-change";
 import type { FontTarget } from "../text/selection";
 
 export type FontChoiceSnapshot = {
   document: PosterDocument;
   target: FontTarget | null;
   scope: string;
+  cursorStyle?: InlineStyle;
 };
 
 export type FontChoiceError = {
@@ -31,7 +36,9 @@ function sameSnapshot(a: FontChoiceSnapshot, b: FontChoiceSnapshot) {
   return (
     a.scope === b.scope &&
     a.document === b.document &&
-    sameTarget(a.target, b.target)
+    sameTarget(a.target, b.target) &&
+    JSON.stringify(a.cursorStyle ?? null) ===
+      JSON.stringify(b.cursorStyle ?? null)
   );
 }
 
@@ -100,7 +107,7 @@ export function useFontChoice({
     setError(null);
   }, [scope]);
 
-  async function choose(font: FontSource) {
+  async function choose(font: FontSource, intent: FontChoiceIntent = "family") {
     if (pendingRef.current) return;
     const started = snapshotRef.current();
     if (!started.target) return;
@@ -118,6 +125,7 @@ export function useFontChoice({
         started.target,
         font,
         fontsRef.current,
+        { cursorStyle: started.cursorStyle, intent },
       );
       await loadFonts(
         sourcesFor(started.document, change.nextDocument, fontsRef.current, font),
@@ -148,9 +156,9 @@ export function useFontChoice({
         action: useChinese
           ? {
               label: "改用思源黑体",
-              run: () => void choose(alternative),
+              run: () => void choose(alternative, intent),
             }
-          : { label: "重试", run: () => void choose(font) },
+          : { label: "重试", run: () => void choose(font, intent) },
       });
     } finally {
       if (run === generation.current) pendingRef.current = false;

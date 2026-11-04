@@ -6,22 +6,29 @@ import {
   type Editor,
 } from "@tiptap/react";
 import type { TextBlock } from "@fastposter/poster-schema";
+import type { FontSource } from "@fastposter/poster-renderer";
 import type { EditorStore } from "../store";
 import { richTextExtensions } from "./extensions";
-import { canonicalRichText } from "./selection";
+import {
+  canonicalRichText,
+  effectiveInlineStyle,
+  selectionStyle,
+} from "./selection";
 export function RichTextEditor({
   block,
   store,
+  fonts,
   onReady,
   onSelection,
 }: {
   block: TextBlock;
   store: EditorStore;
+  fonts: FontSource[];
   onReady: (editor: Editor | null) => void;
   onSelection: (selection?: { from: number; to: number }) => void;
 }) {
-  const refs = useRef({ block, onReady, onSelection });
-  refs.current = { block, onReady, onSelection };
+  const refs = useRef({ block, fonts, onReady, onSelection });
+  refs.current = { block, fonts, onReady, onSelection };
   const emittedContents = useRef(new WeakSet<object>());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null),
     composing = useRef(false);
@@ -34,6 +41,40 @@ export function RichTextEditor({
           priority: 1000,
           addKeyboardShortcuts() {
             return {
+              "Mod-b": () => {
+                const b = store
+                  .getState()
+                  .document.textBlocks.find(
+                    (candidate) => candidate.id === refs.current.block.id,
+                  );
+                if (!b) return true;
+                const sel = this.editor.state.selection;
+                const style = sel.empty
+                  ? effectiveInlineStyle(
+                      this.editor.state.storedMarks ?? sel.$from.marks(),
+                      b.defaultStyle,
+                    )
+                  : selectionStyle(
+                      b.content,
+                      sel.from,
+                      sel.to,
+                      b.defaultStyle,
+                    );
+                const family = refs.current.fonts.find(
+                  (font) => font.assetId === style.fontId,
+                )?.family;
+                const canBold =
+                  this.editor.isActive("bold") ||
+                  (family !== undefined &&
+                    refs.current.fonts.some(
+                      (font) =>
+                        font.family === family &&
+                        font.weight === 700 &&
+                        font.style === "normal",
+                    ));
+                if (canBold) this.editor.commands.toggleBold();
+                return true;
+              },
               "Mod-i": () => {
                 const d = store.getState().document,
                   b = d.textBlocks.find((b) => b.id === refs.current.block.id);

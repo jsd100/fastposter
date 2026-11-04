@@ -612,3 +612,61 @@ test("a click that leaves focus on a toolbar button keeps the editor shortcuts",
   await page.keyboard.press("Control+z");
   await expect(blocks).toHaveCount(2);
 });
+
+test.describe("touch number stepping", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test("cancelling a touch hold stops the number repeat", async ({ page }) => {
+    await openPoster(page, "ui_touch_cancel");
+    await page.getByRole("button", { name: "文字设置", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "文字设置", exact: true });
+    const plus = dialog.getByRole("button", {
+      name: "增加文字字号",
+      exact: true,
+    });
+    const size = dialog.getByLabel("文字字号", { exact: true });
+    const box = (await plus.boundingBox())!;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
+    });
+    await page.waitForTimeout(650);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchCancel",
+      touchPoints: [],
+    });
+    const stopped = await size.inputValue();
+    expect(Number(stopped)).toBeGreaterThan(64);
+    await page.waitForTimeout(600);
+    expect(await size.inputValue()).toBe(stopped);
+  });
+});
+
+test("fractional bounds stay reachable from the step button and End", async ({
+  page,
+}) => {
+  await openPoster(page, "ui_fraction_bound");
+  const width = page.getByLabel("文本框宽度", { exact: true });
+  await width.fill("200.2");
+  await width.blur();
+  await page.locator("summary", { hasText: "文字效果" }).click();
+  const padding = page.getByLabel("内边距", { exact: true });
+  const plus = page.getByRole("button", {
+    name: "增加内边距",
+    exact: true,
+  });
+  await padding.fill("100");
+  await padding.blur();
+  await plus.click();
+  await expect(plus).toBeDisabled();
+  const stepped = Number(await padding.inputValue());
+  expect(stepped).toBeGreaterThan(100);
+  expect(stepped).toBeLessThanOrEqual(100.099);
+
+  await padding.fill("99");
+  await padding.blur();
+  await padding.press("End");
+  await expect(plus).toBeDisabled();
+  expect(Number(await padding.inputValue())).toBeGreaterThan(99);
+});

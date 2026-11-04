@@ -6,7 +6,11 @@
     "NotoSerifSC-VF.ttf": "050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9",
     "LXGWWenKai-Regular.ttf": "2d73eea94ad808999d90c0000c239a84a33b09d4bc6ab6c5b8bbf1eda8a7fc8b",
     "ZCOOLKuaiLe-Regular.ttf": "812a6fc1fe54b6d73a419245c32dfeba8aa33104d5be90d1cf6af082007cb71d",
-    "ZCOOLXiaoWei-Regular.ttf": "a42b620140f493db42f741351dfbf343c0936d58588ee8004b8b2a218d997ff1"
+    "ZCOOLXiaoWei-Regular.ttf": "a42b620140f493db42f741351dfbf343c0936d58588ee8004b8b2a218d997ff1",
+    "MaShanZheng-Regular.ttf": "6d2546bb189c732a8ca29af9e22457b152387d158aa459e4ac2ce1e51788b7fb",
+    "LongCang-Regular.ttf": "e5bf2c3f24ef2327c6f136d8f73e2f9dfdf44896fdbeb35a9515f44777bb91bc",
+    "ZCOOLQingKeHuangYou-Regular.ttf": "54f0c0df4308cd74cd0f2fd3494ae054dbc4a1fd6fa7d71f4807eb4cdd8b4136",
+    "LiuJianMaoCao-Regular.ttf": "cab396b91a5b7c0b4005a35891180d06e6751f5ac261fe680aec65c1ae209033"
   },
   "sources": {
     "NotoSansSC-VF.ttf": "https://github.com/google/fonts/blob/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf",
@@ -14,7 +18,11 @@
     "NotoSerifSC-VF.ttf": "https://github.com/google/fonts/blob/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/notoserifsc/NotoSerifSC%5Bwght%5D.ttf",
     "LXGWWenKai-Regular.ttf": "https://github.com/lxgw/LxgwWenKai/releases/tag/v1.530",
     "ZCOOLKuaiLe-Regular.ttf": "https://github.com/google/fonts/blob/6d49995f5d8f1c7d476760a580ffb89ce1e52c5d/ofl/zcoolkuaile/ZCOOLKuaiLe-Regular.ttf",
-    "ZCOOLXiaoWei-Regular.ttf": "https://github.com/google/fonts/blob/d427686494a89f0b7ecb9833273b6aabb83a6350/ofl/zcoolxiaowei/ZCOOLXiaoWei-Regular.ttf"
+    "ZCOOLXiaoWei-Regular.ttf": "https://github.com/google/fonts/blob/d427686494a89f0b7ecb9833273b6aabb83a6350/ofl/zcoolxiaowei/ZCOOLXiaoWei-Regular.ttf",
+    "MaShanZheng-Regular.ttf": "https://github.com/google/fonts/blob/406197b91ff39a93061c2c2eeaee67ddf2ae1f0d/ofl/mashanzheng/MaShanZheng-Regular.ttf",
+    "LongCang-Regular.ttf": "https://github.com/google/fonts/blob/406197b91ff39a93061c2c2eeaee67ddf2ae1f0d/ofl/longcang/LongCang-Regular.ttf",
+    "ZCOOLQingKeHuangYou-Regular.ttf": "https://github.com/google/fonts/blob/406197b91ff39a93061c2c2eeaee67ddf2ae1f0d/ofl/zcoolqingkehuangyou/ZCOOLQingKeHuangYou-Regular.ttf",
+    "LiuJianMaoCao-Regular.ttf": "https://github.com/google/fonts/blob/406197b91ff39a93061c2c2eeaee67ddf2ae1f0d/ofl/liujianmaocao/LiuJianMaoCao-Regular.ttf"
   },
   "licenses": [
     "OFL.txt",
@@ -22,19 +30,117 @@
     "NotoSerifSC-OFL.txt",
     "LXGWWenKai-OFL.txt",
     "ZCOOLKuaiLe-OFL.txt",
-    "ZCOOLXiaoWei-OFL.txt"
+    "ZCOOLXiaoWei-OFL.txt",
+    "MaShanZheng-OFL.txt",
+    "LongCang-OFL.txt",
+    "ZCOOLQingKeHuangYou-OFL.txt",
+    "LiuJianMaoCao-OFL.txt"
   ],
   "faces": [
-    {"id": "builtin-noto-sc-400", "family": "Noto Sans SC", "file": "NotoSansSC-VF.ttf", "weight": 400, "style": "normal"},
-    {"id": "builtin-noto-sc-700", "family": "Noto Sans SC", "file": "NotoSansSC-VF.ttf", "weight": 700, "style": "normal"},
-    {"id": "builtin-noto-sc-900", "family": "Noto Sans SC", "file": "NotoSansSC-VF.ttf", "weight": 900, "style": "normal"},
-    {"id": "builtin-noto-serif-sc-400", "family": "Noto Serif SC", "file": "NotoSerifSC-VF.ttf", "weight": 400, "style": "normal"},
-    {"id": "builtin-noto-serif-sc-700", "family": "Noto Serif SC", "file": "NotoSerifSC-VF.ttf", "weight": 700, "style": "normal"},
-    {"id": "builtin-noto-serif-sc-900", "family": "Noto Serif SC", "file": "NotoSerifSC-VF.ttf", "weight": 900, "style": "normal"},
-    {"id": "builtin-lxgw-wenkai-400", "family": "LXGW WenKai", "file": "LXGWWenKai-Regular.ttf", "weight": 400, "style": "normal"},
-    {"id": "builtin-zcool-kuaile-400", "family": "ZCOOL KuaiLe", "file": "ZCOOLKuaiLe-Regular.ttf", "weight": 400, "style": "normal"},
-    {"id": "builtin-zcool-xiaowei-400", "family": "ZCOOL XiaoWei", "file": "ZCOOLXiaoWei-Regular.ttf", "weight": 400, "style": "normal"},
-    {"id": "builtin-inter-400", "family": "Inter", "file": "Inter-VF.ttf", "weight": 400, "style": "normal"},
-    {"id": "builtin-inter-700", "family": "Inter", "file": "Inter-VF.ttf", "weight": 700, "style": "normal"}
+    {
+      "id": "builtin-noto-sc-400",
+      "family": "Noto Sans SC",
+      "file": "NotoSansSC-VF.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-noto-sc-700",
+      "family": "Noto Sans SC",
+      "file": "NotoSansSC-VF.ttf",
+      "weight": 700,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-noto-sc-900",
+      "family": "Noto Sans SC",
+      "file": "NotoSansSC-VF.ttf",
+      "weight": 900,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-noto-serif-sc-400",
+      "family": "Noto Serif SC",
+      "file": "NotoSerifSC-VF.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-noto-serif-sc-700",
+      "family": "Noto Serif SC",
+      "file": "NotoSerifSC-VF.ttf",
+      "weight": 700,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-noto-serif-sc-900",
+      "family": "Noto Serif SC",
+      "file": "NotoSerifSC-VF.ttf",
+      "weight": 900,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-lxgw-wenkai-400",
+      "family": "LXGW WenKai",
+      "file": "LXGWWenKai-Regular.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-zcool-kuaile-400",
+      "family": "ZCOOL KuaiLe",
+      "file": "ZCOOLKuaiLe-Regular.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-zcool-xiaowei-400",
+      "family": "ZCOOL XiaoWei",
+      "file": "ZCOOLXiaoWei-Regular.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-inter-400",
+      "family": "Inter",
+      "file": "Inter-VF.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-inter-700",
+      "family": "Inter",
+      "file": "Inter-VF.ttf",
+      "weight": 700,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-mashanzheng-400",
+      "family": "Ma Shan Zheng",
+      "file": "MaShanZheng-Regular.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-longcang-400",
+      "family": "Long Cang",
+      "file": "LongCang-Regular.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-zcool-qingke-400",
+      "family": "ZCOOL QingKe HuangYou",
+      "file": "ZCOOLQingKeHuangYou-Regular.ttf",
+      "weight": 400,
+      "style": "normal"
+    },
+    {
+      "id": "builtin-liujianmaocao-400",
+      "family": "Liu Jian Mao Cao",
+      "file": "LiuJianMaoCao-Regular.ttf",
+      "weight": 400,
+      "style": "normal"
+    }
   ]
 }

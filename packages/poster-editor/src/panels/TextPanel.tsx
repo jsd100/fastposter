@@ -1,3 +1,6 @@
+import { colorPresets } from "./color-presets";
+import { richTextSchema } from "../text/selection";
+import { fontUnavailableReason } from "../fonts/catalog";
 import { fontWeights } from "./font-options";
 import type { Editor } from "@tiptap/react";
 import type { TextBlock, InlineStyle } from "@fastposter/poster-schema";
@@ -5,6 +8,7 @@ import type { FontSource } from "@fastposter/poster-renderer";
 import { NumberField, Select, ToggleButton } from "@fastposter/ui";
 import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
 import { selectionStyle, type InlineStylePatch } from "../text/selection";
+import type { FontChoiceIntent } from "../fonts/prepare-change";
 import { FontPicker } from "../fonts/FontPicker";
 import { ParagraphPanel } from "./ParagraphPanel";
 import { StylePanel } from "./StylePanel";
@@ -24,7 +28,7 @@ export function TextPanel({
   editor: Editor | null;
   fonts: FontSource[];
   apply: (patch: InlineStylePatch) => void;
-  chooseFont: (font: FontSource) => void;
+  chooseFont: (font: FontSource, intent?: FontChoiceIntent) => void;
   fontPending: boolean;
   sizeBase?: number;
   onNumericStart: () => void;
@@ -56,6 +60,10 @@ export function TextPanel({
     editor && selection && !selection.empty
       ? editor.state.doc.textBetween(selection.from, selection.to, " ")
       : "";
+  const targetText = editor
+    ? selectedText
+    : richTextSchema.nodeFromJSON(block.content).textContent;
+  const restrictedLatin = !!fontUnavailableReason("Inter", targetText);
   const sample = (selectedText || "海报字体预览 Aa 123").slice(0, 12);
   return (
     <div className="text-panel">
@@ -72,10 +80,16 @@ export function TextPanel({
           fonts={fonts}
           value={current.fontId ?? ""}
           sample={sample}
+          targetText={targetText}
           disabled={fontPending}
           onChoose={chooseFont}
         />
       </label>
+      {restrictedLatin && (
+        <p className="property-hint">
+          当前文字包含中文，西文字体暂不可选；仅选中英文后即可使用 Inter。
+        </p>
+      )}
       <label className="panel-field">
         字重
         <Select
@@ -86,7 +100,7 @@ export function TextPanel({
             const face = fontWeights(fonts, activeFamily).find(
               (f) => String(f.weight) === weight,
             );
-            if (face) chooseFont(face);
+            if (face) chooseFont(face, "weight");
           }}
           options={[
             { value: "", label: "混合", disabled: true },
@@ -126,6 +140,22 @@ export function TextPanel({
           {current.color === null && <small>混合</small>}
         </label>
       </div>
+      <label className="panel-field">
+        预设文字颜色
+        <Select
+          aria-label="预设文字颜色"
+          value={current.color ?? ""}
+          valueLabel={
+            colorPresets.some((option) => option.value === current.color)
+              ? undefined
+              : current.color === null
+                ? "混合颜色"
+                : "自定义颜色"
+          }
+          options={colorPresets}
+          onValueChange={(color) => apply({ color })}
+        />
+      </label>
       <div className="format-buttons">
         {(
           [
@@ -134,7 +164,10 @@ export function TextPanel({
               label: "粗体",
               icon: Bold,
               disabled: !fonts.some(
-                (f) => f.family === activeFamily && f.weight === 700,
+                (f) =>
+                  f.family === activeFamily &&
+                  f.weight === 700 &&
+                  f.style === "normal",
               ),
             },
             {

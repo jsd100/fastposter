@@ -13,3 +13,4 @@ export * from "./Select";
 export * from "./Status";
 export * from "./Tooltip";
 export * from "./ToggleButton";
+export * from "./BrandIcon";

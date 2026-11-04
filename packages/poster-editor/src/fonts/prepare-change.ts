@@ -18,12 +18,20 @@ import {
   type TextTarget,
 } from "../text/selection";
 
+export type FontChoiceIntent = "family" | "weight";
+
+export type FontChangeOptions = {
+  cursorStyle?: InlineStyle;
+  intent?: FontChoiceIntent;
+};
+
 export type PreparedFontChange = {
   nextDocument: PosterDocument;
   probeDocument: PosterDocument;
   target: FontTarget;
   insertionStyle: InlineStylePatch;
   removeItalic: boolean;
+  removeBold: boolean;
   adjustments: string[];
 };
 
@@ -59,6 +67,47 @@ function collectFontIds(node: RichNode, ids: Set<string>) {
       ids.add(mark.attrs.fontId);
 }
 
+type FaceNeed = {
+  family: string;
+  weight: number;
+  style: "normal" | "italic";
+};
+
+function collectFaceNeeds(
+  node: RichNode,
+  base: InlineStyle,
+  families: Map<string, string>,
+  needs: Map<string, FaceNeed>,
+) {
+  if (node.type === "text") {
+    const attrs =
+      node.marks?.find((mark) => mark.type === "textStyle")?.attrs ?? {};
+    const fontId =
+      typeof attrs.fontId === "string" ? attrs.fontId : base.fontId;
+    const family = families.get(fontId);
+    if (family) {
+      const weight =
+        node.marks?.some((mark) => mark.type === "bold") ?? false
+          ? 700
+          : typeof attrs.fontWeight === "number"
+            ? attrs.fontWeight
+            : base.fontWeight;
+      const style = (
+        node.marks?.some((mark) => mark.type === "italic") ?? false
+          ? "italic"
+          : "normal"
+      ) as FaceNeed["style"];
+      needs.set(`${family}\u0000${weight}\u0000${style}`, {
+        family,
+        weight,
+        style,
+      });
+    }
+  }
+  for (const child of node.content ?? [])
+    collectFaceNeeds(child, base, families, needs);
+}
+
 function sliceContent(content: RichNode, target: TextTarget): RichNode {
   const node = schema.nodeFromJSON(content);
   const children: RichNode[] = [];
@@ -85,10 +134,15 @@ export function prepareFontChange(
   target: FontTarget,
   chosen: FontSource,
   fonts: FontSource[],
+  options: FontChangeOptions = {},
 ): PreparedFontChange {
   const block = doc.textBlocks.find((b) => b.id === target.blockId);
   if (!block) throw Error("文字块不存在");
-  const start = firstTargetStyle(doc, target);
+  const intent = options.intent ?? "family";
+  const start =
+    target.target.kind === "cursor" && options.cursorStyle
+      ? options.cursorStyle
+      : firstTargetStyle(doc, target);
   const faces = familyFaces(fonts, chosen);
   const weights = [...new Set(normalFaces(faces).map((face) => face.weight))];
   const fallback = weights.includes(400)
@@ -100,9 +154,9 @@ export function prepareFontChange(
   for (const font of doc.fonts) families.set(font.assetId, font.family);
   for (const font of fonts)
     if (!families.has(font.assetId)) families.set(font.assetId, font.family);
-  const sameFamily = families.get(start.fontId) === chosen.family;
   const resolveWeight = (current: number) => {
-    if (sameFamily && weights.includes(chosen.weight)) return chosen.weight;
+    if (intent === "weight" && weights.includes(chosen.weight))
+      return chosen.weight;
     return weights.includes(current) ? current : fallback;
   };
   const italicFace = faces.find((face) => face.style === "italic");
@@ -138,7 +192,7 @@ export function prepareFontChange(
       const current = effectiveInlineStyle(child.marks, block.defaultStyle);
       const weight = resolveWeight(current.fontWeight);
       const face = faceAt(faces, weight) ?? chosen;
-      if (!sameFamily && !weights.includes(current.fontWeight))
+      if (intent === "family" && !weights.includes(current.fontWeight))
         missing.add(current.fontWeight);
       tr.removeMark(begin, end, schema.marks.textStyle);
       if (
@@ -166,7 +220,7 @@ export function prepareFontChange(
       : block.defaultStyle.fontWeight;
   const defaultFace = faceAt(faces, defaultWeight) ?? chosen;
   if (target.target.kind === "block") {
-    if (!sameFamily && !weights.includes(block.defaultStyle.fontWeight))
+    if (intent === "family" && !weights.includes(block.defaultStyle.fontWeight))
       missing.add(block.defaultStyle.fontWeight);
     used.add(defaultFace.assetId);
   }
@@ -176,12 +230,22 @@ export function prepareFontChange(
     fontId: insertionFace.assetId,
     fontWeight: insertionWeight,
   };
+  if (
+    target.target.kind === "cursor" &&
+    intent === "family" &&
+    !weights.includes(start.fontWeight)
+  )
+    missing.add(start.fontWeight);
   used.add(insertionFace.assetId);
   if (targetItalic && italicFace) used.add(italicFace.assetId);
   const adjustments: string[] = [];
   for (const weight of missing)
     adjustments.push(`新字体没有 ${weight} 字重，已使用 ${fallback}`);
   if (removeItalic) adjustments.push("新字体没有斜体，已取消斜体");
+  const removeBold =
+    target.target.kind === "cursor" &&
+    start.fontWeight === 700 &&
+    insertionWeight !== 700;
   const nextBlock: TextBlock =
     target.target.kind === "block"
       ? {
@@ -194,23 +258,6 @@ export function prepareFontChange(
           content,
         }
       : { ...block, content };
-  const refs = [...doc.fonts];
-  const known = new Set(refs.map((ref) => ref.assetId));
-  for (const id of used) {
-    if (known.has(id)) continue;
-    const face = faces.find((item) => item.assetId === id);
-    if (!face) continue;
-    refs.push(toRef(face));
-    known.add(id);
-  }
-  if (refs.length > 100) throw Error("字体引用已达上限");
-  const nextDocument: PosterDocument = {
-    ...doc,
-    fonts: refs,
-    textBlocks: doc.textBlocks.map((item) =>
-      item.id === target.blockId ? nextBlock : item,
-    ),
-  };
   const probeContent =
     target.target.kind === "cursor"
       ? ({
@@ -230,6 +277,37 @@ export function prepareFontChange(
   };
   const probeIds = new Set<string>([probeBlock.defaultStyle.fontId]);
   collectFontIds(probeContent, probeIds);
+  const needs = new Map<string, FaceNeed>();
+  collectFaceNeeds(probeContent, probeBlock.defaultStyle, families, needs);
+  for (const need of needs.values()) {
+    const face = fonts.find(
+      (item) =>
+        item.family === need.family &&
+        item.weight === need.weight &&
+        item.style === need.style,
+    );
+    if (face) {
+      used.add(face.assetId);
+      probeIds.add(face.assetId);
+    }
+  }
+  const refs = [...doc.fonts];
+  const known = new Set(refs.map((ref) => ref.assetId));
+  for (const id of used) {
+    if (known.has(id)) continue;
+    const face = faces.find((item) => item.assetId === id);
+    if (!face) continue;
+    refs.push(toRef(face));
+    known.add(id);
+  }
+  if (refs.length > 100) throw Error("字体引用已达上限");
+  const nextDocument: PosterDocument = {
+    ...doc,
+    fonts: refs,
+    textBlocks: doc.textBlocks.map((item) =>
+      item.id === target.blockId ? nextBlock : item,
+    ),
+  };
   const probeFonts: FontRef[] = [];
   for (const id of probeIds) {
     const ref = refs.find((item) => item.assetId === id);
@@ -245,6 +323,7 @@ export function prepareFontChange(
     target,
     insertionStyle,
     removeItalic,
+    removeBold,
     adjustments,
   };
 }

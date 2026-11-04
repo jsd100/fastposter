@@ -74,6 +74,7 @@ export function NumberField({
   onInteractionEnd,
 }: NumberFieldProps): ReactElement {
   const [draft, setDraft] = useState(value == null ? "" : String(value));
+  const [pressEpoch, setPressEpoch] = useState(0);
   const settled = useRef(value);
   const prior = useRef(value);
   const interacting = useRef(false);
@@ -81,6 +82,8 @@ export function NumberField({
   const endRef = useRef(onInteractionEnd);
   startRef.current = onInteractionStart;
   endRef.current = onInteractionEnd;
+  const lower = min === undefined ? undefined : Number(min.toPrecision(12));
+  const upper = max === undefined ? undefined : Number(max.toPrecision(12));
 
   useEffect(() => {
     if (value !== settled.current) {
@@ -112,10 +115,17 @@ export function NumberField({
     endRef.current?.();
   }
 
+  function cancelInteraction() {
+    endInteraction();
+    // Base UI keeps its press-and-hold timer alive on pointercancel; remount
+    // the step buttons so their unmount cleanup stops the repeat.
+    setPressEpoch((epoch) => epoch + 1);
+  }
+
   function commit(next: number | null) {
     if (next === null) return;
     if (
-      classifyNumberDraft(String(next), min, max).kind !== "valid" ||
+      classifyNumberDraft(String(next), lower, upper).kind !== "valid" ||
       next === settled.current
     )
       return;
@@ -124,7 +134,7 @@ export function NumberField({
   }
 
   function finish() {
-    const parsed = classifyNumberDraft(draft, min, max);
+    const parsed = classifyNumberDraft(draft, lower, upper);
     if (parsed.kind === "valid") commit(parsed.value);
     setDraft(settled.current == null ? "" : String(settled.current));
     prior.current = settled.current;
@@ -142,7 +152,7 @@ export function NumberField({
         event.preventBaseUIHandler();
         const raw = event.currentTarget.value;
         setDraft(raw);
-        const parsed = classifyNumberDraft(raw, min, max);
+        const parsed = classifyNumberDraft(raw, lower, upper);
         if (parsed.kind === "valid") commit(parsed.value);
       }}
       onPaste={(event) => {
@@ -172,8 +182,8 @@ export function NumberField({
           !event.metaKey &&
           (["ArrowUp", "ArrowDown"].includes(event.key) ||
             (!event.altKey &&
-              ((event.key === "Home" && min !== undefined) ||
-                (event.key === "End" && max !== undefined))))
+              ((event.key === "Home" && lower !== undefined) ||
+                (event.key === "End" && upper !== undefined))))
         ) {
           // At a bound Base UI may not emit a change, but stepping must
           // still replace an unfinished draft with the effective number.
@@ -210,8 +220,8 @@ export function NumberField({
             details.reason,
             details.event,
             stepBase,
-            min,
-            max,
+            lower,
+            upper,
             step ?? 1,
           );
           if (seeded !== null) resolved = seeded;
@@ -221,15 +231,15 @@ export function NumberField({
         setDraft(settled.current == null ? "" : String(settled.current));
       }}
       onValueCommitted={endInteraction}
-      onPointerCancel={endInteraction}
+      onPointerCancel={cancelInteraction}
       onBlur={(event) => {
         if (
           !event.currentTarget.contains(event.relatedTarget as Node | null)
         )
           endInteraction();
       }}
-      min={min}
-      max={max}
+      min={lower}
+      max={upper}
       step={step}
       allowOutOfRange
       disabled={disabled}
@@ -237,6 +247,7 @@ export function NumberField({
       {variant === "stepper" ? (
         <NumberFieldPrimitive.Group data-fp-stepper="" className={styles.stepper}>
           <NumberFieldPrimitive.Decrement
+            key={`decrement-${pressEpoch}`}
             className={styles.stepButton}
             aria-label={`减少${ariaLabel}`}
           >
@@ -249,6 +260,7 @@ export function NumberField({
             </span>
           )}
           <NumberFieldPrimitive.Increment
+            key={`increment-${pressEpoch}`}
             className={styles.stepButton}
             aria-label={`增加${ariaLabel}`}
           >

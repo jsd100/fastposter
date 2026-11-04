@@ -211,3 +211,58 @@
 - Chrome only，手机为 390×844/360×800 触摸模拟，不是真机、iOS Safari 或读屏器实测。
 - 截图与日志位于 `.superpowers/` 忽略目录，不随提交分发；个人附件及导出图片只保存在本机临时目录。
 - 初始化仍会请求默认 Noto Sans SC 的三个字面 URL（同一文件），属于既有行为；如果后续要求进一步减少首屏字体流量，需要单独调整默认文档引用或内置字体 URL 复用策略。
+
+## 审阅回归修复（10 个 P2）
+
+来源：`.superpowers/reviews/2026-11-03-editor-experience-review.md`，包含 9 个行为缺陷和 1 个未满足的按需加载要求。本轮先补失败测试再改实现，涉及工作区 14 个文件（尚未提交）。
+
+### 修复明细
+
+| # | 问题 | 修复 | 回归测试 |
+| --- | --- | --- | --- |
+| 1 | 触摸取消后数字步进继续连发 | `NumberField` 根节点处理 `pointercancel`；递增/递减按钮以 `pressEpoch` 为 key 重挂载，借卸载清理停止 Base UI 定时器 | `ui-controls › cancelling a touch hold stops the number repeat`（CDP 触摸按住 650ms 后取消） |
+| 2 | 光标换字体继承粗体，霞鹜文楷无 700 导致 `CheckFonts` 422 | 光标样式进入换字体快照；`prepareFontChange` 对无 700 的家族生成 `removeBold`，应用时先 `unsetBold()` 再设置插入样式 | `editor-fonts › a cursor font change drops inherited bold the new family cannot render`（保存文档无 bold mark、服务端检查 200） |
+| 3 | 粗体按钮已禁用但 Ctrl/⌘+B 仍可加粗 | `RichTextEditor` 拦截 Mod-b：按选区或光标解析当前家族，仅当已是粗体或该家族存在正常 700 字面时切换，快捷键始终被消费 | `editor-fonts › a family without a bold face ignores the bold shortcut` |
+| 4 | 光标换家族后再选 700 被静默回退 400 | `FontChoiceSnapshot` 增加 `cursorStyle`，权重选择携带 `intent: "weight"`；预检按家族切换后的光标样式解析目标字重 | `prepare-change.test.ts › resolves an explicit cursor weight after a family change`；`editor-fonts › a cursor keeps an explicitly chosen weight after a family change` |
+| 5 | 混合字体选区丢失可用字重层级 | 预检逐段保留新字体支持的 700/900 字重，只降级不支持的部分，并汇总一次调整提示 | `prepare-change.test.ts › preserves supported weights from mixed families in one selection` |
+| 6 | 隐式斜体引用未进入 probe，服务端误判 | probe 引用集合包含探测到的斜体字面，文档仍只保留目标文本 | `prepare-change.test.ts › includes implicit italic faces in the probe document` |
+| 7 | 小数边界导致步进卡住（如 100.09899999999999） | 输入、步进、Home/End 统一使用 `toPrecision(12)` 归一化后的上下界，边界处按钮正确禁用 | `ui-controls › fractional bounds stay reachable from the step button and End` |
+| 8 | 重命名 Toast 重试提交旧标题 | 重试动作每次调用最新的确认函数（`confirmRef`），不再捕获旧输入；打开/关闭对话框时清空错误与重试 | `notifications › rename retry submits the title currently shown`（请求体断言 `["title A","title A","title B"]`） |
+| 9 | 关闭弹窗/页面后持续错误通知残留 | `NoticeHost` 卸载时按最新 id 关闭自身通知，旧重试动作不再可用 | `notifications › closing a picker dismisses its persistent error notice` |
+| 10 | 后台新建空白模板加载全部 11 个字面（约 156.6 MiB） | `TemplateEditor` 只把字体目录作为可选来源展示，实际文件仅按草稿已有引用加载；空白模板不发字体文件请求 | `templates › blank template editor loads only the fonts it needs` |
+
+### 失败到通过
+
+- 8 个新 E2E 先全部按预期失败：触摸取消后字号仍从 67 涨到 77；小数上界处加号仍可点；继承粗体保存出 700；WenKai 下快捷键仍加粗；显式 700 回退 400；斜体 probe 被拒；重试提交旧标题；关闭背景库后通知仍在；空白模板请求 `builtin-*-700/900`。
+- 5 个新 `prepare-change.test.ts` 用例先失败（缺 `removeBold`、缺斜体引用、混合字重被整体降级、权重意图未生效），实现后全部通过。
+
+### 复跑证据
+
+- `pnpm contracts:check`：退出 0。
+- `pnpm typecheck`：退出 0。
+- `pnpm test`：18 个文件、110 个用例通过（新增 5 个）。
+- 8 个新增 E2E 定向运行：8/8 通过（30.1s），使用独立测试栈。
+- `pnpm test:server`：Go 全部包 `ok`。
+- `pnpm build`：8/8 任务成功，仅保留既有 >500 kB chunk 警告。
+
+### 全量 E2E 与注册限流
+
+- 直接运行完整 Playwright 套件时，第 21 个用例起注册全部失败。根因是浏览器测试栈使用 `auth.NewService(db, nil)`（无 Redis），注册限流为每 IP 每 10 分钟 20 次；全套件从 `127.0.0.1` 注册超过 20 个账号，属于测试环境限制，不是本轮代码回归。
+- 因此按注册次数拆成 5 组，每组独立启动一次性数据库的测试栈并单独记录日志：
+
+| 组 | 文件 | 用例 | 注册数 | 结果 |
+| --- | --- | ---: | ---: | --- |
+| A | editor-fonts、editor-richtext、editor-settings | 17 | 17 | 17 passed |
+| B | ui-controls | 17 | 17 | 17 passed |
+| C | notifications、projects、templates | 9 | 9 | 9 passed |
+| D | admin-catalog、autosave、editor-mobile、export、full-flow | 14 | 14 | 14 passed |
+| E | copy、editor-geometry、image-upload、session-sync | 5 | 5 | 5 passed |
+
+- 合计 62 个功能用例通过；另有 `ui-baseline` 的 2 个 opt-in 采集用例被跳过，不计入功能用例。
+- `templates` 的空白模板用例最初受模板列表卡片预览影响：列表会为已有模板加载全部字体引用。用例已移到模板创建用例之前，让列表为空时采集，随后该组 9/9 通过。
+
+### 本轮限制
+
+- 新增的字体与通知回归只在本机 Chrome 验证，触屏为 390×844 模拟，不是真机。
+- 触摸取消依赖 Base UI 未处理的 `pointercancel`；实现用重挂载按钮停止连发，若后续升级 Base UI 原生支持取消，可移除该兼容逻辑。
+- 后台模板仍提供完整字体目录供选择；本轮只收窄启动时的字体文件加载范围，没有改变选择新字体后的加载路径。

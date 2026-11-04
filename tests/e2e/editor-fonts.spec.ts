@@ -1,26 +1,55 @@
 import { test, expect, type Page } from "@playwright/test";
-import { chooseOption, openPoster, selectScenery } from "./helpers";
+import {
+  chooseOption,
+  openPoster,
+  selectScenery,
+  selectValue,
+} from "./helpers";
+
+type SavedMark = {
+  type: string;
+  attrs?: { fontId?: string; fontWeight?: number };
+};
+type SavedRun = { text?: string; marks?: SavedMark[] };
+type SavedDocument = {
+  textBlocks: { content: { content: { content?: SavedRun[] }[] } }[];
+};
+
+function runsOf(saved: SavedDocument): SavedRun[] {
+  return saved.textBlocks[0]?.content.content[0]?.content ?? [];
+}
+
+async function savedDocument(page: Page): Promise<SavedDocument> {
+  const id = page.url().split("/").at(-2)!;
+  const body = await (await page.request.get(`/api/v1/projects/${id}`)).json();
+  return JSON.parse(body.project.document) as SavedDocument;
+}
+
+async function expectDocumentCovered(page: Page, saved: SavedDocument) {
+  const checked = await page.request.post("/api/v1/fonts/check", {
+    data: { document: JSON.stringify(saved) },
+  });
+  expect(checked.status()).toBe(200);
+}
 
 async function projectRevision(page: Page) {
   const id = page.url().split("/").at(-2)!;
-  const body = await (
-    await page.request.get(`/api/v1/projects/${id}`)
-  ).json();
+  const body = await (await page.request.get(`/api/v1/projects/${id}`)).json();
   return body.project.revision as string;
 }
 
 async function projectDocument(page: Page) {
   const id = page.url().split("/").at(-2)!;
-  const body = await (
-    await page.request.get(`/api/v1/projects/${id}`)
-  ).json();
+  const body = await (await page.request.get(`/api/v1/projects/${id}`)).json();
   return JSON.parse(body.project.document) as {
     fonts: { assetId: string; version: string }[];
   };
 }
 
 function fontOption(page: Page, label: string) {
-  return page.getByRole("listbox").getByRole("option", { name: label, exact: true });
+  return page
+    .getByRole("listbox")
+    .getByRole("option", { name: label, exact: true });
 }
 
 async function settleSave(page: Page) {
@@ -71,33 +100,25 @@ test("font search locates Chinese families and previews a highlight without touc
   expect(await projectRevision(page)).toBe(before);
 });
 
-test("preflight rejects a Latin family for Chinese text and keeps the original document exportable", async ({
+test("Latin-only fonts are disabled for a Chinese selection before a request is sent", async ({
   page,
 }) => {
   await openPoster(page, "fontreject");
-  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
-  const input = await selectScenery(page);
+  await selectScenery(page);
   await settleSave(page);
   const before = await projectRevision(page);
+  let checks = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/v1/fonts/check")) checks++;
+  });
   const font = page.getByLabel("文字字体", { exact: true });
   await font.click();
-  await expect(page.getByRole("listbox")).toBeVisible();
-  await fontOption(page, "Inter").click();
-  await expect(page.getByRole("listbox")).toHaveCount(0);
-  await expect(
-    page.getByTestId("notice").filter({ hasText: "缺少字形" }),
-  ).toBeVisible();
-  await expect(
-    input.locator('span[data-font-id="builtin-inter-400"]'),
-  ).toHaveCount(0);
-  await expect(input).toHaveCSS("font-family", /fp_builtin-noto-sc-400/);
+  await expect(fontOption(page, "Inter")).toBeDisabled();
+  await page.keyboard.press("Escape");
   await expect(font).toHaveValue("思源黑体");
-  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  expect(checks).toBe(0);
   expect(await projectRevision(page)).toBe(before);
-  await expect(
-    page.getByRole("button", { name: "导出 PNG", exact: true }),
-  ).toBeEnabled();
 });
 
 test("preflight accepts a Latin family for an English selection", async ({
@@ -112,9 +133,10 @@ test("preflight accepts a Latin family for an English selection", async ({
   await expect(
     input.locator('span[data-font-id="builtin-inter-400"]'),
   ).toHaveText("FastPoster");
-  await expect(
-    input.getByText("FastPoster", { exact: true }),
-  ).toHaveCSS("font-family", /fp_builtin-inter-400/);
+  await expect(input.getByText("FastPoster", { exact: true })).toHaveCSS(
+    "font-family",
+    /fp_builtin-inter-400/,
+  );
 });
 
 test("a new Chinese family renders, saves, reloads and exports at the same version", async ({
@@ -144,8 +166,7 @@ test("a new Chinese family renders, saves, reloads and exports at the same versi
   expect(ref).toBeTruthy();
   const catalog = await (await page.request.get("/api/v1/fonts")).json();
   const face = catalog.fonts.find(
-    (font: { assetId: string }) =>
-      font.assetId === "builtin-lxgw-wenkai-400",
+    (font: { assetId: string }) => font.assetId === "builtin-lxgw-wenkai-400",
   );
   expect(face.version).toBe(ref!.version);
   await page.reload();
@@ -166,7 +187,9 @@ test("a new Chinese family renders, saves, reloads and exports at the same versi
     exact: true,
   });
   await expect(download).toBeVisible({ timeout: 20_000 });
-  const response = await page.request.get((await download.getAttribute("href"))!);
+  const response = await page.request.get(
+    (await download.getAttribute("href"))!,
+  );
   expect(response.headers()["content-type"]).toBe("image/png");
 });
 
@@ -284,4 +307,149 @@ test("a font file that fails once can be retried", async ({ page }) => {
   await expect(
     input.locator('span[data-font-id="builtin-zcool-kuaile-400"]'),
   ).toHaveText("风景");
+});
+
+test("a cursor font change drops inherited bold the new family cannot render", async ({
+  page,
+}) => {
+  await openPoster(page, "fontcursorbold");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "海报文字编辑" });
+  await input.fill("你好");
+  await input.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "粗体", exact: true }).click();
+  await input.focus();
+  await input.press("ArrowRight");
+  await chooseOption(page, "文字字体", "霞鹜文楷");
+  await expect(page.getByLabel("文字字体", { exact: true })).toBeEnabled();
+  await input.focus();
+  await input.pressSequentially("风景");
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  await expect(page.getByText("待保存", { exact: true })).toBeVisible();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const saved = await savedDocument(page);
+  const typed = runsOf(saved).find((run) => run.text?.includes("风景"));
+  expect(typed).toBeTruthy();
+  expect(typed!.marks?.some((mark) => mark.type === "bold")).toBe(false);
+  expect(
+    typed!.marks?.find((mark) => mark.type === "textStyle")?.attrs,
+  ).toMatchObject({ fontId: "builtin-lxgw-wenkai-400", fontWeight: 400 });
+  await expectDocumentCovered(page, saved);
+});
+
+test("a family without a bold face ignores the bold shortcut", async ({
+  page,
+}) => {
+  await openPoster(page, "fontkeybold");
+  await chooseOption(page, "文字字体", "霞鹜文楷");
+  await expect(page.getByLabel("文字字体", { exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "海报文字编辑" });
+  await input.fill("风景");
+  await input.press("ControlOrMeta+A");
+  const bold = page.getByRole("button", { name: "粗体", exact: true });
+  await expect(bold).toBeDisabled();
+  await input.press("ControlOrMeta+B");
+  await expect(bold).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  await expect(page.getByText("待保存", { exact: true })).toBeVisible();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const saved = await savedDocument(page);
+  const run = runsOf(saved).find((item) => item.text?.includes("风景"));
+  expect(run!.marks?.some((mark) => mark.type === "bold")).toBe(false);
+  await expectDocumentCovered(page, saved);
+});
+
+test("a cursor keeps an explicitly chosen weight after a family change", async ({
+  page,
+}) => {
+  await openPoster(page, "fontcursorweight");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "海报文字编辑" });
+  await input.fill("Hello");
+  await chooseOption(page, "文字字体", "Inter");
+  await expect(page.getByLabel("文字字体", { exact: true })).toBeEnabled();
+  await chooseOption(page, "文字字重", "700");
+  await expect(selectValue(page, "文字字重")).toHaveText("700");
+  await input.focus();
+  await input.press("End");
+  await input.pressSequentially("!");
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  await expect(page.getByText("待保存", { exact: true })).toBeVisible();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const saved = await savedDocument(page);
+  const typed = runsOf(saved).find((run) => run.text === "!");
+  expect(typed).toBeTruthy();
+  expect(
+    typed!.marks?.find((mark) => mark.type === "textStyle")?.attrs,
+  ).toMatchObject({ fontId: "builtin-inter-700", fontWeight: 700 });
+});
+
+test("a preset color changes only selected text and survives saving and reload", async ({
+  page,
+}) => {
+  await openPoster(page, "colorpreset");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  await chooseOption(page, "预设文字颜色", "莫兰迪 · 雾粉");
+  await expect(input.getByText("风景", { exact: true })).toHaveCSS(
+    "color",
+    "rgb(181, 143, 145)",
+  );
+  const outsideColor = await input.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      if (node.textContent === "你好")
+        return getComputedStyle(node.parentElement!).color;
+    }
+    throw new Error("Unselected text is missing");
+  });
+  expect(outsideColor).not.toBe("rgb(181, 143, 145)");
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  await page.getByRole("button", { name: "保存作品", exact: true }).click();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(
+    page.locator("[data-text-block]").getByText("风景", { exact: true }),
+  ).toHaveCSS("color", "rgb(181, 143, 145)");
+});
+
+test("new bundled Chinese families load and the final choice saves, reloads and exports", async ({
+  page,
+}) => {
+  await openPoster(page, "morefonts");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  for (const [label, id] of [
+    ["马善政毛笔楷书", "builtin-mashanzheng-400"],
+    ["龙藏手书", "builtin-longcang-400"],
+    ["站酷庆科黄油体", "builtin-zcool-qingke-400"],
+    ["刘建毛草", "builtin-liujianmaocao-400"],
+  ]) {
+    await chooseOption(page, "文字字体", label!);
+    const text = input.locator(`span[data-font-id="${id}"]`);
+    await expect(text).toHaveText("风景");
+    await expect(text).toHaveCSS("font-family", new RegExp(`fp_${id}`));
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (font) => document.fonts.check(`64px "fp_${font}"`, "风景"),
+          id,
+        ),
+      )
+      .toBe(true);
+  }
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  await page.getByRole("button", { name: "保存作品", exact: true }).click();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(
+    page.locator("[data-text-block]").getByText("风景", { exact: true }),
+  ).toHaveCSS("font-family", /fp_builtin-liujianmaocao-400/);
+  await page.getByRole("button", { name: "导出 PNG", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "下载原尺寸 PNG", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
 });

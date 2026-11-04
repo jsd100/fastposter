@@ -1,3 +1,4 @@
+import { BrandIcon } from "@fastposter/ui";
 import { useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -113,9 +114,7 @@ function AdminApp() {
             setUser(null);
             navigate("/admin/login");
           })
-          .catch((e) =>
-            notify.show({ tone: "error", title: errorMessage(e) }),
-          )
+          .catch((e) => notify.show({ tone: "error", title: errorMessage(e) }))
       }
     >
       {path === "/admin/users" ? (
@@ -163,7 +162,8 @@ function Login({ onUser }: { onUser: (user: UserDTO) => void }) {
   return (
     <main className="admin-login">
       <div className="brand">
-        <span className="brand-mark">Fp</span>FastPoster<small>管理后台</small>
+        <BrandIcon />
+        FastPoster<small>管理后台</small>
       </div>
       <form className="panel" onSubmit={submit}>
         <span className="eyebrow">CONTENT & OPERATIONS</span>
@@ -185,7 +185,9 @@ function Login({ onUser }: { onUser: (user: UserDTO) => void }) {
           autoComplete="current-password"
           required
         />
-        <Button variant="primary" busy={busy} type="submit">          登录管理后台
+        <Button variant="primary" busy={busy} type="submit">
+          {" "}
+          登录管理后台
         </Button>
       </form>
       <p className="admin-login-note">

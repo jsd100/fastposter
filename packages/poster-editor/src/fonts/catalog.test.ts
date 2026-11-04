@@ -26,3 +26,16 @@ it("orders bundled families by catalogue priority and keeps unknowns last", () =
     orderFamilies(["Unknown", "Inter", "Noto Serif SC", "LXGW WenKai"]),
   ).toEqual(["Noto Serif SC", "LXGW WenKai", "Inter", "Unknown"]);
 });
+
+it("prevents Latin-only fonts for a CJK target but keeps English and cursor choices available", async () => {
+  const { fontUnavailableReason } = await import("./catalog");
+  expect(fontUnavailableReason("Inter", "Design 海报")).toContain("西文");
+  expect(
+    fontUnavailableReason("Inter", "Long English prefix before 中文"),
+  ).toContain("西文");
+  expect(fontUnavailableReason("Inter", "全角，标点。")).toContain("西文");
+  expect(fontUnavailableReason("Inter", "Poster 2026")).toBeUndefined();
+  expect(fontUnavailableReason("Inter", "")).toBeUndefined();
+  expect(fontUnavailableReason("Noto Sans SC", "海报")).toBeUndefined();
+  expect(fontUnavailableReason("用户上传", "海报")).toBeUndefined();
+});

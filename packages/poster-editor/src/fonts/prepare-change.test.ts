@@ -47,7 +47,15 @@ const serif400 = source("serif-400", "Noto Serif SC", 400);
 const serif900 = source("serif-900", "Noto Serif SC", 900);
 const lxgw400 = source("lxgw-400", "LXGW WenKai", 400);
 const kuaile400 = source("kuaile-400", "ZCOOL KuaiLe", 400);
+const inter400 = source("inter-400", "Inter", 400);
+const inter700 = source("inter-700", "Inter", 700);
+const interItalic400 = source("inter-italic-400", "Inter", 400, "italic");
 const available = [sans400, sans700, serif400, serif900, lxgw400, kuaile400];
+const availableWithInter = [...available, inter400, inter700, interItalic400];
+const cursorAt = (from: number) => ({
+  blockId: "block",
+  target: { kind: "cursor" as const, from, to: from },
+});
 const bundled = [sans400, sans700, serif400, serif900, lxgw400];
 
 function block(id: string, content: RichNode): TextBlock {
@@ -372,6 +380,157 @@ it("drops unsupported bold and italic only inside the target range", () => {
     "新字体没有斜体，已取消斜体",
   ]);
   expect(() => parseDocument(change.nextDocument)).not.toThrow();
+});
+
+it("drops bold inherited at the cursor when the chosen family lacks 700", () => {
+  const doc = documentWith([block("block", mainContent)]);
+  const change = prepareFontChange(doc, cursorAt(7), kuaile400, available, {
+    cursorStyle: {
+      fontId: "sans-400",
+      fontSize: 64,
+      color: "#284632",
+      fontWeight: 700,
+    },
+  });
+  expect(change.insertionStyle).toEqual({
+    fontId: "kuaile-400",
+    fontWeight: 400,
+  });
+  expect(change.removeBold).toBe(true);
+  expect(change.adjustments).toEqual(["新字体没有 700 字重，已使用 400"]);
+});
+
+it("keeps cursor bold when the chosen family provides 700", () => {
+  const doc = documentWith([block("block", mainContent)]);
+  const change = prepareFontChange(doc, cursorAt(7), sans700, available, {
+    cursorStyle: {
+      fontId: "sans-400",
+      fontSize: 64,
+      color: "#284632",
+      fontWeight: 700,
+    },
+  });
+  expect(change.insertionStyle).toEqual({
+    fontId: "sans-700",
+    fontWeight: 700,
+  });
+  expect(change.removeBold).toBe(false);
+  expect(change.adjustments).toEqual([]);
+});
+
+it("resolves an explicit cursor weight after a family change", () => {
+  const doc = documentWith([block("block", mainContent)]);
+  const first = prepareFontChange(doc, cursorAt(7), inter400, availableWithInter, {
+    cursorStyle: {
+      fontId: "sans-400",
+      fontSize: 64,
+      color: "#284632",
+      fontWeight: 400,
+    },
+  });
+  expect(first.insertionStyle).toEqual({
+    fontId: "inter-400",
+    fontWeight: 400,
+  });
+  const second = prepareFontChange(
+    first.nextDocument,
+    cursorAt(7),
+    inter700,
+    availableWithInter,
+    {
+      cursorStyle: {
+        fontId: "inter-400",
+        fontSize: 64,
+        color: "#284632",
+        fontWeight: 400,
+      },
+      intent: "weight",
+    },
+  );
+  expect(second.insertionStyle).toEqual({
+    fontId: "inter-700",
+    fontWeight: 700,
+  });
+  expect(second.nextDocument.fonts.map((f) => f.assetId)).toContain("inter-700");
+});
+
+it("preserves supported weights from mixed families in one selection", () => {
+  const content: RichNode = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "Hello",
+            marks: [styleMark("sans-400", 64, "#284632", 400)],
+          },
+          {
+            type: "text",
+            text: "World",
+            marks: [styleMark("inter-700", 64, "#284632", 700)],
+          },
+        ],
+      },
+    ],
+  };
+  const doc = documentWith(
+    [block("block", content)],
+    [sans400, sans700, inter400, inter700],
+  );
+  const change = prepareFontChange(
+    doc,
+    { blockId: "block", target: { kind: "range", from: 1, to: 11 } },
+    sans400,
+    availableWithInter,
+  );
+  const runs = change.nextDocument.textBlocks[0].content.content![0].content!;
+  expect(
+    runs.map(
+      (run) => run.marks!.find((mark) => mark.type === "textStyle")!.attrs,
+    ),
+  ).toEqual([
+    { fontId: "sans-400", fontSize: 64, color: "#284632", fontWeight: 400 },
+    { fontId: "sans-700", fontSize: 64, color: "#284632", fontWeight: 700 },
+  ]);
+  expect(change.adjustments).toEqual([]);
+});
+
+it("includes implicit italic faces in the probe document", () => {
+  const content: RichNode = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "Hello",
+            marks: [
+              { type: "italic" },
+              styleMark("sans-400", 64, "#284632", 400),
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const doc = documentWith([block("block", content)]);
+  const change = prepareFontChange(
+    doc,
+    { blockId: "block", target: { kind: "range", from: 1, to: 6 } },
+    inter400,
+    availableWithInter,
+  );
+  expect(change.removeItalic).toBe(false);
+  expect(
+    change.nextDocument.fonts.some((font) => font.assetId === "inter-italic-400"),
+  ).toBe(true);
+  expect(
+    change.probeDocument.fonts.map((font) => font.assetId).sort(),
+  ).toEqual(["inter-400", "inter-italic-400"]);
+  expect(() => parseDocument(change.probeDocument)).not.toThrow();
 });
 
 it("builds a probe document with only the target text and needed references", () => {

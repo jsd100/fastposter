@@ -12,6 +12,7 @@ export type SelectOption<T extends string | number> = {
   value: T;
   label: string;
   disabled?: boolean;
+  swatch?: string;
 };
 
 export type SelectProps<T extends string | number> = {
@@ -59,6 +60,7 @@ export function Select<T extends string | number>({
     if (typeof ref === "function") ref(node);
     else if (ref) ref.current = node;
   };
+  const selected = options.find((option) => option.value === value);
   const current =
     valueLabel ?? options.find((option) => option.value === value)?.label;
   return (
@@ -84,6 +86,13 @@ export function Select<T extends string | number>({
           density === "compact" ? ` ${styles.compact}` : ""
         } ${className}`}
       >
+        {selected?.swatch && (
+          <span
+            aria-hidden="true"
+            className={styles.swatch}
+            style={{ backgroundColor: selected.swatch }}
+          />
+        )}
         <SelectPrimitive.Value className={styles.value} data-fp-select-value="">
           {valueLabel ?? null}
         </SelectPrimitive.Value>
@@ -116,7 +125,14 @@ export function Select<T extends string | number>({
                   title={option.label}
                   className={styles.item}
                 >
-                  <SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemText className={styles.optionLabel}>
+                    {option.swatch && (
+                      <span
+                        aria-hidden="true"
+                        className={styles.swatch}
+                        style={{ backgroundColor: option.swatch }}
+                      />
+                    )}
                     {option.label}
                   </SelectPrimitive.ItemText>
                   <SelectPrimitive.ItemIndicator className={styles.indicator}>

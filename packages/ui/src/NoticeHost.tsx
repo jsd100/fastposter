@@ -141,6 +141,11 @@ export function useErrorNotice(
   const { show, close } = useNotify();
   const optionsRef = useRef(options);
   optionsRef.current = options;
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  const idRef = useRef(id);
+  idRef.current = id;
+  useEffect(() => () => closeRef.current(idRef.current), []);
   useEffect(() => {
     if (!error) {
       close(id);

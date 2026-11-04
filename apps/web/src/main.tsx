@@ -1,3 +1,4 @@
+import { BrandIcon } from "@fastposter/ui";
 import React, { useEffect, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -22,7 +23,7 @@ function App() {
   if (user === undefined)
     return (
       <main className="app-loading">
-        <span className="brand-mark">Fp</span>
+        <BrandIcon />
         <Status>正在打开创作空间…</Status>
       </main>
     );

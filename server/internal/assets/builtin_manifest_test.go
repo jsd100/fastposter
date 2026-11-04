@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func TestBuiltinManifestDeclaresSixFamilies(t *testing.T) {
+func TestBuiltinManifestDeclaresTenFamilies(t *testing.T) {
 	root, e := filepath.Abs("../../..")
 	if e != nil {
 		t.Fatal(e)
@@ -21,16 +21,20 @@ func TestBuiltinManifestDeclaresSixFamilies(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(manifest.Faces) != 11 {
-		t.Fatalf("faces %d, want 11", len(manifest.Faces))
+	if len(manifest.Faces) != 15 {
+		t.Fatalf("faces %d, want 15", len(manifest.Faces))
 	}
 	want := map[string][]int{
-		"Noto Sans SC":  {400, 700, 900},
-		"Noto Serif SC": {400, 700, 900},
-		"LXGW WenKai":   {400},
-		"ZCOOL KuaiLe":  {400},
-		"ZCOOL XiaoWei": {400},
-		"Inter":         {400, 700},
+		"Noto Sans SC":          {400, 700, 900},
+		"Noto Serif SC":         {400, 700, 900},
+		"LXGW WenKai":           {400},
+		"ZCOOL KuaiLe":          {400},
+		"ZCOOL XiaoWei":         {400},
+		"Inter":                 {400, 700},
+		"Ma Shan Zheng":         {400},
+		"Long Cang":             {400},
+		"ZCOOL QingKe HuangYou": {400},
+		"Liu Jian Mao Cao":      {400},
 	}
 	faces := map[string]builtinFace{}
 	weights := map[string][]int{}
@@ -51,8 +55,8 @@ func TestBuiltinManifestDeclaresSixFamilies(t *testing.T) {
 			t.Fatalf("%s declared weight is not provided by its file: %v", face.ID, e)
 		}
 	}
-	if len(weights) != 6 {
-		t.Fatalf("families %d, want 6", len(weights))
+	if len(weights) != 10 {
+		t.Fatalf("families %d, want 10", len(weights))
 	}
 	for family, wantWeights := range want {
 		got := slices.Clone(weights[family])

@@ -16,6 +16,7 @@ var builtinFaceIDs = []string{
 	"builtin-noto-serif-sc-400", "builtin-noto-serif-sc-700", "builtin-noto-serif-sc-900",
 	"builtin-lxgw-wenkai-400", "builtin-zcool-kuaile-400", "builtin-zcool-xiaowei-400",
 	"builtin-inter-400", "builtin-inter-700",
+	"builtin-mashanzheng-400", "builtin-longcang-400", "builtin-zcool-qingke-400", "builtin-liujianmaocao-400",
 }
 
 func builtinService(t *testing.T) (*assets.Service, context.Context) {
@@ -71,7 +72,7 @@ func TestBuiltinFontsUpgradeIsIdempotent(t *testing.T) {
 		}
 	}
 	list, e = svc.ListFonts(ctx, auth.Principal{UserID: "reader", Role: "user"})
-	if e != nil || len(list) != 11 {
+	if e != nil || len(list) != 15 {
 		t.Fatalf("upgraded faces %d %v", len(list), e)
 	}
 	seen := map[string]int{}

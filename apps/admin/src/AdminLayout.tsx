@@ -1,3 +1,4 @@
+import { BrandIcon } from "@fastposter/ui";
 import { IconButton, Tooltip } from "@fastposter/ui";
 import type { ReactNode } from "react";
 import type { UserDTO } from "@fastposter/api-client";
@@ -41,7 +42,8 @@ export function AdminLayout({
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <Link className="brand" href="/admin/overview">
-          <span className="brand-mark">Fp</span>FastPoster<small>管理</small>
+          <BrandIcon />
+          FastPoster<small>管理</small>
         </Link>
         <div className="sidebar-caption">内容与运行</div>
         <nav>

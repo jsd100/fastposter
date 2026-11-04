@@ -6,7 +6,12 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Combobox, type ComboboxOption } from "@fastposter/ui";
 import { fontWeights } from "../panels/font-options";
-import { fontCategory, fontDisplayName, orderFamilies } from "./catalog";
+import {
+  fontCategory,
+  fontDisplayName,
+  fontUnavailableReason,
+  orderFamilies,
+} from "./catalog";
 import styles from "./FontPicker.module.css";
 
 const categoryOrder = ["通用", "文艺", "标题", "西文", "其他"] as const;
@@ -15,24 +20,29 @@ export function FontPicker({
   fonts,
   value,
   sample,
+  targetText,
   disabled,
   onChoose,
 }: {
   fonts: FontSource[];
   value: string;
   sample: string;
+  targetText: string;
   disabled?: boolean;
   onChoose: (font: FontSource) => void;
 }) {
   const families = useMemo(() => {
     const names = orderFamilies([
       ...new Set(
-        fonts.filter((font) => font.style === "normal").map((font) => font.family),
+        fonts
+          .filter((font) => font.style === "normal")
+          .map((font) => font.family),
       ),
     ]);
     return names.flatMap((family) => {
       const faces = fontWeights(fonts, family);
-      const face = faces.find((candidate) => candidate.weight === 400) ?? faces[0];
+      const face =
+        faces.find((candidate) => candidate.weight === 400) ?? faces[0];
       if (!face) return [];
       return [
         {
@@ -48,15 +58,18 @@ export function FontPicker({
       [...families]
         .sort(
           (a, b) =>
-            categoryOrder.indexOf(a.category as (typeof categoryOrder)[number]) -
+            categoryOrder.indexOf(
+              a.category as (typeof categoryOrder)[number],
+            ) -
             categoryOrder.indexOf(b.category as (typeof categoryOrder)[number]),
         )
         .map(({ face, family, category }) => ({
           value: face.assetId,
           label: fontDisplayName(family),
           group: category,
+          disabled: !!fontUnavailableReason(family, targetText),
         })),
-    [families],
+    [families, targetText],
   );
   const activeFamily = fonts.find((font) => font.assetId === value)?.family;
   const selected = families.find((entry) => entry.family === activeFamily);
@@ -97,7 +110,8 @@ export function FontPicker({
       disabled={disabled}
       onValueChange={(assetId) => {
         const face = fonts.find((font) => font.assetId === assetId);
-        if (face) onChoose(face);
+        if (face && !fontUnavailableReason(face.family, targetText))
+          onChoose(face);
       }}
       onHighlightChange={setHighlighted}
       preview={
@@ -108,7 +122,9 @@ export function FontPicker({
             data-font-family={preview.family}
             style={{ fontFamily: fontFamily(preview.face.assetId) }}
           >
-            <span className={styles.sample}>{sample}</span>
+            <span className={styles.sample}>
+              {preview.category === "西文" ? "Design Aa 123" : sample}
+            </span>
             <span className={styles.caption}>
               {fontDisplayName(preview.family)}
               {failed === previewId ? " · 预览加载失败" : " · 预览"}

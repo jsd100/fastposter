@@ -6,6 +6,7 @@ import {
   captureSelection,
   restoreSelection,
   applyTextStyle,
+  effectiveInlineStyle,
   firstTargetStyle,
   type FontTarget,
   type InlineStylePatch,
@@ -21,6 +22,7 @@ import {
   type ReactNode,
 } from "react";
 import type {
+  InlineStyle,
   PosterDocument,
   RichMark,
   RichNode,
@@ -141,10 +143,24 @@ export function Editor({
       const block = current.document.textBlocks.find(
         (candidate) => candidate.id === current.selectedId,
       );
+      const target = block ? fontTarget(block.id) : null;
+      let cursorStyle: InlineStyle | undefined;
+      if (
+        block &&
+        target?.target.kind === "cursor" &&
+        activeEditor &&
+        !activeEditor.isDestroyed
+      ) {
+        const marks =
+          activeEditor.state.storedMarks ??
+          activeEditor.state.selection.$from.marks();
+        cursorStyle = effectiveInlineStyle(marks, block.defaultStyle);
+      }
       return {
         document: current.document,
-        target: block ? fontTarget(block.id) : null,
+        target,
         scope: fontCheckScope,
+        cursorStyle,
       };
     },
     apply: applyPreparedFontChange,
@@ -304,6 +320,7 @@ export function Editor({
       try {
         if (change.target.target.kind === "cursor") {
           if (change.removeItalic) editor.commands.unsetItalic();
+          if (change.removeBold) editor.commands.unsetBold();
           editor.commands.setMark("textStyle", change.insertionStyle);
         } else {
           editor.commands.setContent(block.content, { emitUpdate: false });
@@ -371,7 +388,7 @@ export function Editor({
       editor={state.mode === "edit" ? activeEditor : null}
       fonts={availableFonts}
       apply={apply}
-      chooseFont={(face) => void fontChoice.choose(face)}
+      chooseFont={(face, intent) => void fontChoice.choose(face, intent)}
       fontPending={fontChoice.pending}
       sizeBase={
         firstTargetStyle(state.document, fontTarget(selected.id)).fontSize
@@ -507,6 +524,7 @@ export function Editor({
                   <RichTextEditor
                     block={b}
                     store={store}
+                    fonts={availableFonts}
                     onReady={(editor) => {
                       setActiveEditor(editor);
                       textSelection.current = editor

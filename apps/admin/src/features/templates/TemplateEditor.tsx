@@ -79,33 +79,28 @@ export function TemplateEditor({
       ...f,
       style: f.style === "italic" ? "italic" : "normal",
     }));
-    const needed = [...sources];
-    for (const ref of initial?.fonts ?? [])
-      if (
-        !needed.some(
-          (f) => f.assetId === ref.assetId && f.version === ref.version,
-        )
-      )
-        needed.push({
+    const needed: FontSource[] = [];
+    for (const ref of initial?.fonts ?? []) {
+      let match = sources.find(
+        (f) => f.assetId === ref.assetId && f.version === ref.version,
+      );
+      if (!match) {
+        match = {
           ...ref,
           url: `/api/v1/assets/${ref.assetId}/versions/${ref.version}`,
           style: ref.style === "italic" ? "italic" : "normal",
-        });
+        };
+        sources.push(match);
+      }
+      needed.push(match);
+    }
+    setAvailableFonts(sources);
+    setFontsReady(true);
+    if (!needed.length) return;
     let active = true;
-    setFontsReady(false);
-    loadFonts(needed)
-      .then(() => {
-        if (active) {
-          setAvailableFonts(needed);
-          setFontsReady(true);
-        }
-      })
-      .catch((e) => {
-        if (active) setError(errorMessage(e));
-      })
-      .finally(() => {
-        if (active) setFontsReady(true);
-      });
+    loadFonts(needed).catch((e) => {
+      if (active) setError(errorMessage(e));
+    });
     return () => {
       active = false;
     };

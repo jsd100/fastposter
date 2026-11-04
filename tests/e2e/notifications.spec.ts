@@ -127,3 +127,77 @@ test("account switch clears old notices", async ({ browser, request }) => {
   await expect(pageA.getByTestId("notice")).toHaveCount(0);
   await context.close();
 });
+
+test("rename retry submits the title currently shown", async ({ page }) => {
+  await openPoster(page, "notice_rename_latest");
+  await page.getByRole("link", { name: "返回作品" }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  const card = page.getByTestId("project-card").first();
+  await card.getByLabel(/的操作$/).click();
+  await card.getByRole("button", { name: "重命名" }).click();
+  const dialog = page.getByRole("dialog", { name: "重命名作品" });
+  const name = page.getByLabel("作品名称", { exact: true });
+  const titles: string[] = [];
+  await page.route("**/api/v1/projects/*", async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    titles.push(
+      (route.request().postDataJSON() as { title: string }).title,
+    );
+    if (titles.length <= 2)
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ code: "SAVE_FAILED", message: "重命名失败" }),
+      });
+    return route.continue();
+  });
+  await name.fill("title A");
+  await page.getByRole("button", { name: "保存名称" }).click();
+  await expect(page.getByTestId("notice")).toContainText("重命名失败");
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByTestId("notice").filter({ hasText: "重命名失败" }),
+  ).toHaveCount(0);
+
+  await card.getByLabel(/的操作$/).click();
+  await card.getByRole("button", { name: "重命名" }).click();
+  await name.fill("title A");
+  await page.getByRole("button", { name: "保存名称" }).click();
+  await expect(page.getByTestId("notice")).toContainText("重命名失败");
+  await name.fill("title B");
+  await page.getByTestId("notice-action").click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("title B", { exact: true })).toBeVisible();
+  expect(titles).toEqual(["title A", "title A", "title B"]);
+});
+
+test("closing a picker dismisses its persistent error notice", async ({
+  page,
+}) => {
+  await openPoster(page, "notice_picker_close");
+  await page.route(/\/api\/v1\/catalog\/background(\?|$)/, (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "INTERNAL",
+        message: "review-background-error",
+      }),
+    }),
+  );
+  await page.getByRole("button", { name: "背景库", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "背景库" });
+  await expect(
+    page
+      .getByTestId("notice")
+      .filter({ hasText: "review-background-error" }),
+  ).toBeVisible();
+  await picker.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(picker).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("notice")
+      .filter({ hasText: "review-background-error" }),
+  ).toHaveCount(0);
+});
