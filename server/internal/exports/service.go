@@ -80,23 +80,13 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, projectID, revis
 	if len(idempotency) < 1 || len(idempotency) > 128 {
 		return Job{}, domain.E("INVALID_INPUT", "导出请求标识无效")
 	}
-	snapshot, e := s.Projects.ResolveSnapshot(ctx, p, projectID, revision)
-	if e != nil {
-		return Job{}, e
-	}
-	if e = validateFontFaces(snapshot.Document); e != nil {
-		return Job{}, domain.E("MISSING_FONT", "缺少所需字体字重或斜体版本，请重新选择字体")
-	}
-	raw, e := json.Marshal(snapshot)
-	if e != nil {
-		return Job{}, e
-	}
-	sum := sha256.Sum256(raw)
-	tx, e := s.DB.BeginTx(ctx, nil)
+	tx, e := s.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if e != nil {
 		return Job{}, e
 	}
 	defer tx.Rollback()
+	// Locking the owner user first keeps export creation, claiming and permanent
+	// deletion in one lock order: user -> project -> job -> asset versions.
 	var user string
 	if e = tx.QueryRowContext(ctx, "SELECT id FROM users WHERE id=? FOR UPDATE", p.UserID).Scan(&user); e != nil {
 		return Job{}, e
@@ -112,6 +102,18 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, projectID, revis
 	if !errors.As(e, &known) || known.Code != "NOT_FOUND" {
 		return Job{}, e
 	}
+	snapshot, e := s.Projects.ResolveSnapshotTx(ctx, tx, p, projectID, revision)
+	if e != nil {
+		return Job{}, e
+	}
+	if e = validateFontFaces(snapshot.Document); e != nil {
+		return Job{}, domain.E("MISSING_FONT", "缺少所需字体字重或斜体版本，请重新选择字体")
+	}
+	raw, e := json.Marshal(snapshot)
+	if e != nil {
+		return Job{}, e
+	}
+	sum := sha256.Sum256(raw)
 	var queued int
 	if e = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM export_jobs WHERE user_id=? AND state='queued'", p.UserID).Scan(&queued); e != nil {
 		return Job{}, e
@@ -146,43 +148,86 @@ func (s *Service) Claim(ctx context.Context, workerID string, now time.Time) (*L
 	if _, e := s.DB.ExecContext(ctx, "UPDATE export_jobs SET state='failed',error_code='ATTEMPTS_EXHAUSTED',error_message='导出进程多次中断，请重新发起导出',lease_token=NULL,lease_until=NULL WHERE state='running' AND lease_until<=? AND attempts>=2", now); e != nil {
 		return nil, e
 	}
-	tx, e := s.DB.BeginTx(ctx, nil)
+	for attempt := 0; attempt < 5; attempt++ {
+		candidate, e := scanJob(s.DB.QueryRowContext(ctx, "SELECT "+jobColumns+",snapshot FROM export_jobs j WHERE ((state='queued' AND available_at<=?) OR (state='running' AND lease_until<=? AND attempts<2)) AND NOT EXISTS(SELECT 1 FROM export_jobs active WHERE active.user_id=j.user_id AND active.state='running' AND active.lease_until>? AND active.id<>j.id) ORDER BY created_at,id LIMIT 1", now, now, now), true)
+		if e != nil {
+			var known *domain.Error
+			if errors.As(e, &known) && known.Code == "NOT_FOUND" {
+				return nil, nil
+			}
+			return nil, e
+		}
+		lease, again, e := s.claimCandidate(ctx, candidate, now)
+		if e != nil {
+			return nil, e
+		}
+		if !again {
+			return lease, nil
+		}
+	}
+	return nil, nil
+}
+
+// claimCandidate locks the candidate in the shared order and revalidates it
+// with a current read; true means the candidate changed and Claim must reselect.
+func (s *Service) claimCandidate(ctx context.Context, candidate Job, now time.Time) (*Lease, bool, error) {
+	tx, e := s.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if e != nil {
-		return nil, e
+		return nil, false, e
 	}
 	defer tx.Rollback()
-	query := "SELECT " + jobColumns + ",snapshot FROM export_jobs j WHERE ((state='queued' AND available_at<=?) OR (state='running' AND lease_until<=? AND attempts<2)) AND NOT EXISTS(SELECT 1 FROM export_jobs active WHERE active.user_id=j.user_id AND active.state='running' AND active.lease_until>? AND active.id<>j.id) ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED"
-	job, e := scanJob(tx.QueryRowContext(ctx, query, now, now, now), true)
-	if e != nil {
-		var known *domain.Error
-		if errors.As(e, &known) && known.Code == "NOT_FOUND" {
-			return nil, nil
-		}
-		return nil, e
-	}
 	var user string
-	if e = tx.QueryRowContext(ctx, "SELECT id FROM users WHERE id=? FOR UPDATE", job.UserID).Scan(&user); e != nil {
-		return nil, e
+	if e = tx.QueryRowContext(ctx, "SELECT id FROM users WHERE id=? FOR UPDATE", candidate.UserID).Scan(&user); e != nil {
+		return nil, false, e
+	}
+	var project string
+	if e = tx.QueryRowContext(ctx, "SELECT id FROM projects WHERE id=? FOR UPDATE", candidate.ProjectID).Scan(&project); errors.Is(e, sql.ErrNoRows) {
+		// The project row cannot disappear while its job survives, but a manual
+		// repair must not let the orphan starve every other pending export.
+		if _, e = tx.ExecContext(ctx, "UPDATE export_jobs SET state='failed',error_code='PROJECT_DELETED',error_message='作品已删除，导出已取消',lease_token=NULL,lease_until=NULL WHERE id=?", candidate.ID); e != nil {
+			return nil, false, e
+		}
+		if e = tx.Commit(); e != nil {
+			return nil, false, e
+		}
+		return nil, true, nil
+	} else if e != nil {
+		return nil, false, e
+	}
+	var state string
+	var attempts int
+	var available, leaseUntil sql.NullTime
+	if e = tx.QueryRowContext(ctx, "SELECT state,attempts,available_at,lease_until FROM export_jobs WHERE id=? FOR UPDATE", candidate.ID).Scan(&state, &attempts, &available, &leaseUntil); e != nil {
+		if errors.Is(e, sql.ErrNoRows) {
+			return nil, true, nil
+		}
+		return nil, false, e
+	}
+	queued := state == "queued" && available.Valid && !available.Time.After(now)
+	recoverable := state == "running" && attempts < 2 && leaseUntil.Valid && !leaseUntil.Time.After(now)
+	if !queued && !recoverable {
+		return nil, true, nil
 	}
 	var active int
-	if e = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM export_jobs WHERE user_id=? AND state='running' AND lease_until>? AND id<>?", job.UserID, now, job.ID).Scan(&active); e != nil {
-		return nil, e
+	if e = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM export_jobs WHERE user_id=? AND state='running' AND lease_until>? AND id<>?", candidate.UserID, now, candidate.ID).Scan(&active); e != nil {
+		return nil, false, e
 	}
 	if active > 0 {
-		return nil, nil
+		return nil, true, nil
 	}
 	token := domain.ID()
 	until := now.Add(30 * time.Second)
-	_, e = tx.ExecContext(ctx, "UPDATE export_jobs SET state='running',attempts=attempts+1,lease_token=?,lease_until=?,error_code=NULL,error_message=NULL WHERE id=?", token, until, job.ID)
+	if _, e = tx.ExecContext(ctx, "UPDATE export_jobs SET state='running',attempts=attempts+1,lease_token=?,lease_until=?,error_code=NULL,error_message=NULL WHERE id=?", token, until, candidate.ID); e != nil {
+		return nil, false, e
+	}
+	job, e := scanJob(tx.QueryRowContext(ctx, "SELECT "+jobColumns+",snapshot FROM export_jobs WHERE id=?", candidate.ID), true)
 	if e != nil {
-		return nil, e
+		return nil, false, e
 	}
-	job.State = "running"
-	job.Attempts++
 	if e = tx.Commit(); e != nil {
-		return nil, e
+		return nil, false, e
 	}
-	return &Lease{Job: job, Token: token, Until: until}, nil
+	return &Lease{Job: job, Token: token, Until: until}, false, nil
 }
 func affected(result sql.Result, e error) error {
 	if e != nil {

@@ -131,6 +131,24 @@ func (s *Service) writeRevision(ctx context.Context, tx *sql.Tx, id string, revi
 	return nil
 }
 func (s *Service) ResolveSnapshot(ctx context.Context, p auth.Principal, id, revision string) (RenderSnapshot, error) {
+	tx, e := s.DB.BeginTx(ctx, nil)
+	if e != nil {
+		return RenderSnapshot{}, e
+	}
+	defer tx.Rollback()
+	out, e := s.ResolveSnapshotTx(ctx, tx, p, id, revision)
+	if e != nil {
+		return RenderSnapshot{}, e
+	}
+	if e = tx.Commit(); e != nil {
+		return RenderSnapshot{}, e
+	}
+	return out, nil
+}
+
+// ResolveSnapshotTx resolves a project revision inside the caller's transaction
+// so a snapshot and the rows referencing it cannot straddle a deletion.
+func (s *Service) ResolveSnapshotTx(ctx context.Context, tx *sql.Tx, p auth.Principal, id, revision string) (RenderSnapshot, error) {
 	if e := auth.RequireUsable(p); e != nil {
 		return RenderSnapshot{}, e
 	}
@@ -138,11 +156,6 @@ func (s *Service) ResolveSnapshot(ctx context.Context, p auth.Principal, id, rev
 	if e != nil {
 		return RenderSnapshot{}, e
 	}
-	tx, e := s.DB.BeginTx(ctx, nil)
-	if e != nil {
-		return RenderSnapshot{}, e
-	}
-	defer tx.Rollback()
 	if _, e = scanProject(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM projects WHERE id=? AND owner_id=? AND deleted_at IS NULL FOR SHARE", id, p.UserID)); e != nil {
 		return RenderSnapshot{}, e
 	}
@@ -158,14 +171,7 @@ func (s *Service) ResolveSnapshot(ctx context.Context, p auth.Principal, id, rev
 	if e != nil {
 		return RenderSnapshot{}, e
 	}
-	out, e := s.resolveRefs(ctx, tx, p, doc)
-	if e != nil {
-		return RenderSnapshot{}, e
-	}
-	if e = tx.Commit(); e != nil {
-		return RenderSnapshot{}, e
-	}
-	return out, nil
+	return s.resolveRefs(ctx, tx, p, doc)
 }
 
 func (s *Service) ValidateDocument(ctx context.Context, p auth.Principal, d document.Document) (RenderSnapshot, error) {
