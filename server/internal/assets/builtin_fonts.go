@@ -1,11 +1,13 @@
 package assets
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fastposter/server/internal/auth"
 	"fastposter/server/internal/document"
 	"fastposter/server/internal/domain"
@@ -136,6 +138,10 @@ func (s *Service) BootstrapFonts(ctx context.Context, root string) error {
 	if e != nil {
 		return e
 	}
+	sourcesByHash := make(map[string]string, len(manifest.Files))
+	for name, hash := range manifest.Files {
+		sourcesByHash[strings.ToLower(hash)] = filepath.Join(root, "assets/fonts", name)
+	}
 	s.setBuiltinFaces(manifest.Faces)
 	if _, e = conn.ExecContext(ctx, "INSERT IGNORE INTO users(id,username,username_normalized,password_hash,disabled) VALUES('system','FastPoster System','system:fastposter','!no-login!',1)"); e != nil {
 		return e
@@ -146,6 +152,9 @@ func (s *Service) BootstrapFonts(ctx context.Context, root string) error {
 			return e
 		}
 		if count > 0 {
+			if e = s.restoreBuiltinFontFiles(ctx, conn, face.ID, sourcesByHash); e != nil {
+				return fmt.Errorf("builtin font %s: %w", face.ID, e)
+			}
 			continue
 		}
 		data, e := os.ReadFile(filepath.Join(root, "assets/fonts", face.File))
@@ -195,5 +204,78 @@ func (s *Service) BootstrapFonts(ctx context.Context, root string) error {
 		return e
 	}
 
+	return nil
+}
+
+// Restore only exact bytes at existing immutable keys; never create a new version
+// or change publication state merely because the runtime data directory was lost.
+func (s *Service) restoreBuiltinFontFiles(ctx context.Context, conn *sql.Conn, assetID string, sourcesByHash map[string]string) error {
+	rows, e := conn.QueryContext(ctx, "SELECT original_key,original_sha256,original_size,normalized_key,normalized_sha256,normalized_size FROM asset_versions WHERE asset_id=? ORDER BY version", assetID)
+	if e != nil {
+		return e
+	}
+	type storedFile struct {
+		key  storage.Key
+		hash string
+		size int64
+	}
+	files := map[storage.Key]storedFile{}
+	for rows.Next() {
+		var original, normalized storedFile
+		if e = rows.Scan(&original.key, &original.hash, &original.size, &normalized.key, &normalized.hash, &normalized.size); e != nil {
+			rows.Close()
+			return e
+		}
+		for _, file := range []storedFile{original, normalized} {
+			file.hash = strings.ToLower(file.hash)
+			if file.key == "" {
+				rows.Close()
+				return domain.E("MISSING_FONT", "内置字体缺少文件引用，请从备份恢复")
+			}
+			if previous, ok := files[file.key]; ok && previous != file {
+				rows.Close()
+				return domain.E("MISSING_FONT", "内置字体文件引用的校验信息不一致")
+			}
+			files[file.key] = file
+		}
+	}
+	e = rows.Err()
+	rows.Close()
+	if e != nil {
+		return e
+	}
+	if len(files) == 0 {
+		return domain.E("MISSING_FONT", "内置字体缺少版本记录，请从备份恢复")
+	}
+	for _, file := range files {
+		info, statError := s.Store.Stat(ctx, file.key)
+		if statError != nil {
+			if !errors.Is(statError, os.ErrNotExist) {
+				return statError
+			}
+			source, ok := sourcesByHash[file.hash]
+			if !ok {
+				return domain.E("MISSING_FONT", "内置字体文件缺失，仓库中没有该版本的原始文件，请从备份恢复")
+			}
+			data, readError := os.ReadFile(source)
+			if readError != nil {
+				return readError
+			}
+			sum := sha256.Sum256(data)
+			if int64(len(data)) != file.size || hex.EncodeToString(sum[:]) != file.hash {
+				return domain.E("MISSING_FONT", "内置字体源文件与已保存版本不一致，无法自动恢复")
+			}
+			info, e = s.Store.Put(ctx, file.key, bytes.NewReader(data))
+			if errors.Is(e, os.ErrExist) {
+				info, e = s.Store.Stat(ctx, file.key)
+			}
+			if e != nil {
+				return storageError(e)
+			}
+		}
+		if info.Size != file.size || !strings.EqualFold(info.SHA256, file.hash) {
+			return domain.E("MISSING_FONT", "内置字体运行文件校验失败，未覆盖现有文件，请从备份恢复")
+		}
+	}
 	return nil
 }

@@ -1,6 +1,7 @@
 .superpowers/
 .env
 .env.local
+# Private runtime data and regenerable copies; bundled resources live in assets/.
 var/
 .tools/
 .cache/
