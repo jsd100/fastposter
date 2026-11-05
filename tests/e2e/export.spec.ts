@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { openPoster } from "./helpers";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 test("flushes latest edits and previews the exact native PNG available for download", async ({
   page,
 }) => {
@@ -37,6 +37,8 @@ test("flushes latest edits and previews the exact native PNG available for downl
       .update(await readFile(path!))
       .digest("hex"),
   ).toBe(createHash("sha256").update(body).digest("hex"));
+  const baseline = process.env.FP_EXPORT_BASELINE_PATH;
+  if (baseline) await writeFile(baseline, await readFile(path!));
 });
 
 test("closing the export dialog mid-flight reopens the same job and unlocks the page", async ({

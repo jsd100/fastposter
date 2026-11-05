@@ -46,9 +46,7 @@ async function submitAdminLogin(page: Page) {
   await page
     .getByLabel("密码", { exact: true })
     .fill("fastposter-test-only-password");
-  await page
-    .getByRole("button", { name: "登录管理后台", exact: true })
-    .click();
+  await page.getByRole("button", { name: "登录管理后台", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/overview$/);
 }
 
@@ -203,9 +201,7 @@ describeCapture("desktop 1440x1000", () => {
     await shoot(page, "d-02-projects");
 
     await page.getByRole("button", { name: "模板库", exact: true }).click();
-    await expect(
-      page.getByRole("dialog", { name: "模板库" }),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "模板库" })).toBeVisible();
     await shoot(page, "d-03-template-picker");
     await page.getByRole("textbox", { name: "搜索模板" }).focus();
     await shoot(page, "d-09-template-search-focus");
@@ -253,27 +249,22 @@ describeCapture("desktop 1440x1000", () => {
 
     await font.click();
     await expect(page.getByRole("listbox")).toBeVisible();
-    await page
+    const interOption = page
       .getByRole("listbox")
-      .getByRole("option", { name: "Inter", exact: true })
-      .click();
-    await expect(
-      page.getByTestId("notice").filter({ hasText: "缺少字形" }),
-    ).toBeVisible();
-    await shoot(page, "d-11-font-rejection-toast");
-    await page.getByTestId("notice-close").click();
+      .getByRole("option", { name: "Inter", exact: true });
+    await expect(interOption).toBeDisabled();
+    await interOption.scrollIntoViewIfNeeded();
+    await shoot(page, "d-11-font-unavailable");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
 
     await page.getByRole("button", { name: "背景库", exact: true }).click();
-    await expect(
-      page.getByRole("dialog", { name: "背景库" }),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "背景库" })).toBeVisible();
     await shoot(page, "d-05-background-picker");
     await page.getByRole("button", { name: "关闭", exact: true }).click();
 
     await page.getByRole("button", { name: "文案", exact: true }).click();
-    await expect(
-      page.getByRole("dialog", { name: "文案库" }),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "文案库" })).toBeVisible();
     await shoot(page, "d-06-copy-picker");
     await page.getByRole("button", { name: "关闭", exact: true }).click();
   });
@@ -354,18 +345,19 @@ describeCapture("mobile 390x844", () => {
 
     await font.click();
     await expect(page.getByRole("listbox")).toBeVisible();
-    await page
+    const interOption = page
       .getByRole("listbox")
-      .getByRole("option", { name: "Inter", exact: true })
-      .click();
-    await expect(
-      page.getByTestId("notice").filter({ hasText: "缺少字形" }),
-    ).toBeVisible();
-    await shoot(page, "m-11-font-rejection-toast");
-    await page.getByTestId("notice-close").click();
+      .getByRole("option", { name: "Inter", exact: true });
+    await expect(interOption).toBeDisabled();
+    await interOption.scrollIntoViewIfNeeded();
+    await shoot(page, "m-11-font-unavailable");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
 
     await page.getByRole("button", { name: "关闭", exact: true }).click();
-    await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+    await page
+      .getByRole("button", { name: "完成文字编辑", exact: true })
+      .click();
 
     await page.getByRole("button", { name: "背景库", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "背景库" })).toBeVisible();
