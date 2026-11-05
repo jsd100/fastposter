@@ -401,8 +401,7 @@
   margin: 12px 0;
 }
 .panel-field [data-fp-input],
-.panel-field .select,
-.panel-field input[type="color"] {
+.panel-field .select {
   width: 100%;
   min-width: 0;
   border: 1px solid #dce6d0;
@@ -418,14 +417,9 @@
   padding: 0 10px;
 }
 .panel-field [data-fp-input]:focus,
-.panel-field .select:focus,
-.panel-field input[type="color"]:focus {
+.panel-field .select:focus {
   border-color: var(--fp-focus-line);
   box-shadow: 0 0 0 3px var(--fp-focus-shadow);
-}
-.panel-field input[type="color"] {
-  padding: 4px;
-  cursor: pointer;
 }
 .panel-row {
   display: grid;
@@ -508,8 +502,7 @@
     border-top: 0;
   }
   .panel-field [data-fp-input],
-  .panel-field .select,
-  .panel-field input[type="color"] {
+  .panel-field .select {
     font-size: 16px;
     min-height: 44px;
   }

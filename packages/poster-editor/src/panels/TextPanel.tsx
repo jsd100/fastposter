@@ -10,6 +10,7 @@ import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
 import { selectionStyle, type InlineStylePatch } from "../text/selection";
 import type { FontChoiceIntent } from "../fonts/prepare-change";
 import { FontPicker } from "../fonts/FontPicker";
+import { ColorField } from "./ColorField";
 import { ParagraphPanel } from "./ParagraphPanel";
 import { StylePanel } from "./StylePanel";
 export function TextPanel({
@@ -131,11 +132,12 @@ export function TextPanel({
         </label>
         <label className="panel-field">
           颜色
-          <input
-            aria-label="文字颜色"
-            type="color"
-            value={(current.color ?? "#000000").slice(0, 7)}
-            onChange={(e) => apply({ color: e.target.value })}
+          <ColorField
+            label="文字颜色"
+            value={current.color ?? "#000000"}
+            onChange={(color) => apply({ color })}
+            onInteractionStart={onNumericStart}
+            onInteractionEnd={onNumericEnd}
           />
           {current.color === null && <small>混合</small>}
         </label>

@@ -59,6 +59,25 @@ describe("shouldIgnoreEditorShortcut", () => {
     vi.stubGlobal("document", {
       querySelector: (selector: string) =>
         selector === "[data-fp-overlay]" ? {} : null,
+      querySelectorAll: () => [],
+    });
+    expect(shouldIgnoreEditorShortcut(keyboardEvent())).toBe(true);
+  });
+
+  it("ignores a popup marker antd kept mounted but hidden", () => {
+    vi.stubGlobal("document", {
+      querySelector: () => null,
+      querySelectorAll: (selector: string) =>
+        selector === "[data-fp-popup]" ? [{ getClientRects: () => [] }] : [],
+    });
+    expect(shouldIgnoreEditorShortcut(keyboardEvent())).toBe(false);
+  });
+
+  it("blocks shortcuts while a popup still occupies layout", () => {
+    vi.stubGlobal("document", {
+      querySelector: () => null,
+      querySelectorAll: (selector: string) =>
+        selector === "[data-fp-popup]" ? [{ getClientRects: () => [{}] }] : [],
     });
     expect(shouldIgnoreEditorShortcut(keyboardEvent())).toBe(true);
   });

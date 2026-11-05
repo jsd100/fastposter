@@ -34,8 +34,13 @@ export async function selectScenery(page: Page) {
 export function selectTrigger(page: Page, label: string) {
   return page.getByLabel(label, { exact: true });
 }
+export function selectRoot(page: Page, label: string) {
+  return selectTrigger(page, label).locator(
+    'xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]',
+  );
+}
 export function selectValue(page: Page, label: string) {
-  return selectTrigger(page, label).locator("[data-fp-select-value]");
+  return selectRoot(page, label).locator("[data-fp-select-value]");
 }
 export async function chooseOption(
   page: Page,
@@ -44,25 +49,35 @@ export async function chooseOption(
 ) {
   const trigger = selectTrigger(page, label);
   await expect(trigger).toBeEnabled();
-  const tag = await trigger.evaluate((el) => el.tagName);
+  const searchable = await trigger.evaluate(
+    (el) => el instanceof HTMLInputElement && !el.readOnly,
+  );
   await trigger.click();
   const listbox = page.getByRole("listbox");
   await expect(listbox).toBeVisible();
-  if (tag === "INPUT") {
+  if (searchable) {
     await trigger.fill(optionLabel);
     await expect(
       listbox.getByRole("option", { name: optionLabel, exact: true }),
     ).toBeVisible();
-    await listbox
-      .getByRole("option", { name: optionLabel, exact: true })
-      .click();
-    await expect(listbox).toHaveCount(0);
-    await expect(trigger).toHaveValue(optionLabel);
-    return;
   }
   await listbox.getByRole("option", { name: optionLabel, exact: true }).click();
   await expect(listbox).toHaveCount(0);
-  await expect(trigger).toHaveText(optionLabel);
+  await expect(selectValue(page, label)).toHaveText(optionLabel);
+}
+/**
+ * Picks a color through the shared color panel. The hex field accepts six or
+ * eight digits, so callers can exercise both opaque and translucent colors.
+ */
+export async function setColor(page: Page, label: string, hex: string) {
+  const trigger = page.getByLabel(label, { exact: true });
+  await trigger.click();
+  const input = page.locator(".ant-color-picker-hex-input input");
+  await expect(input).toBeVisible();
+  await input.fill(hex.replace(/^#/, ""));
+  // The popover is a click toggle, not an Escape layer like the selects.
+  await trigger.click();
+  await expect(page.locator(".ant-color-picker-hex-input")).toHaveCount(0);
 }
 export async function showOpenOptions(page: Page, label: string) {
   const trigger = selectTrigger(page, label);

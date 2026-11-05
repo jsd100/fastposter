@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   hasActiveOverlay,
   hasPopupLayer,
+  hasVisiblePopup,
   registerModalLayer,
   registerPopupLayer,
   subscribeModalLayers,
@@ -52,5 +53,24 @@ describe("modal layer registry", () => {
     expect(hasActiveOverlay()).toBe(true);
     release();
     expect(hasActiveOverlay()).toBe(false);
+  });
+});
+
+describe("hasVisiblePopup", () => {
+  it("only counts a popup that still occupies layout", () => {
+    vi.stubGlobal("document", {
+      querySelectorAll: () => [
+        { getClientRects: () => [] },
+        { getClientRects: () => [{}] },
+      ],
+    });
+    expect(hasVisiblePopup()).toBe(true);
+  });
+
+  it("ignores hidden popups antd kept mounted", () => {
+    vi.stubGlobal("document", {
+      querySelectorAll: () => [{ getClientRects: () => [] }],
+    });
+    expect(hasVisiblePopup()).toBe(false);
   });
 });

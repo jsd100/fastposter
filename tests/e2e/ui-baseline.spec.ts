@@ -13,7 +13,7 @@ const FREEZE =
   "*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}";
 
 async function settle(page: Page) {
-  await page.addStyleTag({
+  const freeze = await page.addStyleTag({
     content: FREEZE + "html{cursor:default!important}",
   });
   await page.evaluate(async () => {
@@ -30,11 +30,16 @@ async function settle(page: Page) {
     );
   });
   await page.waitForTimeout(200);
+  return freeze;
 }
 
 async function shoot(page: Page, name: string) {
-  await settle(page);
+  const freeze = await settle(page);
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: false });
+  // Keep the freeze only for the shot. antd's motion waits for animationend,
+  // which `animation:none` never emits, so a lingering copy leaves every
+  // later menu stuck at opacity 0 with a zero-sized box.
+  await freeze.evaluate((node) => node.remove());
 }
 
 async function adminLoginPage(page: Page) {

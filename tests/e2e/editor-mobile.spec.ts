@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openPoster, selectScenery } from "./helpers";
+import { openPoster, selectScenery, selectValue, setColor } from "./helpers";
 test.use({
   viewport: { width: 360, height: 800 },
   hasTouch: true,
@@ -13,7 +13,7 @@ test("mobile bottom sheet styles selected text without horizontal overflow", asy
   await selectScenery(page);
   await page.getByRole("button", { name: "文字设置", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel("文字颜色", { exact: true }).fill("#ff0000");
+  await setColor(page, "文字颜色", "ff0000");
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
   await expect(
@@ -90,15 +90,26 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
   await font.click();
   const listbox = page.getByRole("listbox");
   await expect(listbox).toBeVisible();
-  await expect(sheet.locator("[data-fp-popup]")).toHaveCount(1);
-  const box = (await listbox.boundingBox())!;
+  const popup = sheet.locator("[data-fp-popup]");
+  await expect(popup).toHaveCount(1);
+  const box = (await popup.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(360);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(360);
 
-  await listbox.getByRole("option", { name: "思源宋体", exact: true }).click();
+  // The first Escape only dismisses the font menu. The sheet, and the editor
+  // range it is styling, have to survive until a choice is made; the font
+  // below only reaches 风景, not the rest of the block.
+  await page.keyboard.press("Escape");
+  await expect(listbox).toHaveCount(0);
+  await expect(sheet).toBeVisible();
+  await expect(selectValue(page, "文字字体")).toHaveText("思源黑体");
+
+  await font.click();
+  await expect(listbox).toBeVisible();
+  await page.getByRole("option", { name: "思源宋体", exact: true }).click();
   await expect(listbox).toHaveCount(0);
   await expect(sheet).toBeVisible();
 
@@ -144,8 +155,12 @@ test("font menu rows keep a thumb-sized target on a touch screen", async ({
   await expect(listbox).toBeVisible();
   const row = listbox.getByRole("option", { name: "Inter", exact: true });
   // The page grows the trigger to 44px, but the rows inside the menu are what a
-  // thumb actually hits, so the package grows those with it.
-  expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // thumb actually hits, so the package grows those with it. The menu opens
+  // with a scale animation, so measure the settled row rather than the frame
+  // that first becomes visible.
+  await expect
+    .poll(async () => (await row.boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(44);
   await expect(row).toHaveCSS("font-size", "16px");
 
   // The menu portals into the sheet, which is itself a scroll box, so being
@@ -153,9 +168,10 @@ test("font menu rows keep a thumb-sized target on a touch screen", async ({
   // has to be reachable by scrolling the list rather than cut off.
   // The menu is positioned asynchronously after it mounts; wait for it to
   // settle inside the sheet's scroll box before measuring.
+  const popup = sheet.locator("[data-fp-popup]");
   await expect
     .poll(async () => {
-      const box = (await listbox.boundingBox())!;
+      const box = (await popup.boundingBox())!;
       const clip = await sheet.evaluate((el) => {
         const r = el.getBoundingClientRect();
         return { top: r.top, bottom: r.bottom };
@@ -163,5 +179,8 @@ test("font menu rows keep a thumb-sized target on a touch screen", async ({
       return box.y >= clip.top - 0.5 && box.y + box.height <= clip.bottom + 0.5;
     })
     .toBe(true);
-  await expect(listbox).toHaveCSS("overflow-y", "auto");
+  await expect(popup.locator(".ant-select-dropdown-list-holder")).toHaveCSS(
+    "overflow-y",
+    "auto",
+  );
 });

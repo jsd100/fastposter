@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { chooseOption, openPoster, selectScenery } from "./helpers";
+import { chooseOption, openPoster, selectScenery, setColor } from "./helpers";
 test("selected words keep style and selection across panel edits and save", async ({
   page,
 }) => {
@@ -11,7 +11,7 @@ test("selected words keep style and selection across panel edits and save", asyn
     "font-size",
     "80px",
   );
-  await page.getByLabel("文字颜色", { exact: true }).fill("#ff0000");
+  await setColor(page, "文字颜色", "ff0000");
   await expect(input.getByText("风景", { exact: true })).toHaveCSS(
     "color",
     "rgb(255, 0, 0)",
@@ -45,7 +45,23 @@ test("cursor styles affect later input; IME events and shared undo preserve text
   const input = page.getByRole("textbox", { name: "海报文字编辑" });
   await input.fill("前");
   await page.getByLabel("文字字号", { exact: true }).fill("80");
-  await page.getByLabel("文字颜色", { exact: true }).fill("#ff0000");
+  await setColor(page, "文字颜色", "ff0000");
+  // Closing the picker returns focus to its trigger. Moving back into the
+  // canvas restores the Tiptap selection asynchronously, so wait for the
+  // caret before typing; otherwise the first key lands at the block start.
+  await input.focus();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const selection = window.getSelection();
+        return (
+          selection?.anchorNode?.nodeType === Node.TEXT_NODE &&
+          selection.anchorNode.textContent === "前" &&
+          selection.anchorOffset === 1
+        );
+      }),
+    )
+    .toBe(true);
   await input.pressSequentially("后");
   await expect(input).toHaveText("前后");
   await expect(input.getByText("后", { exact: true })).toHaveCSS(

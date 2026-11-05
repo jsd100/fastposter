@@ -1,68 +1,74 @@
-.trigger {
-  display: flex;
+.select {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
   min-width: 0;
   width: auto;
+  font-family: inherit;
   text-align: left;
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
-  font-family: inherit;
-  padding: 0 10px;
+}
+.select:global(.ant-select) :global(.ant-select-content) {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  overflow: hidden;
+}
+.select:global(.ant-select) :global(.ant-select-input) {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: inherit;
+}
+.select:global(.ant-select) :global(.ant-select-suffix) {
+  flex: none;
+  color: inherit;
+  pointer-events: none;
+}
+.select:global(.ant-select) :global(.ant-select-suffix) svg {
+  display: block;
+}
+.select:global(.ant-select):focus-within {
+  border-color: var(--fp-focus-line);
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
+}
+.select:global(.ant-select-disabled) {
+  opacity: 0.55;
+  cursor: default;
 }
 .value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: pre;
 }
-.icon {
-  display: flex;
-  flex: none;
-}
-.trigger[data-focus-visible],
-.trigger:focus-visible {
-  border-color: var(--fp-focus-line);
-  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
-}
-.trigger[data-disabled] {
-  opacity: 0.55;
-  cursor: default;
-}
 .compact {
   min-height: 30px;
   padding: 0 8px;
   font-size: 10px;
 }
-.positioner {
-  width: max(var(--anchor-width), 15rem);
-  max-width: var(--available-width);
-  max-height: var(--available-height);
+.dropdown.dropdown {
   z-index: 60;
-}
-.popup {
-  display: flex;
-  max-height: inherit;
+  padding: 0;
   border: 1px solid var(--fp-line);
   border-radius: var(--fp-radius-menu);
   box-shadow: 0 12px 30px var(--fp-dialog-shadow);
   background: var(--fp-surface);
-  padding: 5px;
   color: var(--fp-field-ink);
 }
-.list {
+.popup {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  min-width: 0;
-  max-height: inherit;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  padding: 5px;
+  pointer-events: auto;
 }
-.item {
+.popup :global(.ant-select-item-option) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -73,35 +79,23 @@
   font-size: 11px;
   line-height: 1.6;
   cursor: pointer;
-  outline: none;
 }
-.item > span:first-child {
+.popup :global(.ant-select-item-option-active) {
+  background: var(--fp-surface-hover);
+}
+.popup :global(.ant-select-item-option-disabled) {
+  color: var(--fp-icon-ink);
+  cursor: default;
+}
+.optionLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: pre;
 }
-.item[data-highlighted] {
-  background: var(--fp-surface-hover);
-}
-.item[data-disabled] {
-  color: var(--fp-icon-ink);
-  cursor: default;
-}
-.indicator {
-  display: flex;
-  flex: none;
-  color: var(--fp-green);
-}
-@media (pointer: coarse) {
-  /* The menu rows are what a thumb hits, so they take the same 44px target and
-     text size the package gives its buttons and fields on a touch screen. */
-  .item {
-    min-height: var(--fp-tap-target);
-    font-size: 16px;
-  }
-}
-
 .swatch {
   display: inline-block;
   width: 13px;
@@ -110,9 +104,11 @@
   border: 1px solid #00000020;
   border-radius: 3px;
 }
-
-.optionLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+@media (pointer: coarse) {
+  /* The menu rows are what a thumb hits, so they take the same 44px target and
+     text size the package gives its buttons and fields on a touch screen. */
+  .popup :global(.ant-select-item-option) {
+    min-height: var(--fp-tap-target);
+    font-size: 16px;
+  }
 }

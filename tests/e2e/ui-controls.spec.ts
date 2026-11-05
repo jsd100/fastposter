@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import {
   chooseOption,
   openPoster,
+  selectRoot,
   selectTrigger,
   selectValue,
 } from "./helpers";
@@ -159,27 +160,33 @@ test("catalog selects support keyboard selection and Escape", async ({
   await first.click();
   const listbox = page.getByRole("listbox");
   await expect(listbox).toBeVisible();
-  const scrollable = await listbox.evaluate(
+  // The option list scrolls inside antd's virtual-list holder; the listbox
+  // itself spans the full content height.
+  const holder = page.locator(
+    ".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-dropdown-list-holder",
+  );
+  const scrollable = await holder.evaluate(
     (el) => el.scrollHeight > el.clientHeight,
   );
   expect(scrollable).toBeTruthy();
-  const highlighted = listbox.locator("[data-highlighted]");
-  await expect(highlighted).toHaveText("全部分类");
-  await highlighted.press("ArrowDown");
-  await expect(highlighted).not.toHaveText("全部分类");
-  const moved = (await highlighted.innerText()).trim();
-  await highlighted.press("Enter");
+  const active = page.locator(
+    ".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-active",
+  );
+  await expect(active).toHaveText("全部分类");
+  await first.press("ArrowDown");
+  await expect(active).not.toHaveText("全部分类");
+  const moved = (await active.innerText()).trim();
+  await first.press("Enter");
   await expect(listbox).toHaveCount(0);
   const afterEnter = await selectValue(page, "文案分类第1级").innerText();
   expect(afterEnter).toBe(moved);
 
   await first.click();
   await expect(listbox).toBeVisible();
-  const reopenActive = listbox.locator("[data-highlighted]");
-  await expect(reopenActive).toHaveText(afterEnter);
-  await reopenActive.press("ArrowDown");
-  await expect(reopenActive).not.toHaveText(afterEnter);
-  await reopenActive.press("Escape");
+  await expect(active).toHaveText(afterEnter);
+  await first.press("ArrowDown");
+  await expect(active).not.toHaveText(afterEnter);
+  await first.press("Escape");
   await expect(listbox).toHaveCount(0);
   await expect(selectValue(page, "文案分类第1级")).toHaveText(afterEnter);
   await adminContext.close();
@@ -346,16 +353,16 @@ test("Enter validates invalid and unfinished drafts without leaving a stale disp
 
 test("the select trigger balances text and caret insets", async ({ page }) => {
   await openPoster(page, "ui_caret");
-  const trigger = selectTrigger(page, "文字字重");
-  const caret = trigger.locator("svg");
+  const root = selectRoot(page, "文字字重");
+  const caret = root.locator(".ant-select-suffix svg");
   await expect(caret).toHaveCSS(
     "color",
-    await trigger.evaluate((el) => getComputedStyle(el).color),
+    await root.evaluate((el) => getComputedStyle(el).color),
   );
 
-  const box = (await trigger.boundingBox())!;
+  const box = (await root.boundingBox())!;
   const ink = (await caret.boundingBox())!;
-  const textLeft = await trigger.evaluate((el) => {
+  const textLeft = await root.evaluate((el) => {
     const value = el.querySelector("[data-fp-select-value]")!;
     const range = document.createRange();
     range.selectNodeContents(value);

@@ -1,90 +1,10 @@
-.group {
-  position: relative;
-  display: flex;
-  width: 100%;
-  min-width: 0;
-}
-.group input.input {
-  width: 100%;
-  min-width: 0;
-  padding-right: 28px;
-}
-.icon {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  display: flex;
-  transform: translateY(-50%);
-  color: inherit;
-  pointer-events: none;
-}
-.positioner {
-  width: max(var(--anchor-width), 15rem);
-  max-width: var(--available-width);
-  max-height: var(--available-height);
-  z-index: 60;
-}
-.popup {
-  display: flex;
-  flex-direction: column;
-  max-height: inherit;
-  border: 1px solid var(--fp-line);
-  border-radius: var(--fp-radius-menu);
-  box-shadow: 0 12px 30px var(--fp-dialog-shadow);
-  background: var(--fp-surface);
-  padding: 5px;
-  color: var(--fp-field-ink);
-}
-.list {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  max-height: inherit;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.groupSection {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.groupLabel {
+/* The trigger, menu frame and option rows are shared with `Select`; only the
+   group headings and the empty state are specific to a searchable list. */
+:global(.ant-select-item-group) {
   padding: 7px 9px 3px;
   font-size: 9px;
   letter-spacing: 0.08em;
   color: var(--fp-icon-ink);
-}
-.item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 32px;
-  padding: 0 9px;
-  border-radius: var(--fp-radius-select);
-  font-size: 11px;
-  line-height: 1.6;
-  cursor: pointer;
-  outline: none;
-}
-.itemText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: pre;
-}
-.item[data-highlighted] {
-  background: var(--fp-surface-hover);
-}
-.item[data-disabled] {
-  color: var(--fp-icon-ink);
-  cursor: default;
-}
-.indicator {
-  display: flex;
-  flex: none;
-  color: var(--fp-green);
 }
 .empty {
   padding: 14px 9px;
@@ -93,11 +13,7 @@
   color: var(--fp-icon-ink);
 }
 @media (pointer: coarse) {
-  .item {
-    min-height: var(--fp-tap-target);
-    font-size: 16px;
-  }
-  .groupLabel {
+  :global(.ant-select-item-group) {
     font-size: 12px;
   }
 }

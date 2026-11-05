@@ -46,6 +46,18 @@ export function hasPopupLayer() {
   return popupLayers > 0;
 }
 
+/**
+ * antd keeps a closed dropdown mounted with `display: none`, so a DOM marker
+ * alone would keep shortcuts blocked forever. Only a popup that still occupies
+ * layout owns the keyboard.
+ */
+export function hasVisiblePopup() {
+  if (typeof document === "undefined") return false;
+  return Array.from(
+    document.querySelectorAll<HTMLElement>("[data-fp-popup]"),
+  ).some((popup) => popup.getClientRects().length > 0);
+}
+
 export function hasActiveOverlay() {
   return layers.length > 0 || popupLayers > 0;
 }

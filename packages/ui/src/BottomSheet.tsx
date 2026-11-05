@@ -7,7 +7,11 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { hasPopupLayer, registerModalLayer } from "./modal-layer";
+import {
+  hasPopupLayer,
+  hasVisiblePopup,
+  registerModalLayer,
+} from "./modal-layer";
 
 export function BottomSheet({
   title,
@@ -58,8 +62,7 @@ export function BottomSheet({
       panelRef={attachPanel}
       onKeyDown={(event) => {
         if (event.key !== "Escape" || event.defaultPrevented) return;
-        if (hasPopupLayer() || document.querySelector("[data-fp-popup]"))
-          return;
+        if (hasPopupLayer() || hasVisiblePopup()) return;
         event.preventDefault();
         onClose();
       }}

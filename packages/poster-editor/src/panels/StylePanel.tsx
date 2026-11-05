@@ -1,5 +1,6 @@
 import type { TextBlock } from "@fastposter/poster-schema";
 import { Button, NumberField } from "@fastposter/ui";
+import { ColorField } from "./ColorField";
 export function StylePanel({
   block,
   update,
@@ -69,16 +70,17 @@ export function StylePanel({
         (key, i) => (
           <label key={key} className="panel-field">
             {["文字背景色", "描边颜色", "阴影颜色"][i]}
-            <input
-              type="color"
-              aria-label={["文字背景色", "描边颜色", "阴影颜色"][i]}
-              value={block.effects[key].slice(0, 7)}
-              onChange={(e) =>
+            <ColorField
+              label={["文字背景色", "描边颜色", "阴影颜色"][i]}
+              value={block.effects[key]}
+              onChange={(color) =>
                 update((b) => ({
                   ...b,
-                  effects: { ...b.effects, [key]: e.target.value },
+                  effects: { ...b.effects, [key]: color },
                 }))
               }
+              onInteractionStart={onNumericStart}
+              onInteractionEnd={onNumericEnd}
             />
             {key !== "strokeColor" && (
               <Button

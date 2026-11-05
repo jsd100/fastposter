@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
-import { chooseOption, selectTrigger, selectValue } from "./helpers";
+import { chooseOption, selectTrigger, selectValue, setColor } from "./helpers";
 
 async function loginAdmin(page: Page) {
   await page.goto("http://127.0.0.1:15174/admin/login");
@@ -168,7 +168,7 @@ test("administrator maintains a five-level copy tree; users cascade, search, ins
     .poll(() => page.evaluate(() => window.getSelection()?.toString()))
     .toBe("前半");
   await page.getByLabel("文字字号", { exact: true }).fill("80");
-  await page.getByLabel("文字颜色", { exact: true }).fill("#ff0000");
+  await setColor(page, "文字颜色", "ff0000");
   await expect(input.getByText("前半", { exact: true })).toHaveCSS(
     "font-size",
     "80px",

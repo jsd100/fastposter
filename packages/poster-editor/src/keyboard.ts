@@ -1,4 +1,4 @@
-import { hasActiveOverlay } from "@fastposter/ui";
+import { hasActiveOverlay, hasVisiblePopup } from "@fastposter/ui";
 
 export type ShortcutContext = {
   defaultPrevented: boolean;
@@ -26,7 +26,7 @@ const PICKER_SELECTOR = '[role="combobox"]';
 function isOverlayOpen(): boolean {
   if (hasActiveOverlay()) return true;
   if (typeof document === "undefined") return false;
-  if (document.querySelector("[data-fp-popup]")) return true;
+  if (hasVisiblePopup()) return true;
   return document.querySelector("[data-fp-overlay]") !== null;
 }
 

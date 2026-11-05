@@ -1,0 +1,71 @@
+.field {
+  display: flex;
+  min-width: 0;
+}
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 35px;
+  padding: 0 8px;
+  border: 1px solid var(--fp-line);
+  border-radius: var(--fp-radius-select);
+  background: var(--fp-surface-soft);
+  color: var(--fp-field-ink);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--fp-focus-line);
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
+}
+.trigger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.swatch {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #00000020;
+  border-radius: 3px;
+  background-image:
+    linear-gradient(
+      45deg,
+      #d8ddd3 25%,
+      transparent 25%,
+      transparent 75%,
+      #d8ddd3 75%
+    ),
+    linear-gradient(
+      45deg,
+      #d8ddd3 25%,
+      transparent 25%,
+      transparent 75%,
+      #d8ddd3 75%
+    );
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    4px 4px;
+}
+.hex {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+}
+.panel {
+  display: block;
+}
+@media (pointer: coarse) {
+  .trigger {
+    height: var(--fp-tap-target);
+    font-size: 16px;
+  }
+}
