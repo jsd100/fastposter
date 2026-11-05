@@ -1,7 +1,13 @@
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { useEffect, useState, type ReactElement, type ReactNode } from "react";
+import { Modal } from "antd";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { registerModalLayer } from "./modal-layer";
-import styles from "./Dialog.module.css";
 
 export function Dialog({
   title,
@@ -16,40 +22,48 @@ export function Dialog({
   className?: string;
   align?: "center" | "bottom";
 }): ReactElement {
-  const [popup, setPopup] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!popup) return;
-    return registerModalLayer(popup);
-  }, [popup]);
+  const [panel, setPanel] = useState<HTMLDivElement | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  // Set the marker during the commit so portalled children can find their
+  // container before their own passive effects run.
+  const attachPanel = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    node.setAttribute("data-fp-overlay", "");
+    setPanel(node);
+  }, []);
+
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    opener.current = active instanceof HTMLElement ? active : null;
+    return () => {
+      const target = opener.current;
+      if (!target) return;
+      // Callers unmount the dialog as soon as they close it, which skips the
+      // dialog library's own delayed focus restore. Restore after that commit.
+      queueMicrotask(() => {
+        if (target.isConnected) target.focus({ preventScroll: true });
+      });
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!panel) return;
+    return registerModalLayer(panel);
+  }, [panel]);
+
   return (
-    <DialogPrimitive.Root
+    <Modal
       open
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
+      title={title}
+      footer={null}
+      centered={align === "center"}
+      scrollLock
+      width="var(--fp-dialog-width, min(420px, calc(100vw - 32px)))"
+      onCancel={onClose}
+      className={`dialog ${className}`.trim()}
+      panelRef={attachPanel}
     >
-      <DialogPrimitive.Portal>
-        <div className={styles.shell}>
-          <DialogPrimitive.Backdrop className={styles.backdrop} />
-          <DialogPrimitive.Popup
-            ref={setPopup}
-            data-fp-overlay=""
-            className={`dialog ${align === "bottom" ? styles.bottom : styles.center} ${className}`}
-          >
-            <div className="dialog-header">
-              <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
-              <DialogPrimitive.Close
-                type="button"
-                className="icon-button"
-                aria-label="关闭"
-              >
-                ×
-              </DialogPrimitive.Close>
-            </div>
-            {children}
-          </DialogPrimitive.Popup>
-        </div>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+      {children}
+    </Modal>
   );
 }

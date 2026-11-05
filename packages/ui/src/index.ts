@@ -3,6 +3,7 @@ export * from "./Button";
 export * from "./Dialog";
 export * from "./Form";
 export * from "./Input";
+export * from "./modal-layer";
 export * from "./NumberField";
 export * from "./number-draft";
 export * from "./NoticeHost";

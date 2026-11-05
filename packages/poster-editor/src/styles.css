@@ -322,6 +322,9 @@
   .editor-commandbar {
     height: 57px;
     padding: 0 12px;
+    /* The command groups are wider than a phone; scroll them instead of
+       pushing the document itself sideways. */
+    overflow-x: auto;
   }
   .command-group {
     gap: 5px;

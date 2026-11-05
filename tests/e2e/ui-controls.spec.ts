@@ -454,8 +454,9 @@ test("modal dialog traps focus, locks page scroll and restores both after closin
   expect(Math.abs(placed.y - (900 - placed.height) / 2)).toBeLessThanOrEqual(2);
 
   const locked = await page.evaluate(() => ({
-    overflowY:
-      document.body.style.overflowY || document.documentElement.style.overflowY,
+    // rc-dialog locks the page with an injected `html body` rule instead of
+    // inline styles, so the computed value is the observable contract.
+    overflowY: getComputedStyle(document.body).overflowY,
     scrollbar: document.body.style.scrollbarGutter || "",
   }));
   expect(locked.overflowY).toMatch(/hidden|clip/);
@@ -625,6 +626,14 @@ test.describe("touch number stepping", () => {
       exact: true,
     });
     const size = dialog.getByLabel("文字字号", { exact: true });
+    // The sheet slides in; touch the step button only once it has settled
+    // inside the viewport, otherwise the press lands outside it.
+    await expect
+      .poll(async () => {
+        const box = (await plus.boundingBox())!;
+        return box.y >= 0 && box.y + box.height <= 844;
+      })
+      .toBe(true);
     const box = (await plus.boundingBox())!;
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.dispatchTouchEvent", {

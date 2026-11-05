@@ -1,28 +1,8 @@
-.viewport {
-  position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  left: 50%;
-  z-index: 120;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: min(
-    420px,
-    calc(
-      100vw - max(12px, env(safe-area-inset-left)) - max(
-          12px,
-          env(safe-area-inset-right)
-        )
-    )
-  );
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
 .toast {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  width: min(420px, calc(100vw - 24px));
   padding: 11px 12px 11px 14px;
   border: 1px solid var(--fp-line-soft);
   border-radius: 10px;
@@ -30,10 +10,6 @@
   color: var(--fp-ink);
   box-shadow: 0 14px 40px var(--fp-dialog-shadow);
   pointer-events: auto;
-}
-
-.toast[data-limited] {
-  display: none;
 }
 
 .info {

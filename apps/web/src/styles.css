@@ -966,7 +966,7 @@
   margin-top: 24px;
 }
 .export-dialog {
-  width: min(620px, calc(100vw - 30px));
+  --fp-dialog-width: min(620px, calc(100vw - 30px));
 }
 .export-version {
   display: flex;
@@ -1046,7 +1046,7 @@
   }
 }
 .background-picker {
-  width: min(750px, calc(100vw - 28px));
+  --fp-dialog-width: min(750px, calc(100vw - 28px));
 }
 .picker-filters {
   display: flex;
@@ -1125,7 +1125,7 @@
   justify-content: flex-end;
 }
 .template-picker {
-  width: min(920px, calc(100vw - 28px));
+  --fp-dialog-width: min(920px, calc(100vw - 28px));
 }
 .template-picker-grid {
   display: grid;
@@ -1169,7 +1169,7 @@
   }
 }
 .copy-picker {
-  width: min(720px, calc(100vw - 28px));
+  --fp-dialog-width: min(720px, calc(100vw - 28px));
 }
 .copy-category-path {
   display: flex;

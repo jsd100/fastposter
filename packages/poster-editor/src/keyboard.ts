@@ -1,3 +1,5 @@
+import { hasActiveOverlay } from "@fastposter/ui";
+
 export type ShortcutContext = {
   defaultPrevented: boolean;
   isComposing: boolean;
@@ -22,6 +24,7 @@ const EDITABLE_SELECTOR = 'input,textarea,select,[contenteditable="true"]';
 const PICKER_SELECTOR = '[role="combobox"]';
 
 function isOverlayOpen(): boolean {
+  if (hasActiveOverlay()) return true;
   if (typeof document === "undefined") return false;
   if (document.querySelector("[data-fp-popup]")) return true;
   return document.querySelector("[data-fp-overlay]") !== null;

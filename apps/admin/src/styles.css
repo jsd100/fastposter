@@ -611,7 +611,7 @@ td .button {
   background: #eef3e7;
 }
 .template-preview-dialog {
-  width: min(920px, calc(100vw - 32px));
+  --fp-dialog-width: min(920px, calc(100vw - 32px));
 }
 .template-editor-overlay {
   position: fixed;

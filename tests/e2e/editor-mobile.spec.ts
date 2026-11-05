@@ -67,8 +67,14 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
   const sheet = page.getByRole("dialog", { name: "文字设置" });
   await expect(sheet).toBeVisible();
 
+  // The drawer slides up, so its resting box is what the layout promises.
+  await expect
+    .poll(async () => {
+      const box = (await sheet.boundingBox())!;
+      return Math.round(box.y + box.height);
+    })
+    .toBe(800);
   const sheetBox = (await sheet.boundingBox())!;
-  expect(Math.round(sheetBox.y + sheetBox.height)).toBe(800);
   // A centred or bottom sheet keeps the 17px gutter the browser used to clamp
   // modals to, so the authored width never runs out to the screen edge.
   expect(sheetBox.x).toBe(17);
@@ -92,9 +98,7 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(360);
 
-  await listbox
-    .getByRole("option", { name: "思源宋体", exact: true })
-    .click();
+  await listbox.getByRole("option", { name: "思源宋体", exact: true }).click();
   await expect(listbox).toHaveCount(0);
   await expect(sheet).toBeVisible();
 
@@ -147,12 +151,17 @@ test("font menu rows keep a thumb-sized target on a touch screen", async ({
   // The menu portals into the sheet, which is itself a scroll box, so being
   // visible is not enough: it has to sit inside that box, and what does not fit
   // has to be reachable by scrolling the list rather than cut off.
-  const listBox = (await listbox.boundingBox())!;
-  const clip = await sheet.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    return { top: r.top, bottom: r.bottom };
-  });
-  expect(listBox.y).toBeGreaterThanOrEqual(clip.top - 0.5);
-  expect(listBox.y + listBox.height).toBeLessThanOrEqual(clip.bottom + 0.5);
+  // The menu is positioned asynchronously after it mounts; wait for it to
+  // settle inside the sheet's scroll box before measuring.
+  await expect
+    .poll(async () => {
+      const box = (await listbox.boundingBox())!;
+      const clip = await sheet.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom };
+      });
+      return box.y >= clip.top - 0.5 && box.y + box.height <= clip.bottom + 0.5;
+    })
+    .toBe(true);
   await expect(listbox).toHaveCSS("overflow-y", "auto");
 });
