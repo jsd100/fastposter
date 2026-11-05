@@ -9,25 +9,28 @@ execution_mode: native
 workspace: "/Users/aaa/acode/FastPoster"
 branch: "feat/fastposter"
 base_commit: "d6c3d45"
-last_verified_commit: "e63952a"
-current_task: T06
-next_step: T06.1
-requirements: [UI-07, UI-08, UI-10]
+last_verified_commit: "e5a5018"
+current_task: T07
+next_step: T07.1
+requirements: [UI-03, UI-04, UI-11]
 changed_paths:
-  - "packages/ui/src/Select.tsx"
-  - "packages/ui/src/Select.module.css"
-  - "packages/ui/src/Combobox.tsx"
-  - "packages/ui/src/Combobox.module.css"
-  - "packages/ui/src/modal-layer.ts"
-  - "packages/ui/src/BottomSheet.tsx"
-  - "packages/poster-editor/src/panels/ColorField.tsx"
-  - "packages/poster-editor/src/panels/ColorField.module.css"
-  - "packages/poster-editor/src/panels/TextPanel.tsx"
-  - "packages/poster-editor/src/panels/StylePanel.tsx"
-  - "packages/poster-editor/src/keyboard.ts"
-  - "packages/poster-editor/package.json"
-  - "tests/e2e/helpers.ts"
-  - "tests/e2e/ui-baseline.spec.ts"
+  - "packages/ui/src/Button.tsx"
+  - "packages/ui/src/button-appearance.ts"
+  - "packages/ui/src/Input.tsx"
+  - "packages/ui/src/Form.tsx"
+  - "packages/ui/src/Status.tsx"
+  - "packages/ui/src/Tooltip.tsx"
+  - "packages/ui/src/ToggleButton.tsx"
+  - "packages/ui/src/NumberField.tsx"
+  - "packages/ui/src/UIProvider.tsx"
+  - "packages/ui/src/theme.ts"
+  - "packages/ui/src/styles.css"
+  - "packages/ui/src/{Button,Input}.module.css"
+  - "packages/ui/src/{Form,Status,Tooltip}.module.css"
+  - "packages/ui/src/{form-contract,styling-hook,toggle-tooltip,status-contract}.test.ts"
+  - "packages/poster-editor/src/Stage.tsx"
+  - "tests/e2e/ui-controls.spec.ts"
+  - "tests/e2e/editor-settings.spec.ts"
 decisions:
   - "全程以执行账本记录任务级证据；计划复选框不勾选，避免与账本双写。"
   - "T03：antd 6 的模态滚动锁是注入的 html body 规则而非内联样式，断言改读 computed overflow-y。"
@@ -42,6 +45,14 @@ decisions:
   - "T05：`ui-baseline` 的截图冻结样式改为「截图期间存在、拍完移除」。原因：`animation:none!important` 常驻会让 antd 的 rc-motion 等不到 `animationend`，字体菜单停在 `opacity:0`/`0×0`。"
   - "T05：光标样式用例改为显式回到画布并轮询 caret 复位后再键入，不改产品代码。原因：`prosemirror-view@1.42.8` 的 focus 处理器用 `setTimeout(…, 20)` 延迟把 state 选区写回 DOM，紧接其后的自动键入会落在块首。"
   - "T05：`editor-richtext.spec.ts` 的 Prettier 警告保留：`git show HEAD:` 检查确认开工前该文件已不合规，只整理本次新增的 import，避免无关格式化。"
+  - "T06：`FormField` 不用 antd `Form.Item`。触发条件：页面用受控值 + 原生 `submit`，且 hint 与 error 要同时进 `aria-describedby`；`Form.Item` 的校验状态与 `id` 生成会接管这两件事。代价：标签/错误关联由包内自绘，antd 升级不会替它兜底，已有 form-contract 用例覆盖。"
+  - "T06：`Status` 用 antd `Alert` 但保留 `status status-{tone}` 钩子与 `role=alert/status`，`showIcon={false}`（图标会重复文字已经说的话）。代价：E2E 依赖的 `.status-error` 是自有类，不是 antd 类。"
+  - "T06：`busy` 走 `loading={{icon}}` 自定义 spinner。触发条件：布尔 `loading` 会插入 `role=img aria-label=loading`，污染按钮的可访问名。代价：spinner 动画由包内 CSS 提供。"
+  - "T06：文本控件的几何与焦点墨色放全局 `styles.css` 的 `[data-fp-input]` 限定选择器，不放 CSS module。触发条件：`Input.tsx` 里 `styles` 不再被引用时 esbuild 按 TS 规则丢弃该 import，整个 module 不进 bundle，bare 搜索框的焦点环退回页面边框色（实测 `rgb(221,231,209)`）。代价：包内全局样式表变长；换来与注入顺序无关、且不会被 tree-shake 的覆盖。"
+  - "T06：`Tooltip` 的 Escape 在 document 捕获阶段消费并 `stopPropagation`。触发条件：冒泡阶段监听时，编辑器 `Escape→取消选中` 会先卸载那排工具按钮，焦点无处可归；UI-10 要求第一次 Escape 只关内层。代价：提示打开期间一次 Escape 不会同时关外层弹层，需按第二次。"
+  - "T06：画布「点空白取消选中」改按 `data-fp-control`/`data-fp-input` 判断（`isControlPress`）。触发条件：antd 的 Select 触发器是 div+input，不是 `button`/`select`，点预览缩放会把选中的文字块丢掉（full-flow、editor-geometry 复现，属 T05 遗留）。代价：共享控件必须继续带这两个钩子，已有 styling-hook 用例锁住。"
+  - "T06：账号页无需页面级改动，`/login`、`/register`、`/password`、`/password?reset=1`、`/admin/login` 只消费共享控件。代价：页面 CSS 里 `.auth-form > .button` 的 45px CTA 等几何仍由页面负责，属预期分层。"
+  - "T06：`editor-settings` 混合字号用例在 `input.focus()` 后补一次选区复位轮询，不改产品代码。原因：与 T05 同一 `prosemirror-view@1.42.8` 的 20ms 延迟写回，合成按键快过真人。"
 red_check: "见各任务「中途红灯」"
 checks:
   - "T03 pnpm exec vitest run packages/ui/src/modal-layer.test.ts packages/ui/src/notifications.test.ts packages/poster-editor/src/keyboard.test.ts → 20/20 PASS"
@@ -66,6 +77,17 @@ checks:
   - "T05 antd lint packages/ui/src + packages/poster-editor/src --version 6.7.0 → 1 warning（virtual=false performance）/ 0 issues"
   - "T05 pnpm test → 153/153 PASS"
   - "T05 pnpm typecheck（/Users/aaa/acode/FastPoster）→ exit 0"
+  - "T06 pnpm exec vitest run packages/ui → 79/79 PASS（8 文件，含新增 status-contract 3 例）"
+  - "T06 pnpm exec playwright test tests/e2e/ui-controls.spec.ts → 17/17 PASS（新临时栈）"
+  - "T06 pnpm exec playwright test tests/e2e/session-sync.spec.ts → 2/2 PASS（新临时栈）"
+  - "T06 pnpm exec playwright test tests/e2e/full-flow.spec.ts → 3/3 PASS（新临时栈，注册→登录→改密→真实 PNG→管理员登录）"
+  - "T06 pnpm exec playwright test tests/e2e/editor-geometry.spec.ts → 1/1 PASS（新临时栈，把手与拖动）"
+  - "T06 pnpm exec playwright test tests/e2e/editor-settings.spec.ts → 4/4 PASS（新临时栈）"
+  - "T06 pnpm exec playwright test tests/e2e/editor-mobile.spec.ts → 3/3 PASS（新临时栈，44px 触摸目标）"
+  - "T06 pnpm test → 162/162 PASS"
+  - "T06 pnpm typecheck（/Users/aaa/acode/FastPoster）→ exit 0"
+  - "T06 pnpm build → 8/8（删除 Input.module.css 后仍可构建）"
+  - "T06 pnpm exec antd lint packages/ui/src → 0 deprecated / 1 warning（T05 的 virtual=false 取舍）"
 artifacts: []
 blockers: []
 ```
@@ -162,3 +184,36 @@ blockers: []
 - 手机字体行首帧高度为 0（`ant-slide-up-appear-prepare`）：改为轮询稳定后 ≥44px、字号 16px。
 - `ui-baseline` 打开字体菜单时 listbox 判定 hidden：T01 的 `settle()` 注入 `animation:none!important` 且常驻页面，rc-motion 收不到 `animationend`，菜单停在 `opacity:0`/`0×0`。用诊断用例对照「有/无冻结」两种状态确认，改为截图后移除该样式。
 - 抽屉内 `window.getSelection().toString()` 断言取消：antd 组合框把焦点移入自身搜索框，DOM 选区暂时离开画布；改用「只有风景被改字体/字号、其余文字保持原值」的行为断言证明范围保留。
+
+## T06 迁移基础控件和账号页
+
+- 开工 HEAD `f9d452e`，本任务两个提交：`ec8a915`（画布把手遗留修复）与 `e5a5018`（共享控件与账号页）。
+- `Button`/`IconButton`/`ToggleButton` 改由 antd `Button` 实现：`variant` 映射 `type`/`danger`（映射表放 `button-appearance.ts`，页面不接触 antd 类名）、`density="compact"` 映射 `size="small"`、`busy` 用自定义 `aria-hidden` spinner 走 `loading` 对象并保留 `aria-busy`；`ButtonProps.type` 仍是 HTML 按钮类型，内部映射 `htmlType`；`ToggleButton` 保留 `aria-pressed` 与 `button-{variant}` 钩子。
+- `TextInput`/`Textarea` 改为 antd `Input`/`Input.TextArea`：`variant="bare"` 映射 `borderless`，`density="compact"` 映射 `size="small"`，ref 仍交回原生 `<input>`/`<textarea>`（antd 6 的 TextArea 实例只有 `nativeElement`）。`FormField` 保留自绘的 label/hint/error 关联（两个 `aria-describedby` 是页面契约），错误改由 `status="error"` 表达。
+- `Status` 改为 antd `Alert`：`tone` 映射 `type`，`role` 仍按 error=alert、其余=status，`showIcon={false}`，保留 `status status-{tone}` 钩子供页面与 E2E 选择。
+- `Tooltip` 改为 antd `Tooltip`：受控 `open` + `destroyOnHidden`，`trigger=["hover","focus"]`，气泡内层继续带 `data-fp-tooltip`；Escape 在 document 捕获阶段消费（UI-10 的第一层归内层）。`UIProvider` 关闭 `button.autoInsertSpace`，否则两字中文标签变成「取 消」，按精确可访问名定位的用例全部落空。
+- 样式分层：主题补 `Button`/`Alert`/`Tooltip` 组件 token（14/12px 字号、36/32px 高度、Alert 内边距与圆角）；`Button.module.css`、`Input.module.css` 删除，剩下的几何与焦点墨色用 `[data-fp-control]`/`[data-fp-input]` 限定选择器并入全局 `styles.css`；44px 触摸目标与 iOS 16px 防缩放仍由 `@media (pointer: coarse)` 提供。
+- 账号页（`/login`、`/register`、`/password`、`/password?reset=1`、`/admin/login`）没有页面级改动：它们只消费共享控件，认证与强制改密顺序由 `ui-controls` 首条用例与 `full-flow` 覆盖。
+
+### 验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm exec vitest run packages/ui` | 79/79 PASS（8 文件，新增 `status-contract.test.ts` 3 例） |
+| `pnpm exec playwright test tests/e2e/ui-controls.spec.ts` | 17/17 PASS（新临时栈；含密码页显式提交、Escape 层级、焦点墨色、图标按钮可访问名与禁用不响应） |
+| `pnpm exec playwright test tests/e2e/session-sync.spec.ts` | 2/2 PASS（新临时栈） |
+| `pnpm exec playwright test tests/e2e/full-flow.spec.ts` | 3/3 PASS（新临时栈；注册→登录→改密→真实 PNG 下载→管理员登录） |
+| `pnpm exec playwright test tests/e2e/editor-geometry.spec.ts` | 1/1 PASS（新临时栈；把手拖动与一步几何撤销） |
+| `pnpm exec playwright test tests/e2e/editor-settings.spec.ts` | 4/4 PASS（新临时栈；含混合选区与按住步进） |
+| `pnpm exec playwright test tests/e2e/editor-mobile.spec.ts` | 3/3 PASS（新临时栈；44px 触摸目标） |
+| `pnpm test` | 162/162 PASS |
+| `pnpm typecheck` | exit 0 |
+| `pnpm build` | 8/8（删除 `Input.module.css` 后仍可构建） |
+| `pnpm exec antd lint packages/ui/src` | 0 deprecated、1 warning（T05 已裁量的 `virtual=false`） |
+
+### 中途红灯与处理
+
+- bare 搜索框焦点墨色失败（实测 `rgb(221,231,209)`，期望 `rgb(136,164,113)`）：`Input.tsx` 中 `styles` 已无引用，esbuild 按 TS 规则丢弃未使用的 import，整个 CSS module 不进 bundle，焦点环退回页面边框色。三条规则并入始终加载的 `packages/ui/src/styles.css`，选择器用 `input[data-fp-input]:focus`（0,2,1）压过 antd 注入样式与页面 `[data-fp-input]` 规则（0,2,0），与加载顺序无关；`Input.module.css` 删除。
+- 图标提示 Escape 用例两层失败：其一，antd Tooltip 离场动画让上一个气泡多停留约 360ms，`[data-fp-tooltip]` 计数在切换焦点时为 2，改为按气泡自身文本定位当前焦点动作的提示；其二，冒泡阶段的 document 监听不阻止传播，编辑器 `Escape→取消选中` 随即卸载那排工具按钮，焦点无处可归。监听移到捕获阶段并 `stopPropagation`，与 `ColorField` 既有「内层吃掉第一次 Escape」一致。
+- `full-flow` 找不到「调整右侧宽度」把手、`editor-geometry` 拖动不生效（`ec8a915` 修复）：T05 换成 antd `Select` 后触发器不再是 `button`/`select` 元素，画布的「点空白取消选中」只认标签名，于是点预览缩放即丢选区，100% 缩放改按画布中心定位，鼠标按下落在画布上变成平移。判断改用共享控件自带的 `data-fp-control`/`data-fp-input` 钩子，触摸捏合的同一处判断一并更新。此为 T05 遗留，`full-flow`/`editor-geometry` 自 T04 后未复跑，本次 T06.5 复跑暴露。
+- 混合字号用例字段显示 `64` 而非空（占位符「混合」）：`input.focus()` 后 Tiptap 在 20ms 才把 state 选区写回 DOM，测试的 `Home` + 4×`Shift+ArrowRight` 恰好被这次写回打断——截图里画布高亮只剩「你好」，面板按 2 字选区算出 64。真人按键远慢于 20ms，产品行为不变，沿用 T05 的处理：先轮询选区复位再键入。
