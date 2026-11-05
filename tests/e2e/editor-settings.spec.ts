@@ -17,9 +17,7 @@ async function savedDocument(page: Page) {
   await expect(page.getByText("待保存", { exact: true })).toBeVisible();
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   const id = page.url().split("/").at(-2)!;
-  const body = await (
-    await page.request.get(`/api/v1/projects/${id}`)
-  ).json();
+  const body = await (await page.request.get(`/api/v1/projects/${id}`)).json();
   return JSON.parse(body.project.document) as {
     textBlocks: { effects: { opacity: number; padding: number } }[];
   };
@@ -111,8 +109,8 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   expect(finalPadding).toBeLessThanOrEqual(max + 1e-9);
   expect(finalPadding).toBeGreaterThan(max - 2);
   await expect(paddingUp).toBeDisabled();
-  const rendered = await block.evaluate(
-    (el) => Number.parseFloat(getComputedStyle(el).paddingTop),
+  const rendered = await block.evaluate((el) =>
+    Number.parseFloat(getComputedStyle(el).paddingTop),
   );
   expect(Math.abs(rendered - finalPadding)).toBeLessThan(0.01);
 });
@@ -139,9 +137,7 @@ test("a mixed font-size selection steps from its first character and undoes once
   await expect(size).toHaveValue("");
   await expect(size).toHaveAttribute("placeholder", "混合");
 
-  await page
-    .getByRole("button", { name: "增加文字字号", exact: true })
-    .click();
+  await page.getByRole("button", { name: "增加文字字号", exact: true }).click();
   await expect(size).toHaveValue("65");
   expect(await textFontSize(input, "你")).toBe("65px");
   expect(await textFontSize(input, "风")).toBe("65px");
@@ -178,6 +174,21 @@ test("holding a stepper groups its repeats into one undo entry", async ({
   expect(held).toBeGreaterThan(67);
   await expect(block).toHaveCSS("font-size", `${held}px`);
 
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(size).toHaveValue("64");
+  await expect(block).toHaveCSS("font-size", "64px");
+
+  // Two undos observe the boundary: the hold is one entry on top of the
+  // independent click, so it unwinds to 65 and then to 64.
+  await plus.click();
+  await expect(size).toHaveValue("65");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  expect(Number(await size.inputValue())).toBeGreaterThan(68);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(size).toHaveValue("65");
   await page.getByRole("button", { name: "撤销", exact: true }).click();
   await expect(size).toHaveValue("64");
   await expect(block).toHaveCSS("font-size", "64px");
@@ -222,7 +233,9 @@ test.describe("touch steppers", () => {
     await page.getByRole("button", { name: "关闭", exact: true }).click();
     expect(await textFontSize(input, "风")).toBe("66px");
     expect(await textFontSize(input, "你")).toBe("64px");
-    await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+    await page
+      .getByRole("button", { name: "完成文字编辑", exact: true })
+      .click();
     const block = page.locator("[data-text-block]").first();
     expect(await textFontSize(block, "风")).toBe("66px");
     expect(await textFontSize(block, "世")).toBe("64px");

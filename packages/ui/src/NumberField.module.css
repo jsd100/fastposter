@@ -21,26 +21,33 @@
   text-align: center;
 }
 
-.stepButton {
+/* Ant Design's button rules are one class plus :where() wrappers; the
+   duplicated module class keeps the stepper chrome and hover ink in charge. */
+.stepper .stepButton.stepButton {
   display: flex;
   flex: none;
   align-items: center;
   justify-content: center;
   width: 28px;
+  height: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: none;
+  box-shadow: none;
   color: inherit;
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
 }
 
-.stepButton:hover:not(:disabled) {
+.stepper .stepButton.stepButton:hover:not(:disabled) {
   background: var(--fp-surface-hover);
+  color: inherit;
 }
 
-.stepButton:disabled {
+.stepper .stepButton.stepButton:disabled {
   opacity: 0.35;
   cursor: default;
 }
@@ -56,7 +63,7 @@
 }
 
 @media (pointer: coarse) {
-  .stepButton {
+  .stepper .stepButton.stepButton {
     width: var(--fp-tap-target, 44px);
     font-size: 18px;
   }

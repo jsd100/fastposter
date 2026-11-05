@@ -39,15 +39,17 @@ describe("styling hook", () => {
     const bare = classListOf(
       renderToStaticMarkup(createElement(TextInput, { variant: "bare" })),
     );
-    expect(numberField).toEqual(bare);
-    expect(numberField).toHaveLength(1);
+    expect(bare).toHaveLength(1);
+    // Ant Design adds its own classes to the input; the shared focus hook is
+    // the part this package owns and must stay on every text-like control.
+    expect(numberField).toContain(bare[0]);
   });
 
   it("marks every text control, including the bare variant", () => {
     for (const variant of ["field", "bare"] as const) {
-      expect(inputTag(renderToStaticMarkup(createElement(TextInput, { variant })))).toContain(
-        'data-fp-input=""',
-      );
+      expect(
+        inputTag(renderToStaticMarkup(createElement(TextInput, { variant }))),
+      ).toContain('data-fp-input=""');
       expect(
         inputTag(renderToStaticMarkup(createElement(Textarea, { variant }))),
       ).toContain('data-fp-input=""');

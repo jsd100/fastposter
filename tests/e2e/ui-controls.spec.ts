@@ -285,6 +285,11 @@ test("unfinished decimals stay drafts until a valid number is entered", async ({
   await spacing.fill("0.");
   await expect(spacing).toHaveValue("0.");
   await expect(block).toHaveCSS("letter-spacing", "12px");
+  await spacing.press("Escape");
+  await expect(spacing).toHaveValue("12");
+  await expect(block).toHaveCSS("letter-spacing", "12px");
+  await spacing.fill("0.");
+  await expect(spacing).toHaveValue("0.");
   await spacing.press("Control+Home");
   await expect(spacing).toHaveValue("0.");
   await spacing.dispatchEvent("keydown", {
