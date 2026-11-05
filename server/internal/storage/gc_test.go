@@ -249,6 +249,38 @@ func TestCollectsOrphanAfterGracePeriod(t *testing.T) {
 	}
 }
 
+func TestGCPreservesFileSharedByAnotherVersion(t *testing.T) {
+	db, store, dir := gcFixture(t)
+	now := time.Now().UTC()
+	old := now.Add(-31 * 24 * time.Hour)
+	seedProjectRow(t, db, "p-live", "u1")
+	kept := seedAsset(t, db, store, dir, "a-kept", "u1", 31*24*time.Hour)
+	orphan := seedAsset(t, db, store, dir, "a-orphan", "u1", 31*24*time.Hour)
+	if _, e := db.Exec("UPDATE asset_versions SET normalized_key=? WHERE asset_id='a-orphan'", string(kept.normalized)); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := db.Exec("UPDATE asset_versions SET created_at=? WHERE asset_id IN ('a-kept','a-orphan')", old); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := db.Exec("INSERT INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('project','p-live','a-kept',1)"); e != nil {
+		t.Fatal(e)
+	}
+	collector := storage.GC{DB: db, Store: store, Root: dir, Grace: 24 * time.Hour}
+	if _, e := collector.Run(context.Background(), now); e != nil {
+		t.Fatal(e)
+	}
+	if !fileExists(t, store, kept.normalized) {
+		t.Fatal("GC deleted a file still used by another asset version")
+	}
+	if fileExists(t, store, orphan.original) || fileExists(t, store, orphan.preview) {
+		t.Fatal("GC left orphan-only files")
+	}
+	var versions int
+	if e := db.QueryRow("SELECT COUNT(*) FROM asset_versions WHERE asset_id IN ('a-kept','a-orphan')").Scan(&versions); e != nil || versions != 1 {
+		t.Fatalf("unexpected versions after GC: %d %v", versions, e)
+	}
+}
+
 func TestExpiresOnlyExportResultAfterSevenDays(t *testing.T) {
 	db, store, dir := gcFixture(t)
 	seedProjectRow(t, db, "p1", "u1")

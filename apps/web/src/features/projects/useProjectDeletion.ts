@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   isDeletionComplete,
-  mergeDeletionStatus,
+  replaceDeletionTask,
   routes,
   type ProjectDeletionDTO,
   type ProjectDeletionListReply,
@@ -37,6 +37,7 @@ export function useProjectDeletion(
   const watched = useRef(new Set<string>());
   const checking = useRef(new Set<string>());
   const notified = useRef(new Set<string>());
+  const listed = useRef(new Set<string>());
   const listKey = ["project-deletions", userId, page, keyword] as const;
   const list = useQuery({
     queryKey: listKey,
@@ -55,6 +56,7 @@ export function useProjectDeletion(
   useEffect(() => {
     watched.current = new Set();
     checking.current = new Set();
+    listed.current = new Set();
   }, [scope]);
 
   async function confirmCompleted(
@@ -95,11 +97,25 @@ export function useProjectDeletion(
     if (!enabled || !list.data) return;
     const ownerScope = scope;
     const current = new Set(list.data.deletions.map((task) => task.id));
+    listed.current = current;
     for (const taskId of watched.current)
       if (!current.has(taskId))
         void confirmCompleted(userId, ownerScope, taskId);
     watched.current = new Set([...watched.current, ...current]);
   }, [enabled, scope, userId, list.data]);
+
+  // The list only proves a task was unfinished while it was visible. Once the
+  // queue empties (or an accepted task never reaches this page), confirm the
+  // outcome independently so a dropped detail request cannot lose the result.
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = setInterval(() => {
+      for (const taskId of watched.current)
+        if (!listed.current.has(taskId))
+          void confirmCompleted(userId, scope, taskId);
+    }, DELETION_POLL_INTERVAL);
+    return () => clearInterval(timer);
+  }, [enabled, scope, userId]);
 
   async function run<T>(action: () => Promise<T>): Promise<T> {
     if (busyRef.current) throw new Error("操作正在进行，请稍候");
@@ -118,6 +134,9 @@ export function useProjectDeletion(
       const { deletion } = await request(routes.PermanentlyDeleteProject, {
         id: projectId,
       });
+      // Track the accepted task even if the first unfinished list never shows
+      // it, so fast cleanup still produces the required completion feedback.
+      watched.current.add(deletion.id);
       const cleanup = drafts.blockProject(userId, projectId);
       publishProjectDeletion({ userId, projectId });
       try {
@@ -134,6 +153,8 @@ export function useProjectDeletion(
         cache.invalidateQueries({ queryKey: ["projects", userId] }),
         cache.invalidateQueries({ queryKey: ["project-deletions", userId] }),
       ]);
+      if (isDeletionComplete(deletion))
+        void confirmCompleted(userId, scope, deletion.id);
       return deletion;
     });
   }
@@ -143,13 +164,12 @@ export function useProjectDeletion(
       const { deletion } = await request(routes.RetryProjectDeletion, {
         id: taskId,
       });
+      watched.current.add(deletion.id);
       cache.setQueryData<ProjectDeletionListReply>(listKey, (previous) =>
         previous
           ? {
               ...previous,
-              deletions: previous.deletions.map((task) =>
-                mergeDeletionStatus(task, deletion),
-              ),
+              deletions: replaceDeletionTask(previous.deletions, deletion),
             }
           : previous,
       );

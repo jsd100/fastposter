@@ -266,6 +266,16 @@ func TestAcceptMalformedDocument(t *testing.T) {
 	}
 }
 
+func TestAcceptUnknownProjectWithSingleConnection(t *testing.T) {
+	f := newDeletionFixture(t)
+	f.DB.SetMaxOpenConns(1)
+	t.Cleanup(func() { f.DB.SetMaxOpenConns(12) })
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+	defer cancel()
+	_, e := f.Service.Accept(ctx, deletionOwner, projectdeletions.OwnerScope, "review-missing-project")
+	wantDeletionCode(t, e, "NOT_FOUND")
+}
+
 func TestAcceptPermissionsAndIdempotency(t *testing.T) {
 	f := newDeletionFixture(t)
 	ctx := context.Background()

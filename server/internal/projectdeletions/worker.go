@@ -396,5 +396,9 @@ func (w *Worker) fail(ctx context.Context, taskID, token string, cause error, no
 	if n != 1 {
 		return errLeaseLost
 	}
-	return tx.Commit()
+	if e = tx.Commit(); e != nil {
+		return e
+	}
+	log.Printf("project cleanup: task %s attempt %d failed: %v", taskID, attempts, cause)
+	return nil
 }

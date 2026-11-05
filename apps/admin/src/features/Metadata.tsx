@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   routes,
@@ -18,6 +18,7 @@ import {
   canPermanentlyDelete,
   ProjectDeletionQueue,
 } from "./projects/ProjectDeletionQueue";
+import { pageAfterShrink } from "./projects/pagination";
 function Empty() {
   return <p className="admin-empty">暂无记录</p>;
 }
@@ -248,6 +249,16 @@ export function ProjectsPage() {
     action: { label: "重新加载", onClick: () => void q.refetch() },
   });
   useErrorNotice("admin:project-deletion", actionError || null);
+  useEffect(() => {
+    if (!q.data) return;
+    const next = pageAfterShrink(
+      page,
+      q.data.total,
+      q.data.projects.length,
+      24,
+    );
+    if (next !== page) setPage(next);
+  }, [page, q.data]);
   async function confirmDelete() {
     if (!target) return;
     setBusy(true);

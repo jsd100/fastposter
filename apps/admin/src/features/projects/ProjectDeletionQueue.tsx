@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProjectMetadataDTO } from "@fastposter/api-client";
 import { routes } from "@fastposter/api-client";
 import { Button, ProjectDeletionStatus, useErrorNotice } from "@fastposter/ui";
 import { errorMessage, request } from "../../api";
+import { pageAfterShrink } from "./pagination";
 
 const PAGE_SIZE = 24;
 const POLL_INTERVAL = 2000;
@@ -35,6 +36,16 @@ export function ProjectDeletionQueue() {
     action: { label: "重新加载", onClick: () => void q.refetch() },
   });
   useErrorNotice("admin:deletion-action", actionError || null);
+  useEffect(() => {
+    if (!q.data) return;
+    const next = pageAfterShrink(
+      page,
+      q.data.total,
+      q.data.deletions.length,
+      PAGE_SIZE,
+    );
+    if (next !== page) setPage(next);
+  }, [page, q.data]);
 
   async function refresh() {
     await Promise.all([

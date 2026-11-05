@@ -83,8 +83,15 @@ func (s *Service) authorizeTask(actor auth.Principal, scope Scope, task Task) er
 	return nil
 }
 
-func (s *Service) findTaskByProject(ctx context.Context, actor auth.Principal, scope Scope, projectID string) (Task, bool, error) {
-	task, e := scanTask(s.DB.QueryRowContext(ctx, "SELECT "+taskColumns+" FROM project_deletions WHERE project_id=?", projectID))
+// rowQuerier lets the same lookup run on the pool or inside an existing
+// transaction. A transaction already owns its connection, so a lookup that
+// borrows another one can deadlock a saturated pool.
+type rowQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func (s *Service) findTaskByProject(ctx context.Context, q rowQuerier, actor auth.Principal, scope Scope, projectID string) (Task, bool, error) {
+	task, e := scanTask(q.QueryRowContext(ctx, "SELECT "+taskColumns+" FROM project_deletions WHERE project_id=?", projectID))
 	var known *domain.Error
 	if errors.As(e, &known) && known.Code == "NOT_FOUND" {
 		return Task{}, false, nil
@@ -98,8 +105,8 @@ func (s *Service) findTaskByProject(ctx context.Context, actor auth.Principal, s
 	return task, true, nil
 }
 
-func (s *Service) taskOrMissing(ctx context.Context, actor auth.Principal, scope Scope, projectID string) (Task, error) {
-	if task, ok, e := s.findTaskByProject(ctx, actor, scope, projectID); e != nil {
+func (s *Service) taskOrMissing(ctx context.Context, q rowQuerier, actor auth.Principal, scope Scope, projectID string) (Task, error) {
+	if task, ok, e := s.findTaskByProject(ctx, q, actor, scope, projectID); e != nil {
 		return Task{}, e
 	} else if ok {
 		return task, nil
@@ -137,7 +144,7 @@ func (s *Service) Accept(ctx context.Context, actor auth.Principal, scope Scope,
 	if projectID == "" || len(projectID) > 64 {
 		return Task{}, domain.E("NOT_FOUND", "作品不存在或无权访问")
 	}
-	if task, ok, e := s.findTaskByProject(ctx, actor, scope, projectID); e != nil {
+	if task, ok, e := s.findTaskByProject(ctx, s.DB, actor, scope, projectID); e != nil {
 		return Task{}, e
 	} else if ok {
 		return task, nil
@@ -150,7 +157,7 @@ func (s *Service) Accept(ctx context.Context, actor auth.Principal, scope Scope,
 		if !retryableAccept(e) {
 			return Task{}, e
 		}
-		if task, ok, readErr := s.findTaskByProject(ctx, actor, scope, projectID); readErr != nil {
+		if task, ok, readErr := s.findTaskByProject(ctx, s.DB, actor, scope, projectID); readErr != nil {
 			return Task{}, readErr
 		} else if ok {
 			return task, nil
@@ -171,7 +178,7 @@ func (s *Service) acceptOnce(ctx context.Context, actor auth.Principal, scope Sc
 	var owner string
 	e = tx.QueryRowContext(ctx, "SELECT owner_id FROM projects WHERE id=?", projectID).Scan(&owner)
 	if errors.Is(e, sql.ErrNoRows) {
-		return s.taskOrMissing(ctx, actor, scope, projectID)
+		return s.taskOrMissing(ctx, tx, actor, scope, projectID)
 	}
 	if e != nil {
 		return Task{}, e
@@ -185,7 +192,7 @@ func (s *Service) acceptOnce(ctx context.Context, actor auth.Principal, scope Sc
 	var deleted sql.NullTime
 	e = tx.QueryRowContext(ctx, "SELECT owner_id,title,width,height,deleted_at FROM projects WHERE id=? FOR UPDATE", projectID).Scan(&currentOwner, &title, &width, &height, &deleted)
 	if errors.Is(e, sql.ErrNoRows) {
-		return s.taskOrMissing(ctx, actor, scope, projectID)
+		return s.taskOrMissing(ctx, tx, actor, scope, projectID)
 	}
 	if e != nil {
 		return Task{}, e
