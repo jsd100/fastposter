@@ -19,4 +19,27 @@ export const fastPosterTheme: ThemeConfig = {
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   },
+  /**
+   * Controls take their size and ink from these tokens, so the shared classes
+   * in `styles.css` stay geometry the pages own. The scale is UI-02: regular
+   * controls 36px/14px, compact property-area actions 32px/12px, secondary text
+   * 12px.
+   */
+  components: {
+    Button: {
+      fontWeight: 500,
+      contentFontSize: 14,
+      contentFontSizeSM: 12,
+      controlHeightSM: 32,
+      paddingInline: 16,
+      paddingInlineSM: 10,
+    },
+    Alert: {
+      defaultPadding: "12px 14px",
+      containerBorderRadius: 6,
+    },
+    Tooltip: {
+      maxWidth: 240,
+    },
+  },
 };

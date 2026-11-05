@@ -7,7 +7,6 @@ import {
   type PointerEvent,
   type ReactElement,
 } from "react";
-import inputStyles from "./Input.module.css";
 import { classifyNumberDraft, stepNumber } from "./number-draft";
 import styles from "./NumberField.module.css";
 
@@ -252,7 +251,7 @@ export function NumberField({
   const input = (
     <Input
       data-fp-input=""
-      className={`${inputStyles.focus}${variant === "stepper" ? " " + styles.input : ""}`}
+      className={variant === "stepper" ? styles.input : undefined}
       id={id}
       aria-label={ariaLabel}
       role="spinbutton"

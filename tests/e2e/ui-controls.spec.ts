@@ -577,8 +577,12 @@ test("icon actions describe themselves on keyboard focus and disabled actions st
     exact: true,
   });
   await expect(hint).toBeFocused();
-  await expect(tip).toBeVisible();
-  await expect(tip).toHaveText("文字块前移一层");
+  // antd fades the previous hint out over a couple of hundred milliseconds, so
+  // during the handoff two bubbles exist. Address the hint of the focused action
+  // by its own text; the contract is that it describes the button in focus.
+  const shown = tip.filter({ hasText: "文字块前移一层" });
+  await expect(shown).toBeVisible();
+  await expect(shown).toHaveText("文字块前移一层");
   await page.keyboard.press("Escape");
   await expect(tip).toHaveCount(0);
   await expect(hint).toBeFocused();

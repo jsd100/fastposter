@@ -26,8 +26,10 @@ describe("styling hook", () => {
     expect(inputTag(html)).toContain('data-fp-input=""');
   });
 
-  it("gives the number field input the shared focus class", () => {
-    const numberField = classListOf(
+  it("shares the data hook across every text-like control", () => {
+    // antd adds its own classes, and CSS-module names are hashed, so the
+    // attribute is the stable hook the package owns and the pages target.
+    const controls = [
       renderToStaticMarkup(
         createElement(NumberField, {
           "aria-label": "模板排序",
@@ -35,14 +37,12 @@ describe("styling hook", () => {
           onValueChange: () => {},
         }),
       ),
-    );
-    const bare = classListOf(
       renderToStaticMarkup(createElement(TextInput, { variant: "bare" })),
-    );
-    expect(bare).toHaveLength(1);
-    // Ant Design adds its own classes to the input; the shared focus hook is
-    // the part this package owns and must stay on every text-like control.
-    expect(numberField).toContain(bare[0]);
+      renderToStaticMarkup(createElement(TextInput)),
+      renderToStaticMarkup(createElement(Textarea, { variant: "bare" })),
+      renderToStaticMarkup(createElement(Textarea)),
+    ];
+    for (const html of controls) expect(inputTag(html)).toContain('data-fp-input=""');
   });
 
   it("marks every text control, including the bare variant", () => {
@@ -56,23 +56,37 @@ describe("styling hook", () => {
     }
   });
 
-  it("gives every variant the shared focus class but only field sets sizes", () => {
-    function classOf(variant: "field" | "bare"): string[] {
-      const match = /class="([^"]*)"/.exec(
-        renderToStaticMarkup(
-          createElement(TextInput, { variant, className: "page-owned" }),
+  it("lets antd frame the field and drop the frame for bare controls", () => {
+    expect(classListOf(renderToStaticMarkup(createElement(TextInput)))).toContain(
+      "ant-input-outlined",
+    );
+    expect(
+      classListOf(renderToStaticMarkup(createElement(TextInput, { variant: "bare" }))),
+    ).toContain("ant-input-borderless");
+    expect(
+      classListOf(renderToStaticMarkup(createElement(Textarea))),
+    ).toContain("ant-input-outlined");
+    expect(
+      classListOf(renderToStaticMarkup(createElement(Textarea, { variant: "bare" }))),
+    ).toContain("ant-input-borderless");
+  });
+
+  it("keeps the caller class name on every variant", () => {
+    for (const variant of ["field", "bare"] as const) {
+      expect(
+        classListOf(
+          renderToStaticMarkup(
+            createElement(TextInput, { variant, className: "page-owned" }),
+          ),
         ),
-      );
-      expect(match).not.toBeNull();
-      return match![1].trim().split(/\s+/).filter(Boolean);
+      ).toContain("page-owned");
+      expect(
+        classListOf(
+          renderToStaticMarkup(
+            createElement(Textarea, { variant, className: "page-owned" }),
+          ),
+        ),
+      ).toContain("page-owned");
     }
-    const bare = classOf("bare");
-    const field = classOf("field");
-    expect(bare).toContain("page-owned");
-    expect(field).toContain("page-owned");
-    const shared = bare.filter((name) => name !== "page-owned");
-    expect(shared).toHaveLength(1);
-    expect(field).toContain(shared[0]);
-    expect(field.length).toBeGreaterThan(bare.length);
   });
 });

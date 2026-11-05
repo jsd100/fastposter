@@ -35,7 +35,8 @@ export function FormField({
         {...props}
         ref={ref}
         id={fieldId}
-        className={`${error ? styles.invalid + " " : ""}${className}`}
+        status={error ? "error" : undefined}
+        className={className}
         aria-describedby={describedBy || undefined}
         aria-invalid={error ? true : undefined}
       />

@@ -1,8 +1,15 @@
-import { Button as BaseButton } from "@base-ui/react/button";
+import { Button as AntButton } from "antd";
 import type { ButtonHTMLAttributes, Ref } from "react";
-import styles from "./Button.module.css";
+import { antdAppearance, antdSize, busyLoading } from "./button-appearance";
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+/**
+ * `color` is dropped from the inherited HTML attributes because antd owns that
+ * prop name for its own palette; every other button attribute stays as it was.
+ */
+export type ButtonProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "color"
+> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   busy?: boolean;
   density?: "normal" | "compact";
@@ -13,7 +20,6 @@ export function Button({
   variant = "secondary",
   busy,
   density = "normal",
-  children,
   className = "",
   disabled,
   type,
@@ -21,18 +27,18 @@ export function Button({
   ...props
 }: ButtonProps) {
   return (
-    <BaseButton
+    <AntButton
       {...props}
       ref={ref}
-      type={type ?? "button"}
+      htmlType={type ?? "button"}
+      {...antdAppearance(variant)}
+      size={antdSize(density)}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
+      loading={busy ? busyLoading() : undefined}
       data-fp-control=""
-      className={`button button-${variant}${density === "compact" ? " " + styles.compact : ""} ${className}`}
-    >
-      {busy && <span className="spinner" aria-hidden="true" />}
-      {children}
-    </BaseButton>
+      className={`button button-${variant} ${className}`}
+    />
   );
 }
 
@@ -44,16 +50,19 @@ export function IconButton({
   type,
   ref,
   ...props
-}: ButtonProps & { "aria-label": string }) {
+}: Omit<ButtonProps, "variant"> & { "aria-label": string }) {
   return (
-    <BaseButton
+    <AntButton
       {...props}
       ref={ref}
-      type={type ?? "button"}
+      htmlType={type ?? "button"}
+      type="text"
+      size={antdSize(density)}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
+      loading={busy ? busyLoading() : undefined}
       data-fp-control=""
-      className={`icon-button${density === "compact" ? " " + styles.compactIcon : ""} ${className}`}
+      className={`icon-button ${className}`}
     />
   );
 }

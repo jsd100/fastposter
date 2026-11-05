@@ -1,8 +1,8 @@
-import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
-import type { ReactElement } from "react";
-import buttonStyles from "./Button.module.css";
-import { Tooltip } from "./Tooltip";
+import { Button as AntButton } from "antd";
+import type { MouseEvent, ReactElement } from "react";
+import { antdAppearance, antdSize, busyLoading } from "./button-appearance";
 import type { ButtonProps } from "./Button";
+import { Tooltip } from "./Tooltip";
 
 export type ToggleButtonProps = Omit<
   ButtonProps,
@@ -24,26 +24,32 @@ export function ToggleButton({
   children,
   disabled,
   type,
+  onClick,
   ref,
   ...props
 }: ToggleButtonProps): ReactElement {
   const button = (
-    <TogglePrimitive
+    <AntButton
       {...props}
       ref={ref}
-      type={type ?? "button"}
-      pressed={pressed}
-      onPressedChange={(next) => onPressedChange(next)}
+      htmlType={type ?? "button"}
+      {...antdAppearance(variant)}
+      size={antdSize(density)}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
+      aria-pressed={pressed}
+      loading={busy ? busyLoading() : undefined}
       data-fp-control=""
-      className={`button button-${variant}${
-        density === "compact" ? " " + buttonStyles.compact : ""
-      } ${className}`}
+      className={`button button-${variant} ${className}`}
+      onClick={(event: MouseEvent<HTMLElement>) => {
+        (onClick as ((event: MouseEvent<HTMLElement>) => void) | undefined)?.(
+          event,
+        );
+        onPressedChange(!pressed);
+      }}
     >
-      {busy && <span className="spinner" aria-hidden="true" />}
       {children}
-    </TogglePrimitive>
+    </AntButton>
   );
   return tooltip ? <Tooltip label={tooltip}>{button}</Tooltip> : button;
 }

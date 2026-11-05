@@ -135,65 +135,54 @@ summary:focus-visible {
     transition: none !important;
   }
 }
-.button {
-  min-height: var(--fp-height-button);
-  border-radius: var(--fp-radius-control);
-  border: 1px solid var(--fp-line);
+/* antd owns the frame, ink and size of every shared button through the tokens in
+   theme.ts. What is left here is what the framework cannot express: the label row
+   inside the button, the tighter ghost padding and the icon target geometry. They
+   are qualified by the data hook, so they win over antd's injected styles without
+   depending on stylesheet order. */
+.button[data-fp-control] > span {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 0 16px;
-  font-weight: 500;
-  font-size: 11px;
-  background: var(--fp-surface);
-  color: var(--fp-green-ink);
-  transition: background 0.15s;
-  white-space: nowrap;
-  vertical-align: middle;
 }
-.button-primary {
-  background: var(--fp-green);
-  border-color: var(--fp-green);
-  color: var(--fp-surface);
+.button-ghost[data-fp-control] {
+  padding-inline: 8px;
 }
-.button-primary:hover {
-  background: var(--fp-green-hover);
-}
-.button-secondary:hover {
-  background: var(--fp-surface-hover);
-}
-.button-ghost {
-  background: transparent;
-  border-color: transparent;
-  padding: 0 8px;
-  color: var(--fp-green-ink-faint);
-}
-.button-ghost:hover {
-  background: var(--fp-surface-hover-soft);
-}
-.button-danger {
-  background: var(--fp-danger);
-  color: var(--fp-surface);
-  border-color: var(--fp-danger);
-}
-.button:disabled {
-  opacity: 0.5;
-}
-.icon-button {
-  border: 0;
-  background: transparent;
-  color: var(--fp-icon-ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.icon-button[data-fp-control] {
   width: 32px;
   height: 32px;
+  padding: 0;
   border-radius: var(--fp-radius-icon);
+  color: var(--fp-icon-ink);
   flex-shrink: 0;
 }
-.icon-button:hover {
+.icon-button[data-fp-control]:hover,
+.icon-button[data-fp-control]:focus-visible {
+  color: var(--fp-ink);
   background: var(--fp-icon-hover);
+}
+/* Text controls keep only their geometry: antd draws the frame, ink and size
+   from the theme and already gives each one width:100%; min-width:0. The rules
+   are keyed on the data hook because antd appends its own classes to the same
+   element and CSS-module names are hashed. They live in this stylesheet rather
+   than a module so they are always in the bundle — an unused module import is
+   dropped by the build, and a dropped focus ring reads as the page border.
+   Element + attribute + pseudo-class (0,2,1) outranks both antd's injected rule
+   and the page rules qualified on [data-fp-input] (0,2,0), so the brand ring
+   wins whatever order the stylesheets land in, including on bare variants
+   antd's own focus style never frames. */
+textarea[data-fp-input].fp-textarea {
+  min-height: 96px;
+  padding: 11px 12px;
+  line-height: 1.7;
+  resize: vertical;
+  font-family: inherit;
+}
+input[data-fp-input]:focus,
+textarea[data-fp-input]:focus {
+  outline: none;
+  border-color: var(--fp-focus-line);
+  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
 }
 /* antd leaves the modal box pointer-events:none so outside clicks reach the
    mask, and only the panel container opts back in. Popups portalled into the
@@ -285,25 +274,10 @@ summary:focus-visible {
   color: var(--fp-hint-ink);
   line-height: 1.6;
 }
-.status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  font-size: 11px;
-  line-height: 1.7;
-  border-radius: var(--fp-radius-control);
-  background: var(--fp-info-surface);
-  color: var(--fp-info-ink);
+/* antd's alert draws the status surface, ink and padding from theme.ts; the
+   class keeps the spacing the pages stack these lines with. */
+.status[data-fp-status] {
   margin-bottom: 16px;
-}
-.status-error {
-  background: var(--fp-danger-surface);
-  color: var(--fp-danger-ink);
-}
-.status-success {
-  color: var(--fp-success-ink);
 }
 .spinner {
   display: inline-block;
@@ -384,6 +358,12 @@ summary:focus-visible {
     min-width: var(--fp-tap-target);
   }
   .form-field input {
+    font-size: 16px;
+  }
+  /* Field-framed text controls stay at 16px so iOS does not zoom the page when
+     one takes focus; compact search boxes are left at the theme size. */
+  [data-fp-input].fp-field,
+  textarea[data-fp-input].fp-field {
     font-size: 16px;
   }
 }
