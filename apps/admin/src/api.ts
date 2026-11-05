@@ -1,1 +1,5 @@
-export { request, errorMessage, download } from "../../web/src/api";
+export {
+  download,
+  errorMessage,
+  request,
+} from "@fastposter/api-client/browser";

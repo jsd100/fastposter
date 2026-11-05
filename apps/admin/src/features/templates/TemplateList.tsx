@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   apiClient,
@@ -6,7 +6,15 @@ import {
   type ResourceDTO,
   type ResourceReply,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Status, TextInput, useErrorNotice } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  FormField,
+  Select,
+  Status,
+  TextInput,
+  useErrorNotice,
+} from "@fastposter/ui";
 import {
   loadFonts,
   PosterThumbnail,
@@ -16,7 +24,12 @@ import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { Download, LayoutTemplate, Plus, Upload } from "lucide-react";
 import { download, errorMessage, request } from "../../api";
 import { Pager } from "../Metadata";
-import { TemplateEditor } from "./TemplateEditor";
+
+const TemplateEditor = lazy(() =>
+  import("./TemplateEditor").then((module) => ({
+    default: module.TemplateEditor,
+  })),
+);
 
 export function TemplatesPage() {
   const cache = useQueryClient();
@@ -57,14 +70,10 @@ export function TemplatesPage() {
     retry: false,
     staleTime: 60_000,
   });
-  useErrorNotice(
-    "admin:templates",
-    q.error ? errorMessage(q.error) : null,
-    {
-      persistent: true,
-      action: { label: "重新加载", onClick: () => void q.refetch() },
-    },
-  );
+  useErrorNotice("admin:templates", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
   useErrorNotice("admin:template-action", error || null);
   const documents = useMemo(() => {
     const map = new Map<string, PosterDocument>();
@@ -99,7 +108,8 @@ export function TemplatesPage() {
         );
         if (source) needed.set(source.assetId, source);
       }
-    if (needed.size) void loadFonts([...needed.values()]).catch(() => undefined);
+    if (needed.size)
+      void loadFonts([...needed.values()]).catch(() => undefined);
   }, [fonts.data, signature, documents]);
   const refresh = () =>
     cache.invalidateQueries({ queryKey: ["admin", "resources", "template"] });
@@ -203,7 +213,8 @@ export function TemplatesPage() {
         </div>
       </div>
       <div className="admin-filters">
-        <TextInput variant="bare"
+        <TextInput
+          variant="bare"
           className="admin-search"
           aria-label="搜索模板"
           placeholder="搜索模板名称"
@@ -311,17 +322,22 @@ export function TemplatesPage() {
       )}
       <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
       {editing && (
-        <TemplateEditor
-          resource={editing === "new" ? undefined : editing}
-          close={() => setEditing(null)}
-          saved={async () => {
-            setEditing(null);
-            await refresh();
-          }}
-        />
+        <Suspense fallback={<Status>正在打开模板编辑器…</Status>}>
+          <TemplateEditor
+            resource={editing === "new" ? undefined : editing}
+            close={() => setEditing(null)}
+            saved={async () => {
+              setEditing(null);
+              await refresh();
+            }}
+          />
+        </Suspense>
       )}
       {preview && (
-        <TemplatePreviewDialog resource={preview} close={() => setPreview(null)} />
+        <TemplatePreviewDialog
+          resource={preview}
+          close={() => setPreview(null)}
+        />
       )}
       {newCategory && (
         <Dialog title="添加模板分类" onClose={() => setNewCategory(false)}>
@@ -435,7 +451,11 @@ function TemplatePreviewDialog({
     };
   }, [resource, fonts.data]);
   return (
-    <Dialog title={`模板预览 · ${resource.title}`} className="template-preview-dialog" onClose={close}>
+    <Dialog
+      title={`模板预览 · ${resource.title}`}
+      className="template-preview-dialog"
+      onClose={close}
+    >
       {document && ready ? (
         <PosterThumbnail
           document={document}

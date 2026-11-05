@@ -53,6 +53,7 @@ import { createEditorStore, type EditorStore } from "./store";
 import { Stage } from "./Stage";
 import { replaceBackground, type BackgroundAsset } from "./geometry";
 import { RichText, type FontSource } from "@fastposter/poster-renderer";
+import "./styles.css";
 export type EditorProps = {
   document: PosterDocument;
   onChange: (doc: PosterDocument) => void;
@@ -547,7 +548,10 @@ export function Editor({
             <>
               <div className="selection-actions">
                 <Tooltip label="复制文字块">
-                  <Button aria-label="复制文字块" onClick={store.duplicateSelected}>
+                  <Button
+                    aria-label="复制文字块"
+                    onClick={store.duplicateSelected}
+                  >
                     <Copy size={15} />
                   </Button>
                 </Tooltip>
@@ -568,7 +572,10 @@ export function Editor({
                   </Button>
                 </Tooltip>
                 <Tooltip label="删除文字块">
-                  <Button aria-label="删除文字块" onClick={store.deleteSelected}>
+                  <Button
+                    aria-label="删除文字块"
+                    onClick={store.deleteSelected}
+                  >
                     <Trash2 size={15} />
                   </Button>
                 </Tooltip>

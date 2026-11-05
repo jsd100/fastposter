@@ -1,5 +1,5 @@
 import { BrandIcon } from "@fastposter/ui";
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import {
   QueryClient,
@@ -13,24 +13,57 @@ import {
   FormField,
   NotificationsProvider,
   Status,
+  UIProvider,
   useErrorNotice,
   useNotificationScope,
   useNotify,
 } from "@fastposter/ui";
 import { AdminLayout } from "./AdminLayout";
-import {
-  Overview,
-  UsersPage,
-  ProjectsPage,
-  JobsPage,
-  AuditPage,
-} from "./features/Metadata";
-import { ResourcesPage } from "./features/Resources";
-import { TemplatesPage } from "./features/templates/TemplateList";
-import { CopyPage } from "./features/copy/CopyPage";
 import { navigate, usePath } from "./router";
 import { errorMessage } from "./api";
+import "@fastposter/ui/styles.css";
 import "./styles.css";
+
+const Overview = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.Overview,
+  })),
+);
+const UsersPage = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.UsersPage,
+  })),
+);
+const ProjectsPage = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.ProjectsPage,
+  })),
+);
+const JobsPage = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.JobsPage,
+  })),
+);
+const AuditPage = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.AuditPage,
+  })),
+);
+const ResourcesPage = lazy(() =>
+  import("./features/Resources").then((module) => ({
+    default: module.ResourcesPage,
+  })),
+);
+const TemplatesPage = lazy(() =>
+  import("./features/templates/TemplateList").then((module) => ({
+    default: module.TemplatesPage,
+  })),
+);
+const CopyPage = lazy(() =>
+  import("./features/copy/CopyPage").then((module) => ({
+    default: module.CopyPage,
+  })),
+);
 const cache = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
@@ -117,25 +150,27 @@ function AdminApp() {
           .catch((e) => notify.show({ tone: "error", title: errorMessage(e) }))
       }
     >
-      {path === "/admin/users" ? (
-        <UsersPage />
-      ) : path === "/admin/projects" ? (
-        <ProjectsPage />
-      ) : path === "/admin/backgrounds" ? (
-        <ResourcesPage key="background" kind="background" />
-      ) : path === "/admin/templates" ? (
-        <TemplatesPage />
-      ) : path === "/admin/copy" ? (
-        <CopyPage />
-      ) : path === "/admin/fonts" ? (
-        <ResourcesPage key="font" kind="font" />
-      ) : path === "/admin/jobs" ? (
-        <JobsPage />
-      ) : path === "/admin/audit" ? (
-        <AuditPage />
-      ) : (
-        <Overview />
-      )}
+      <Suspense fallback={<Status>正在加载页面…</Status>}>
+        {path === "/admin/users" ? (
+          <UsersPage />
+        ) : path === "/admin/projects" ? (
+          <ProjectsPage />
+        ) : path === "/admin/backgrounds" ? (
+          <ResourcesPage key="background" kind="background" />
+        ) : path === "/admin/templates" ? (
+          <TemplatesPage />
+        ) : path === "/admin/copy" ? (
+          <CopyPage />
+        ) : path === "/admin/fonts" ? (
+          <ResourcesPage key="font" kind="font" />
+        ) : path === "/admin/jobs" ? (
+          <JobsPage />
+        ) : path === "/admin/audit" ? (
+          <AuditPage />
+        ) : (
+          <Overview />
+        )}
+      </Suspense>
     </AdminLayout>
   );
 }
@@ -198,8 +233,10 @@ function Login({ onUser }: { onUser: (user: UserDTO) => void }) {
 }
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={cache}>
-    <NotificationsProvider>
-      <AdminApp />
-    </NotificationsProvider>
+    <UIProvider>
+      <NotificationsProvider>
+        <AdminApp />
+      </NotificationsProvider>
+    </UIProvider>
   </QueryClientProvider>,
 );
