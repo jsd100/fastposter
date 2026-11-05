@@ -10,11 +10,13 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { Link } from "../../router";
-export type ProjectAction = "rename" | "clone" | "delete" | "restore";
+export type ProjectAction =
+  "rename" | "clone" | "delete" | "restore" | "permanent-delete";
 type Props = {
   projects: ProjectDTO[];
   loading: boolean;
   trash: boolean;
+  pendingDeletions?: number;
   onAction: (action: ProjectAction, project: ProjectDTO) => void;
   onUpload: () => void;
 };
@@ -22,6 +24,7 @@ export function ProjectListView({
   projects,
   loading,
   trash,
+  pendingDeletions = 0,
   onAction,
   onUpload,
 }: Props) {
@@ -46,10 +49,18 @@ export function ProjectListView({
             <ImagePlus size={34} strokeWidth={1.3} />
           )}
         </div>
-        <h2>{trash ? "回收站是空的" : "从一张图片开始"}</h2>
+        <h2>
+          {trash
+            ? pendingDeletions > 0
+              ? "没有可恢复的作品"
+              : "回收站是空的"
+            : "从一张图片开始"}
+        </h2>
         <p>
           {trash
-            ? "移入回收站的作品可在 30 天内恢复。"
+            ? pendingDeletions > 0
+              ? "待清理作品会在后台完成删除，独占文件清理后自动消失。"
+              : "移入回收站的作品可在 30 天内恢复。"
             : "导入喜欢的背景，写下此刻的灵感。"}
         </p>
         {!trash && (
@@ -105,14 +116,25 @@ export function ProjectListView({
               </p>
             </div>
             {trash ? (
-              <Button
-                variant="ghost"
-                onClick={() => onAction("restore", project)}
-                aria-label="恢复作品"
-              >
-                <RotateCcw size={16} />
-                恢复
-              </Button>
+              <div className="trash-actions">
+                <Button
+                  variant="ghost"
+                  onClick={() => onAction("restore", project)}
+                  aria-label="恢复作品"
+                >
+                  <RotateCcw size={16} />
+                  恢复
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="text-danger"
+                  onClick={() => onAction("permanent-delete", project)}
+                  aria-label={`彻底删除 ${project.title}`}
+                >
+                  <Trash2 size={16} />
+                  彻底删除
+                </Button>
+              </div>
             ) : (
               <details className="project-menu">
                 <summary aria-label={`${project.title} 的操作`}>

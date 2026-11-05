@@ -137,3 +137,89 @@ it("compares documents by values rather than JSON property order", () => {
   expect(save).not.toHaveBeenCalled();
   controller.dispose();
 });
+it("cannot be revived after the project is permanently deleted", async () => {
+  vi.useFakeTimers();
+  const save = vi.fn(async (document: { text: string }) => ({
+    document,
+    revision: "2",
+  }));
+  const persist = vi.fn(async () => {});
+  const controller = new Autosave({
+    initial: { text: "a" },
+    revision: "1",
+    save,
+    persist,
+  });
+  controller.stopDeleted();
+  controller.setBlocked(false);
+  controller.update({ text: "b" });
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(save).not.toHaveBeenCalled();
+  expect(persist).not.toHaveBeenCalled();
+  expect(controller.getState().status).toBe("deleted");
+  controller.dispose();
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(save).not.toHaveBeenCalled();
+});
+it("an in-flight save settling after deletion cannot revive the document", async () => {
+  vi.useFakeTimers();
+  const pending = deferred<{ document: { text: string }; revision: string }>();
+  const persist = vi.fn(async () => {});
+  const controller = new Autosave({
+    initial: { text: "a" },
+    revision: "1",
+    save: () => pending.promise,
+    persist,
+  });
+  controller.update({ text: "b" });
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(persist).toHaveBeenCalledTimes(1);
+  controller.stopDeleted();
+  pending.resolve({ document: { text: "b" }, revision: "2" });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(persist).toHaveBeenCalledTimes(1);
+  expect(controller.getState().status).toBe("deleted");
+  controller.dispose();
+});
+it("stops permanently when saving reports the project is gone", async () => {
+  vi.useFakeTimers();
+  const save = vi.fn(async () => {
+    throw Object.assign(new Error("作品不存在或无权访问"), {
+      code: "NOT_FOUND",
+    });
+  });
+  const persist = vi.fn(async () => {});
+  const controller = new Autosave({
+    initial: { text: "a" },
+    revision: "1",
+    save,
+    persist,
+  });
+  controller.update({ text: "b" });
+  await expect(controller.flush()).rejects.toMatchObject({ code: "NOT_FOUND" });
+  expect(controller.getState().status).toBe("deleted");
+  const persisted = persist.mock.calls.length;
+  controller.setBlocked(false);
+  controller.update({ text: "c" });
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(persist).toHaveBeenCalledTimes(persisted);
+  controller.dispose();
+});
+it("keeps other save failures retryable", async () => {
+  const save = vi.fn(async () => {
+    throw Error("网络中断");
+  });
+  const controller = new Autosave({
+    initial: { text: "a" },
+    revision: "1",
+    save,
+    persist: async () => {},
+  });
+  controller.update({ text: "b" });
+  await expect(controller.flush()).rejects.toThrow("网络中断");
+  expect(controller.getState().status).toBe("error");
+  controller.update({ text: "c" });
+  expect(controller.getState().status).toBe("dirty");
+  controller.dispose();
+});

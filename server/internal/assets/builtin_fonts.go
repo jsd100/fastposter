@@ -200,17 +200,64 @@ func (s *Service) BootstrapFonts(ctx context.Context, root string) error {
 			return e
 		}
 	}
-	if _, e = conn.ExecContext(ctx, "INSERT IGNORE INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) SELECT 'resource',resource_id,asset_id,asset_version FROM resource_versions WHERE asset_id IS NOT NULL AND asset_version IS NOT NULL"); e != nil {
+	if e = s.backfillResourceRefs(ctx, conn); e != nil {
 		return e
 	}
-
 	return nil
+}
+
+// backfillResourceRefs republishes resource references while holding the same
+// shared version locks as every other reference writer, so cleanup cannot
+// retire a version between validation and the reference insert.
+func (s *Service) backfillResourceRefs(ctx context.Context, conn *sql.Conn) error {
+	rows, e := conn.QueryContext(ctx, "SELECT DISTINCT asset_id,asset_version FROM resource_versions WHERE asset_id IS NOT NULL AND asset_version IS NOT NULL ORDER BY asset_id,asset_version")
+	if e != nil {
+		return e
+	}
+	var refs []storage.AssetVersionRef
+	for rows.Next() {
+		var ref storage.AssetVersionRef
+		if e = rows.Scan(&ref.AssetID, &ref.Version); e != nil {
+			rows.Close()
+			return e
+		}
+		refs = append(refs, ref)
+	}
+	e = rows.Err()
+	rows.Close()
+	if e != nil {
+		return e
+	}
+	tx, e := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback()
+	for _, ref := range refs {
+		if e = storage.LockAssetVersions(ctx, tx, []storage.AssetVersionRef{ref}); e != nil {
+			if errors.Is(e, storage.ErrAssetVersionMissing) {
+				continue
+			}
+			return e
+		}
+	}
+	if _, e = tx.ExecContext(ctx, "INSERT IGNORE INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) SELECT 'resource',rv.resource_id,rv.asset_id,rv.asset_version FROM resource_versions rv JOIN asset_versions v ON v.asset_id=rv.asset_id AND v.version=rv.asset_version WHERE rv.asset_id IS NOT NULL AND rv.asset_version IS NOT NULL"); e != nil {
+		return e
+	}
+	return tx.Commit()
 }
 
 // Restore only exact bytes at existing immutable keys; never create a new version
 // or change publication state merely because the runtime data directory was lost.
 func (s *Service) restoreBuiltinFontFiles(ctx context.Context, conn *sql.Conn, assetID string, sourcesByHash map[string]string) error {
-	rows, e := conn.QueryContext(ctx, "SELECT original_key,original_sha256,original_size,normalized_key,normalized_sha256,normalized_size FROM asset_versions WHERE asset_id=? ORDER BY version", assetID)
+	tx, e := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback()
+	// Lock every version before touching its files: a same-version restore must
+	// never race a retirement that is deleting the metadata and keys.
+	rows, e := tx.QueryContext(ctx, "SELECT original_key,original_sha256,original_size,normalized_key,normalized_sha256,normalized_size FROM asset_versions WHERE asset_id=? ORDER BY version FOR SHARE", assetID)
 	if e != nil {
 		return e
 	}
@@ -277,5 +324,5 @@ func (s *Service) restoreBuiltinFontFiles(ctx context.Context, conn *sql.Conn, a
 			return domain.E("MISSING_FONT", "内置字体运行文件校验失败，未覆盖现有文件，请从备份恢复")
 		}
 	}
-	return nil
+	return tx.Commit()
 }

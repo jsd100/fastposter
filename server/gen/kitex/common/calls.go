@@ -274,12 +274,13 @@ var fieldIDToName_AuthCall = map[int16]string{
 }
 
 type ProjectCall struct {
-	Context *CallContext        `thrift:"context,1,required" frugal:"1,required,CallContext" json:"context"`
-	Action  string              `thrift:"action,2,required" frugal:"2,required,string" json:"action"`
-	Id      *string             `thrift:"id,3,optional" frugal:"3,optional,string" json:"id,omitempty"`
-	Query   *ProjectListQuery   `thrift:"query,4,optional" frugal:"4,optional,ProjectListQuery" json:"query,omitempty"`
-	Create  *CreateProjectInput `thrift:"create,5,optional" frugal:"5,optional,CreateProjectInput" json:"create,omitempty"`
-	Save    *SaveProjectInput   `thrift:"save,6,optional" frugal:"6,optional,SaveProjectInput" json:"save,omitempty"`
+	Context       *CallContext              `thrift:"context,1,required" frugal:"1,required,CallContext" json:"context"`
+	Action        string                    `thrift:"action,2,required" frugal:"2,required,string" json:"action"`
+	Id            *string                   `thrift:"id,3,optional" frugal:"3,optional,string" json:"id,omitempty"`
+	Query         *ProjectListQuery         `thrift:"query,4,optional" frugal:"4,optional,ProjectListQuery" json:"query,omitempty"`
+	Create        *CreateProjectInput       `thrift:"create,5,optional" frugal:"5,optional,CreateProjectInput" json:"create,omitempty"`
+	Save          *SaveProjectInput         `thrift:"save,6,optional" frugal:"6,optional,SaveProjectInput" json:"save,omitempty"`
+	DeletionQuery *ProjectDeletionListQuery `thrift:"deletionQuery,7,optional" frugal:"7,optional,ProjectDeletionListQuery" json:"deletionQuery,omitempty"`
 }
 
 func NewProjectCall() *ProjectCall {
@@ -337,6 +338,15 @@ func (p *ProjectCall) GetSave() (v *SaveProjectInput) {
 	}
 	return p.Save
 }
+
+var ProjectCall_DeletionQuery_DEFAULT *ProjectDeletionListQuery
+
+func (p *ProjectCall) GetDeletionQuery() (v *ProjectDeletionListQuery) {
+	if !p.IsSetDeletionQuery() {
+		return ProjectCall_DeletionQuery_DEFAULT
+	}
+	return p.DeletionQuery
+}
 func (p *ProjectCall) SetContext(val *CallContext) {
 	p.Context = val
 }
@@ -354,6 +364,9 @@ func (p *ProjectCall) SetCreate(val *CreateProjectInput) {
 }
 func (p *ProjectCall) SetSave(val *SaveProjectInput) {
 	p.Save = val
+}
+func (p *ProjectCall) SetDeletionQuery(val *ProjectDeletionListQuery) {
+	p.DeletionQuery = val
 }
 
 func (p *ProjectCall) IsSetContext() bool {
@@ -376,6 +389,10 @@ func (p *ProjectCall) IsSetSave() bool {
 	return p.Save != nil
 }
 
+func (p *ProjectCall) IsSetDeletionQuery() bool {
+	return p.DeletionQuery != nil
+}
+
 func (p *ProjectCall) String() string {
 	if p == nil {
 		return "<nil>"
@@ -390,6 +407,7 @@ var fieldIDToName_ProjectCall = map[int16]string{
 	4: "query",
 	5: "create",
 	6: "save",
+	7: "deletionQuery",
 }
 
 type AssetCall struct {
@@ -851,10 +869,13 @@ var fieldIDToName_ExportCall = map[int16]string{
 }
 
 type AdminCall struct {
-	Context *CallContext    `thrift:"context,1,required" frugal:"1,required,CallContext" json:"context"`
-	Action  string          `thrift:"action,2,required" frugal:"2,required,string" json:"action"`
-	Query   *ListQuery      `thrift:"query,3,optional" frugal:"3,optional,ListQuery" json:"query,omitempty"`
-	User    *AdminUserInput `thrift:"user,4,optional" frugal:"4,optional,AdminUserInput" json:"user,omitempty"`
+	Context       *CallContext              `thrift:"context,1,required" frugal:"1,required,CallContext" json:"context"`
+	Action        string                    `thrift:"action,2,required" frugal:"2,required,string" json:"action"`
+	Query         *ListQuery                `thrift:"query,3,optional" frugal:"3,optional,ListQuery" json:"query,omitempty"`
+	User          *AdminUserInput           `thrift:"user,4,optional" frugal:"4,optional,AdminUserInput" json:"user,omitempty"`
+	Id            *string                   `thrift:"id,5,optional" frugal:"5,optional,string" json:"id,omitempty"`
+	ProjectQuery  *AdminProjectListQuery    `thrift:"projectQuery,6,optional" frugal:"6,optional,AdminProjectListQuery" json:"projectQuery,omitempty"`
+	DeletionQuery *ProjectDeletionListQuery `thrift:"deletionQuery,7,optional" frugal:"7,optional,ProjectDeletionListQuery" json:"deletionQuery,omitempty"`
 }
 
 func NewAdminCall() *AdminCall {
@@ -894,6 +915,33 @@ func (p *AdminCall) GetUser() (v *AdminUserInput) {
 	}
 	return p.User
 }
+
+var AdminCall_Id_DEFAULT string
+
+func (p *AdminCall) GetId() (v string) {
+	if !p.IsSetId() {
+		return AdminCall_Id_DEFAULT
+	}
+	return *p.Id
+}
+
+var AdminCall_ProjectQuery_DEFAULT *AdminProjectListQuery
+
+func (p *AdminCall) GetProjectQuery() (v *AdminProjectListQuery) {
+	if !p.IsSetProjectQuery() {
+		return AdminCall_ProjectQuery_DEFAULT
+	}
+	return p.ProjectQuery
+}
+
+var AdminCall_DeletionQuery_DEFAULT *ProjectDeletionListQuery
+
+func (p *AdminCall) GetDeletionQuery() (v *ProjectDeletionListQuery) {
+	if !p.IsSetDeletionQuery() {
+		return AdminCall_DeletionQuery_DEFAULT
+	}
+	return p.DeletionQuery
+}
 func (p *AdminCall) SetContext(val *CallContext) {
 	p.Context = val
 }
@@ -905,6 +953,15 @@ func (p *AdminCall) SetQuery(val *ListQuery) {
 }
 func (p *AdminCall) SetUser(val *AdminUserInput) {
 	p.User = val
+}
+func (p *AdminCall) SetId(val *string) {
+	p.Id = val
+}
+func (p *AdminCall) SetProjectQuery(val *AdminProjectListQuery) {
+	p.ProjectQuery = val
+}
+func (p *AdminCall) SetDeletionQuery(val *ProjectDeletionListQuery) {
+	p.DeletionQuery = val
 }
 
 func (p *AdminCall) IsSetContext() bool {
@@ -919,6 +976,18 @@ func (p *AdminCall) IsSetUser() bool {
 	return p.User != nil
 }
 
+func (p *AdminCall) IsSetId() bool {
+	return p.Id != nil
+}
+
+func (p *AdminCall) IsSetProjectQuery() bool {
+	return p.ProjectQuery != nil
+}
+
+func (p *AdminCall) IsSetDeletionQuery() bool {
+	return p.DeletionQuery != nil
+}
+
 func (p *AdminCall) String() string {
 	if p == nil {
 		return "<nil>"
@@ -931,4 +1000,7 @@ var fieldIDToName_AdminCall = map[int16]string{
 	2: "action",
 	3: "query",
 	4: "user",
+	5: "id",
+	6: "projectQuery",
+	7: "deletionQuery",
 }

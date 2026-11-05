@@ -7,6 +7,7 @@ import (
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
 	"fastposter/server/internal/catalog"
+	"fastposter/server/internal/projectdeletions"
 	"fastposter/server/internal/transport"
 	"testing"
 )
@@ -38,7 +39,7 @@ func TestCatalogTransportRejectsUserAndMetadataExcludesDocument(t *testing.T) {
 		t.Fatal(e)
 	}
 	c := catalog.NewService(db, p.Store, assets.NewService(db, p.Store, nil, t.TempDir()))
-	adapter := transport.AdminAdapter(accounts, c)
+	adapter := transport.AdminAdapter(accounts, c, projectdeletions.NewService(db, p.Store))
 	for _, action := range []string{"AdminOverview", "AdminUsers", "AdminProjects", "AdminJobs", "AdminAudit"} {
 		reply, e := adapter(ctx, &common.AdminCall{Context: &common.CallContext{RequestId: "test", SessionToken: u.Token}, Action: action})
 		if e != nil || reply.Error == nil || reply.Error.Code != "FORBIDDEN" {

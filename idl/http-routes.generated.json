@@ -41,8 +41,52 @@
       "page",
       "pageSize",
       "keyword",
-      "userId"
+      "userId",
+      "status"
     ],
+    "bodyFields": []
+  },
+  {
+    "name": "AdminPermanentlyDeleteProject",
+    "method": "DELETE",
+    "path": "/api/v1/admin/projects/:id/permanent",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": []
+  },
+  {
+    "name": "AdminListProjectDeletions",
+    "method": "GET",
+    "path": "/api/v1/admin/project-deletions",
+    "pathFields": [],
+    "queryFields": [
+      "page",
+      "pageSize",
+      "keyword",
+      "ownerId"
+    ],
+    "bodyFields": []
+  },
+  {
+    "name": "AdminGetProjectDeletion",
+    "method": "GET",
+    "path": "/api/v1/admin/project-deletions/:id",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": []
+  },
+  {
+    "name": "AdminRetryProjectDeletion",
+    "method": "POST",
+    "path": "/api/v1/admin/project-deletions/:id/retry",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
     "bodyFields": []
   },
   {
@@ -388,6 +432,49 @@
     "name": "RestoreProject",
     "method": "POST",
     "path": "/api/v1/projects/:id/restore",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": []
+  },
+  {
+    "name": "PermanentlyDeleteProject",
+    "method": "DELETE",
+    "path": "/api/v1/projects/:id/permanent",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": []
+  },
+  {
+    "name": "ListProjectDeletions",
+    "method": "GET",
+    "path": "/api/v1/project-deletions",
+    "pathFields": [],
+    "queryFields": [
+      "page",
+      "pageSize",
+      "keyword",
+      "ownerId"
+    ],
+    "bodyFields": []
+  },
+  {
+    "name": "GetProjectDeletion",
+    "method": "GET",
+    "path": "/api/v1/project-deletions/:id",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": []
+  },
+  {
+    "name": "RetryProjectDeletion",
+    "method": "POST",
+    "path": "/api/v1/project-deletions/:id/retry",
     "pathFields": [
       "id"
     ],

@@ -1,0 +1,93 @@
+.target {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid var(--fp-line-soft);
+  border-radius: var(--fp-radius-control);
+  background: var(--fp-surface-soft);
+  margin-bottom: 14px;
+  word-break: break-all;
+}
+
+.target strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.target small {
+  font-size: 10px;
+  color: var(--fp-hint-ink);
+}
+
+.irreversible {
+  color: var(--fp-danger-ink) !important;
+  font-weight: 550;
+}
+
+.explain {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--fp-radius-control);
+  background: var(--fp-info-surface);
+  color: var(--fp-info-ink);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 16px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--fp-danger-ink);
+  cursor: pointer;
+}
+
+.check input {
+  margin: 3px 0 0;
+  accent-color: var(--fp-danger-ink);
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 11px 13px;
+  border-radius: var(--fp-radius-control);
+  background: var(--fp-info-surface);
+  color: var(--fp-info-ink);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.status p {
+  margin: 0;
+}
+
+.cleaning {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cleaning p + p {
+  width: 100%;
+}
+
+.failed {
+  background: var(--fp-danger-surface);
+  color: var(--fp-danger-ink);
+}
+
+.failed .button {
+  margin-top: 4px;
+}
+
+.completed {
+  color: var(--fp-success-ink);
+}

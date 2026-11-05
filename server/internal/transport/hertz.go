@@ -205,6 +205,21 @@ func (g *Gateway) write(ctx context.Context, r *app.RequestContext, route string
 		}
 		r.JSON(200, &common.AuditReply{RequestId: c.RequestId, Audit: items, Total: reply.Data.GetTotal()})
 		return
+	case "ListProjectDeletions", "AdminListProjectDeletions":
+		items := reply.Data.Deletions
+		if items == nil {
+			items = []*common.ProjectDeletionDTO{}
+		}
+		r.JSON(200, &common.ProjectDeletionListReply{RequestId: c.RequestId, Deletions: items, Total: reply.Data.GetTotal()})
+		return
+	}
+	if route == "PermanentlyDeleteProject" || route == "GetProjectDeletion" || route == "RetryProjectDeletion" || route == "AdminPermanentlyDeleteProject" || route == "AdminGetProjectDeletion" || route == "AdminRetryProjectDeletion" {
+		if reply.Data.Deletion == nil {
+			r.JSON(500, &common.APIError{Code: "INTERNAL", Message: "删除任务响应缺失", RequestId: c.RequestId})
+			return
+		}
+		r.JSON(200, &common.ProjectDeletionReply{RequestId: c.RequestId, Deletion: reply.Data.Deletion})
+		return
 	}
 	if route == "AdminProjects" {
 		if reply.Data.MetadataProjects == nil {

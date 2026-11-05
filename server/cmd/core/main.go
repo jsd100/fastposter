@@ -10,10 +10,12 @@ import (
 	"fastposter/server/internal/catalog"
 	"fastposter/server/internal/copy"
 	"fastposter/server/internal/exports"
+	"fastposter/server/internal/projectdeletions"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/templates"
 	"fastposter/server/internal/transport"
+	"fastposter/server/migrations"
 	"github.com/cloudwego/kitex/server"
 	"github.com/redis/go-redis/v9"
 	"log"
@@ -37,7 +39,7 @@ func main() {
 	}
 	defer db.Close()
 	var version int
-	if e = db.QueryRow("SELECT MAX(version) FROM _schema_migrations").Scan(&version); e != nil || version != 1 {
+	if e = db.QueryRow("SELECT COALESCE(MAX(version),0) FROM _schema_migrations").Scan(&version); e != nil || version != migrations.CurrentVersion {
 		log.Fatal("database schema is not ready; run go run ./server/cmd/migrate -direction up")
 	}
 	var limiterRedis *redis.Client
@@ -70,10 +72,11 @@ func main() {
 		log.Fatal("builtin font initialization failed")
 	}
 	posters := projects.NewService(db, store)
+	deletions := projectdeletions.NewService(db, store)
 	library := catalog.NewService(db, store, images)
 	copies := copy.NewService(db, library)
 	portable := templates.NewService(db, store, posters, images, library, filepath.Join(c.AbsoluteDataDir, ".work"))
-	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, library, copies), AdminFunc: transport.AdminAdapter(accounts, library), ProjectsFunc: transport.ProjectsAdapter(accounts, posters), TemplatesFunc: transport.TemplatesAdapter(accounts, portable), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, server.WithServiceAddr(addr))
+	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, library, copies), AdminFunc: transport.AdminAdapter(accounts, library, deletions), ProjectsFunc: transport.ProjectsAdapter(accounts, posters, deletions), TemplatesFunc: transport.TemplatesAdapter(accounts, portable), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, server.WithServiceAddr(addr))
 	if e = s.Run(); e != nil {
 		log.Fatal(e)
 	}

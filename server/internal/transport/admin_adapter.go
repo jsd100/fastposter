@@ -6,6 +6,7 @@ import (
 	"fastposter/server/internal/auth"
 	"fastposter/server/internal/catalog"
 	"fastposter/server/internal/domain"
+	"fastposter/server/internal/projectdeletions"
 	"strconv"
 	"time"
 )
@@ -16,7 +17,13 @@ func adminFilter(q *common.ListQuery) catalog.Filter {
 	}
 	return catalog.Filter{Page: int(q.GetPage()), PageSize: int(q.GetPageSize()), Keyword: q.GetKeyword(), UserID: q.GetUserId()}
 }
-func AdminAdapter(accounts *auth.Service, service *catalog.Service) func(context.Context, *common.AdminCall) (*common.RPCReply, error) {
+func adminProjectFilter(q *common.AdminProjectListQuery) catalog.Filter {
+	if q == nil {
+		return catalog.Filter{}
+	}
+	return catalog.Filter{Page: int(q.GetPage()), PageSize: int(q.GetPageSize()), Keyword: q.GetKeyword(), UserID: q.GetUserId(), Status: q.GetStatus()}
+}
+func AdminAdapter(accounts *auth.Service, service *catalog.Service, deletions *projectdeletions.Service) func(context.Context, *common.AdminCall) (*common.RPCReply, error) {
 	return func(ctx context.Context, call *common.AdminCall) (*common.RPCReply, error) {
 		c := call.Context
 		if c == nil {
@@ -50,7 +57,7 @@ func AdminAdapter(accounts *auth.Service, service *catalog.Service) func(context
 				data.Users = append(data.Users, publicUser(u))
 			}
 		case "AdminProjects":
-			rows, total, e := service.AdminProjects(ctx, p, filter)
+			rows, total, e := service.AdminProjects(ctx, p, adminProjectFilter(call.ProjectQuery))
 			if e != nil {
 				return response(c, nil, e), nil
 			}
@@ -114,6 +121,39 @@ func AdminAdapter(accounts *auth.Service, service *catalog.Service) func(context
 				return response(c, nil, e), nil
 			}
 			data.User = publicUser(u)
+		case "AdminPermanentlyDeleteProject":
+			task, e := deletions.Accept(ctx, p, projectdeletions.AdminScope, call.GetId())
+			if e != nil {
+				return response(c, nil, e), nil
+			}
+			data.Deletion = PublicProjectDeletion(task)
+		case "AdminListProjectDeletions":
+			q := call.DeletionQuery
+			if q == nil {
+				q = &common.ProjectDeletionListQuery{}
+			}
+			items, total, e := deletions.List(ctx, p, projectdeletions.AdminScope, projectdeletions.Query{Page: int(q.GetPage()), PageSize: int(q.GetPageSize()), Keyword: q.GetKeyword(), OwnerID: q.GetOwnerId()})
+			if e != nil {
+				return response(c, nil, e), nil
+			}
+			n := int32(total)
+			data.Total = &n
+			data.Deletions = []*common.ProjectDeletionDTO{}
+			for _, item := range items {
+				data.Deletions = append(data.Deletions, PublicProjectDeletion(item))
+			}
+		case "AdminGetProjectDeletion":
+			task, e := deletions.Get(ctx, p, projectdeletions.AdminScope, call.GetId())
+			if e != nil {
+				return response(c, nil, e), nil
+			}
+			data.Deletion = PublicProjectDeletion(task)
+		case "AdminRetryProjectDeletion":
+			task, e := deletions.Retry(ctx, p, projectdeletions.AdminScope, call.GetId())
+			if e != nil {
+				return response(c, nil, e), nil
+			}
+			data.Deletion = PublicProjectDeletion(task)
 		default:
 			return response(c, nil, domain.E("INVALID_INPUT", "未知管理操作")), nil
 		}

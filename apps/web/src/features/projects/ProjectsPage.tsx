@@ -13,6 +13,7 @@ import {
   Dialog,
   FormField,
   IconButton,
+  ProjectDeletionConfirm,
   Status,
   TextInput,
   Tooltip,
@@ -34,6 +35,8 @@ import { errorMessage, request } from "../../api";
 import { Link, navigate } from "../../router";
 import { useSession } from "../auth/Session";
 import { ProjectListView, type ProjectAction } from "./ProjectList";
+import { ProjectDeletionQueue } from "./ProjectDeletionQueue";
+import { useProjectDeletion } from "./useProjectDeletion";
 import { TemplatePicker } from "../templates/TemplatePicker";
 export function ProjectsPage() {
   const { user, logout } = useSession();
@@ -47,6 +50,9 @@ export function ProjectsPage() {
     [uploading, setUploading] = useState(false),
     [uploadError, setUploadError] = useState(""),
     [pendingFile, setPendingFile] = useState<File | null>(null),
+    [deletionProject, setDeletionProject] = useState<ProjectDTO | null>(null),
+    [deletionPage, setDeletionPage] = useState(1),
+    [deletionError, setDeletionError] = useState(""),
     [dialog, setDialog] = useState<{
       action: "rename" | "delete";
       project: ProjectDTO;
@@ -61,6 +67,7 @@ export function ProjectsPage() {
     const id = setTimeout(() => {
       setKeyword(search);
       setPage(1);
+      setDeletionPage(1);
     }, 300);
     return () => clearTimeout(id);
   }, [search]);
@@ -74,9 +81,35 @@ export function ProjectsPage() {
   });
   const refresh = () =>
     cache.invalidateQueries({ queryKey: ["projects", user!.id] });
+  const projectDeletion = useProjectDeletion(user!.id, {
+    enabled: trash,
+    page: deletionPage,
+    keyword,
+  });
+  useEffect(() => {
+    if (query.isPending || query.isFetching) return;
+    if (page > 1 && (query.data?.projects.length ?? 0) === 0) setPage(page - 1);
+  }, [page, query.data, query.isFetching, query.isPending]);
+  useEffect(() => {
+    if (projectDeletion.isLoading) return;
+    if (deletionPage > 1 && projectDeletion.pending.length === 0)
+      setDeletionPage(deletionPage - 1);
+  }, [deletionPage, projectDeletion.isLoading, projectDeletion.pending.length]);
   useErrorNotice("projects:action", error || null, {
     action: { label: "重试", onClick: () => retry.current?.() },
   });
+  useErrorNotice("projects:deletion", deletionError || null);
+  useErrorNotice(
+    "projects:deletions-list",
+    projectDeletion.error ? errorMessage(projectDeletion.error) : null,
+    {
+      persistent: true,
+      action: {
+        label: "重新加载",
+        onClick: () => projectDeletion.refetch(),
+      },
+    },
+  );
   useErrorNotice("projects:upload", uploadError || null, {
     action: pendingFile
       ? { label: "重试导入", onClick: () => void upload(pendingFile) }
@@ -137,6 +170,11 @@ export function ProjectsPage() {
       setDialog({ action, project });
       return;
     }
+    if (action === "permanent-delete") {
+      setDeletionError("");
+      setDeletionProject(project);
+      return;
+    }
     if (busy) return;
     setBusy(true);
     retry.current = () => void act(action, project);
@@ -151,6 +189,24 @@ export function ProjectsPage() {
       setError(errorMessage(e));
     } finally {
       setBusy(false);
+    }
+  }
+  async function confirmPermanentDelete() {
+    if (!deletionProject) return;
+    setDeletionError("");
+    try {
+      await projectDeletion.accept(deletionProject.id);
+      setDeletionProject(null);
+    } catch (e) {
+      setDeletionError(errorMessage(e));
+    }
+  }
+  async function retryDeletion(taskId: string) {
+    setDeletionError("");
+    try {
+      await projectDeletion.retry(taskId);
+    } catch (e) {
+      setDeletionError(errorMessage(e));
     }
   }
   async function confirm() {
@@ -189,9 +245,11 @@ export function ProjectsPage() {
   const select = (next: boolean) => {
     setTrash(next);
     setPage(1);
+    setDeletionPage(1);
     setSearch("");
     setKeyword("");
     setError("");
+    setDeletionError("");
   };
   function drop(e: DragEvent) {
     e.preventDefault();
@@ -353,11 +411,22 @@ export function ProjectsPage() {
               <span className="spinner" /> 正在导入并保存原图，请稍候…
             </Status>
           )}
+          {trash && (
+            <ProjectDeletionQueue
+              tasks={projectDeletion.pending}
+              total={projectDeletion.total}
+              page={deletionPage}
+              onPage={setDeletionPage}
+              onRetry={(taskId) => void retryDeletion(taskId)}
+              busy={projectDeletion.isBusy}
+            />
+          )}
           {query.error ? null : (
             <ProjectListView
               projects={query.data?.projects ?? []}
               loading={query.isPending}
               trash={trash}
+              pendingDeletions={projectDeletion.total}
               onAction={(action, p) => void act(action, p)}
               onUpload={() => fileInput.current?.click()}
             />
@@ -432,6 +501,18 @@ export function ProjectsPage() {
             </div>
           </form>
         </Dialog>
+      )}
+      {deletionProject && (
+        <ProjectDeletionConfirm
+          project={{ id: deletionProject.id, title: deletionProject.title }}
+          busy={projectDeletion.isBusy}
+          onConfirm={() => void confirmPermanentDelete()}
+          onClose={() => {
+            if (projectDeletion.isBusy) return;
+            setDeletionProject(null);
+            setDeletionError("");
+          }}
+        />
       )}
       {templatesOpen && (
         <TemplatePicker

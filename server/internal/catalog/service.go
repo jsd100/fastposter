@@ -16,8 +16,8 @@ import (
 )
 
 type Filter struct {
-	Page, PageSize                        int
-	Keyword, CategoryID, ParentID, UserID string
+	Page, PageSize                                int
+	Keyword, CategoryID, ParentID, UserID, Status string
 }
 type ResourceInput struct {
 	ID, Kind, Title, CategoryID, ParentID, AssetID, Document, Body, Family, Style, License string
@@ -279,6 +279,24 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 	if e != nil {
 		return Resource{}, e
 	}
+	refs := templateRefs
+	if input.AssetID != "" {
+		refs = append(refs, document.AssetRef{AssetID: input.AssetID, Version: assetVersion})
+	}
+	locks := make([]storage.AssetVersionRef, 0, len(refs))
+	for _, ref := range refs {
+		version, parseErr := strconv.ParseUint(ref.Version, 10, 64)
+		if parseErr != nil || version == 0 {
+			return Resource{}, domain.E("INVALID_INPUT", "素材版本无效")
+		}
+		locks = append(locks, storage.AssetVersionRef{AssetID: ref.AssetID, Version: version})
+	}
+	if e = storage.LockAssetVersions(ctx, tx, locks); e != nil {
+		if errors.Is(e, storage.ErrAssetVersionMissing) {
+			return Resource{}, domain.E("NOT_FOUND", "引用素材不存在或无权使用")
+		}
+		return Resource{}, e
+	}
 	if input.ID == "" {
 		_, e = tx.ExecContext(ctx, "INSERT INTO resources(id,kind,title,category_id,parent_id,sort_order,published,current_version,created_by) VALUES(?,?,?,?,?,?,?,?,?)", id, input.Kind, input.Title, nullString(input.CategoryID), nullString(input.ParentID), input.SortOrder, input.Published, version, p.UserID)
 	} else {
@@ -294,10 +312,6 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 		if _, e = tx.ExecContext(ctx, "INSERT IGNORE INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) VALUES('resource',?,?,?)", id, input.AssetID, assetVersion); e != nil {
 			return Resource{}, e
 		}
-	}
-	refs := templateRefs
-	if input.AssetID != "" {
-		refs = append(refs, document.AssetRef{AssetID: input.AssetID, Version: assetVersion})
 	}
 	for _, ref := range refs {
 		for _, owner := range []struct{ kind, id string }{{"resource", id}, {"resource-version", id + ":" + strconv.FormatUint(version, 10)}} {

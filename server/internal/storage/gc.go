@@ -393,38 +393,29 @@ func (g *GC) pruneAssets(ctx context.Context, now time.Time, grace time.Duration
 		return e
 	}
 	for _, item := range orphans {
-		if !g.DryRun {
-			tx, e := g.DB.BeginTx(ctx, nil)
-			if e != nil {
+		if g.DryRun {
+			if e := g.removeFiles(ctx, item.keys, report); e != nil {
 				return e
 			}
-			result, e := tx.ExecContext(ctx, `DELETE FROM asset_versions
-				WHERE asset_id=? AND version=? AND created_at<=?
-				AND NOT EXISTS (SELECT 1 FROM asset_refs r WHERE r.asset_id=? AND r.asset_version=?)
-				AND NOT EXISTS (SELECT 1 FROM resource_versions rv WHERE rv.asset_id=? AND rv.asset_version=?)`,
-				item.assetID, item.version, cutoff, item.assetID, item.version, item.assetID, item.version)
-			if e != nil {
-				tx.Rollback()
-				return e
-			}
-			affected, e := result.RowsAffected()
-			if e != nil {
-				tx.Rollback()
-				return e
-			}
-			if affected == 0 {
-				tx.Rollback()
-				continue
-			}
-			if _, e = tx.ExecContext(ctx, "DELETE FROM assets WHERE id=? AND NOT EXISTS (SELECT 1 FROM asset_versions WHERE asset_id=?)", item.assetID, item.assetID); e != nil {
-				tx.Rollback()
-				return e
-			}
-			if e = tx.Commit(); e != nil {
-				return e
-			}
+			report.ReclaimedAssets++
+			continue
 		}
-		if e = g.removeFiles(ctx, item.keys, report); e != nil {
+		tx, e := g.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+		if e != nil {
+			return e
+		}
+		result, e := RetireUnreferencedVersion(ctx, tx, AssetVersionRef{AssetID: item.assetID, Version: item.version})
+		if e != nil {
+			tx.Rollback()
+			return e
+		}
+		if e = tx.Commit(); e != nil {
+			return e
+		}
+		if !result.Retired {
+			continue
+		}
+		if e = g.removeFiles(ctx, result.Keys, report); e != nil {
 			return e
 		}
 		report.ReclaimedAssets++

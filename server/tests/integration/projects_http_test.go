@@ -6,6 +6,7 @@ import (
 	"fastposter/server/gen/kitex/common"
 	"fastposter/server/gen/kitex/core/coreservice"
 	"fastposter/server/internal/auth"
+	"fastposter/server/internal/projectdeletions"
 	"fastposter/server/internal/transport"
 	hserver "github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/kitex/client"
@@ -40,7 +41,7 @@ func TestProjectHTTPConflictAndPrivateList(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	server := coreservice.NewServer(&transport.CoreHandler{ProjectsFunc: transport.ProjectsAdapter(accounts, svc)}, kserver.WithListener(listener))
+	server := coreservice.NewServer(&transport.CoreHandler{ProjectsFunc: transport.ProjectsAdapter(accounts, svc, projectdeletions.NewService(db, svc.Store))}, kserver.WithListener(listener))
 	go server.Run()
 	defer server.Stop()
 	rpc, e := coreservice.NewClient("projects.test", client.WithHostPorts(listener.Addr().String()), client.WithRPCTimeout(5*time.Second))

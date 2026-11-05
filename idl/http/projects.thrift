@@ -9,4 +9,8 @@ service ProjectsHTTP {
  base.EmptyReply DeleteProject(1: requests.IDRequest request) (api.delete="/api/v1/projects/:id");
  base.ProjectReply CloneProject(1: requests.IDRequest request) (api.post="/api/v1/projects/:id/clone");
  base.ProjectReply RestoreProject(1: requests.IDRequest request) (api.post="/api/v1/projects/:id/restore");
+ base.ProjectDeletionReply PermanentlyDeleteProject(1: requests.IDRequest request) (api.delete="/api/v1/projects/:id/permanent");
+ base.ProjectDeletionListReply ListProjectDeletions(1: requests.ProjectDeletionListQuery request) (api.get="/api/v1/project-deletions");
+ base.ProjectDeletionReply GetProjectDeletion(1: requests.IDRequest request) (api.get="/api/v1/project-deletions/:id");
+ base.ProjectDeletionReply RetryProjectDeletion(1: requests.IDRequest request) (api.post="/api/v1/project-deletions/:id/retry");
 }

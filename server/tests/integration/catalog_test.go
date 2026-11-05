@@ -2,13 +2,40 @@ package integration_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
 	"fastposter/server/internal/catalog"
+	"fastposter/server/internal/domain"
 	"fastposter/server/internal/storage"
+	"strconv"
 	"testing"
+	"time"
 )
+
+func retireVersion(t *testing.T, db *sql.DB, assetID, version string) storage.ReclaimResult {
+	t.Helper()
+	number, e := strconv.ParseUint(version, 10, 64)
+	if e != nil {
+		t.Fatal(e)
+	}
+	ctx := context.Background()
+	tx, e := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer tx.Rollback()
+	result, e := storage.RetireUnreferencedVersion(ctx, tx, storage.AssetVersionRef{AssetID: assetID, Version: number})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = tx.Commit(); e != nil {
+		t.Fatal(e)
+	}
+	return result
+}
 
 func TestCatalogUnpublishKeepsReferencedVersionReadable(t *testing.T) {
 	p, db, doc := projectService(t)
@@ -87,6 +114,118 @@ func TestCatalogAdminStatsCountActualStorage(t *testing.T) {
 		t.Fatalf("storage bytes %d %d %v", o.StorageBytes, actual, e)
 	}
 }
+func TestPublishedResourceAndOtherTrashProtectAssetFromRetirement(t *testing.T) {
+	p, db, doc := projectService(t)
+	ctx := context.Background()
+	project, e := p.Create(ctx, projectOwner(), "待彻底删除", doc)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = p.SoftDelete(ctx, projectOwner(), project.ID); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("UPDATE users SET role='admin' WHERE id='u2'"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("UPDATE assets SET owner_id='u2' WHERE id='bg-1'"); e != nil {
+		t.Fatal(e)
+	}
+	c := catalog.NewService(db, p.Store, assets.NewService(db, p.Store, nil, t.TempDir()))
+	admin := auth.Principal{UserID: "u2", Role: "admin"}
+	r, e := c.Save(ctx, admin, catalog.ResourceInput{Kind: "background", Title: "公开背景", AssetID: "bg-1", Published: true})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if result := retireVersion(t, db, "bg-1", "1"); result.Retired {
+		t.Fatal("asset referenced by a trashed project was retired")
+	}
+	if _, e = db.Exec("DELETE FROM asset_refs WHERE owner_kind IN ('project','project-history') AND owner_id=?", project.ID); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("DELETE FROM projects WHERE id=?", project.ID); e != nil {
+		t.Fatal(e)
+	}
+	if result := retireVersion(t, db, "bg-1", "1"); result.Retired {
+		t.Fatal("asset referenced by a published resource was retired")
+	}
+	if _, e = db.Exec("DELETE FROM asset_refs WHERE owner_kind IN ('resource','resource-version') AND (owner_id=? OR owner_id LIKE ?)", r.ID, r.ID+":%"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("DELETE FROM resources WHERE id=?", r.ID); e != nil {
+		t.Fatal(e)
+	}
+	result := retireVersion(t, db, "bg-1", "1")
+	if !result.Retired || len(result.Keys) == 0 {
+		t.Fatalf("unreferenced asset version was not retired: %+v", result)
+	}
+	for _, key := range result.Keys {
+		if _, e = p.Store.Stat(ctx, key); e != nil {
+			t.Fatalf("retirement deleted files before commit: %s %v", key, e)
+		}
+	}
+}
+
+func TestCatalogSaveCannotPublishRetiredVersion(t *testing.T) {
+	p, db, _ := projectService(t)
+	ctx := context.Background()
+	if _, e := db.Exec("UPDATE users SET role='admin' WHERE id='u2'"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := db.Exec("UPDATE assets SET owner_id='u2' WHERE id='bg-1'"); e != nil {
+		t.Fatal(e)
+	}
+	c := catalog.NewService(db, p.Store, assets.NewService(db, p.Store, nil, t.TempDir()))
+	admin := auth.Principal{UserID: "u2", Role: "admin"}
+	retirement, e := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer retirement.Rollback()
+	for _, statement := range []string{
+		"SELECT 1 FROM assets WHERE id='bg-1' FOR UPDATE",
+		"SELECT 1 FROM asset_versions WHERE asset_id='bg-1' AND version=1 FOR UPDATE",
+	} {
+		if _, e = retirement.ExecContext(ctx, statement); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if _, e = retirement.ExecContext(ctx, "DELETE FROM asset_versions WHERE asset_id='bg-1' AND version=1"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = retirement.ExecContext(ctx, "DELETE FROM assets WHERE id='bg-1'"); e != nil {
+		t.Fatal(e)
+	}
+	saved := make(chan error, 1)
+	go func() {
+		_, err := c.Save(ctx, admin, catalog.ResourceInput{Kind: "background", Title: "race", AssetID: "bg-1"})
+		saved <- err
+	}()
+	select {
+	case e = <-saved:
+		t.Fatalf("catalog save bypassed an in-flight retirement: %v", e)
+	case <-time.After(250 * time.Millisecond):
+	}
+	if e = retirement.Commit(); e != nil {
+		t.Fatal(e)
+	}
+	select {
+	case e = <-saved:
+		var known *domain.Error
+		if !errors.As(e, &known) || known.Code != "NOT_FOUND" {
+			t.Fatalf("catalog save after retirement = %v, want NOT_FOUND", e)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("catalog save did not observe the retirement commit")
+	}
+	var count int
+	if e = db.QueryRow("SELECT COUNT(*) FROM resources WHERE title='race'").Scan(&count); e != nil || count != 0 {
+		t.Fatalf("retired version was published: %d %v", count, e)
+	}
+	if e = db.QueryRow("SELECT COUNT(*) FROM asset_refs WHERE asset_id='bg-1'").Scan(&count); e != nil || count != 0 {
+		t.Fatalf("retired version gained references: %d %v", count, e)
+	}
+}
+
 func TestCatalogDeletesUnreferencedResourceVersionWithoutDeletingFile(t *testing.T) {
 	p, db, _ := projectService(t)
 	ctx := context.Background()

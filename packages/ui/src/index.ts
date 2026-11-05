@@ -14,3 +14,4 @@ export * from "./Status";
 export * from "./Tooltip";
 export * from "./ToggleButton";
 export * from "./BrandIcon";
+export * from "./ProjectDeletion";

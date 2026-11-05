@@ -9,6 +9,7 @@ import (
 	"fastposter/server/internal/catalog"
 	"fastposter/server/internal/copy"
 	"fastposter/server/internal/exports"
+	"fastposter/server/internal/projectdeletions"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/templates"
@@ -37,7 +38,8 @@ func TestBrowserStack(t *testing.T) {
 	}
 	db, cleanup := testutil.MySQL(t)
 	defer cleanup()
-	store, e := storage.NewLocal(t.TempDir())
+	dataDir := t.TempDir()
+	store, e := storage.NewLocal(dataDir)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -62,7 +64,7 @@ func TestBrowserStack(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	coreServer := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, library, copies), AdminFunc: transport.AdminAdapter(accounts, library), ProjectsFunc: transport.ProjectsAdapter(accounts, posters), TemplatesFunc: transport.TemplatesAdapter(accounts, portable), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, kserver.WithListener(rl))
+	coreServer := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, library, copies), AdminFunc: transport.AdminAdapter(accounts, library, projectdeletions.NewService(db, store)), ProjectsFunc: transport.ProjectsAdapter(accounts, posters, projectdeletions.NewService(db, store)), TemplatesFunc: transport.TemplatesAdapter(accounts, portable), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, kserver.WithListener(rl))
 	go coreServer.Run()
 	defer coreServer.Stop()
 	rpc, e := coreservice.NewClient("browser.core", client.WithHostPorts(rl.Addr().String()), client.WithRPCTimeout(75*time.Second))
@@ -102,6 +104,12 @@ func TestBrowserStack(t *testing.T) {
 	workerDone := make(chan struct{})
 	go func() { defer close(workerDone); worker.Run(workerCtx) }()
 	defer func() { workerCancel(); <-workerDone }()
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+	cleanupWorker := projectdeletions.Worker{Service: projectdeletions.NewService(db, store), Writers: storage.NewWriterGate(dataDir), Paused: func() bool { return storage.MaintenanceActive(dataDir) }, ID: "browser-cleanup"}
+	cleanupDone := make(chan struct{})
+	go func() { defer close(cleanupDone); cleanupWorker.Run(cleanupCtx) }()
+	defer func() { cleanupCancel(); <-cleanupDone }()
 	go h.Run()
 	defer h.Close()
 	cmd := exec.Command("pnpm", "exec", "vite", "apps/web", "--host", "127.0.0.1", "--port", "15173", "--strictPort", "--config", "apps/web/vite.config.ts")

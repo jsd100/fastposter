@@ -667,6 +667,208 @@ var fieldIDToName_ListQuery = map[int16]string{
 	4: "userId",
 }
 
+type AdminProjectListQuery struct {
+	Page     *int32  `thrift:"page,1,optional" frugal:"1,optional,i32" json:"page,omitempty"`
+	PageSize *int32  `thrift:"pageSize,2,optional" frugal:"2,optional,i32" json:"pageSize,omitempty"`
+	Keyword  *string `thrift:"keyword,3,optional" frugal:"3,optional,string" json:"keyword,omitempty"`
+	UserId   *string `thrift:"userId,4,optional" frugal:"4,optional,string" json:"userId,omitempty"`
+	Status   *string `thrift:"status,5,optional" frugal:"5,optional,string" json:"status,omitempty"`
+}
+
+func NewAdminProjectListQuery() *AdminProjectListQuery {
+	return &AdminProjectListQuery{}
+}
+
+func (p *AdminProjectListQuery) InitDefault() {
+}
+
+var AdminProjectListQuery_Page_DEFAULT int32
+
+func (p *AdminProjectListQuery) GetPage() (v int32) {
+	if !p.IsSetPage() {
+		return AdminProjectListQuery_Page_DEFAULT
+	}
+	return *p.Page
+}
+
+var AdminProjectListQuery_PageSize_DEFAULT int32
+
+func (p *AdminProjectListQuery) GetPageSize() (v int32) {
+	if !p.IsSetPageSize() {
+		return AdminProjectListQuery_PageSize_DEFAULT
+	}
+	return *p.PageSize
+}
+
+var AdminProjectListQuery_Keyword_DEFAULT string
+
+func (p *AdminProjectListQuery) GetKeyword() (v string) {
+	if !p.IsSetKeyword() {
+		return AdminProjectListQuery_Keyword_DEFAULT
+	}
+	return *p.Keyword
+}
+
+var AdminProjectListQuery_UserId_DEFAULT string
+
+func (p *AdminProjectListQuery) GetUserId() (v string) {
+	if !p.IsSetUserId() {
+		return AdminProjectListQuery_UserId_DEFAULT
+	}
+	return *p.UserId
+}
+
+var AdminProjectListQuery_Status_DEFAULT string
+
+func (p *AdminProjectListQuery) GetStatus() (v string) {
+	if !p.IsSetStatus() {
+		return AdminProjectListQuery_Status_DEFAULT
+	}
+	return *p.Status
+}
+func (p *AdminProjectListQuery) SetPage(val *int32) {
+	p.Page = val
+}
+func (p *AdminProjectListQuery) SetPageSize(val *int32) {
+	p.PageSize = val
+}
+func (p *AdminProjectListQuery) SetKeyword(val *string) {
+	p.Keyword = val
+}
+func (p *AdminProjectListQuery) SetUserId(val *string) {
+	p.UserId = val
+}
+func (p *AdminProjectListQuery) SetStatus(val *string) {
+	p.Status = val
+}
+
+func (p *AdminProjectListQuery) IsSetPage() bool {
+	return p.Page != nil
+}
+
+func (p *AdminProjectListQuery) IsSetPageSize() bool {
+	return p.PageSize != nil
+}
+
+func (p *AdminProjectListQuery) IsSetKeyword() bool {
+	return p.Keyword != nil
+}
+
+func (p *AdminProjectListQuery) IsSetUserId() bool {
+	return p.UserId != nil
+}
+
+func (p *AdminProjectListQuery) IsSetStatus() bool {
+	return p.Status != nil
+}
+
+func (p *AdminProjectListQuery) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("AdminProjectListQuery(%+v)", *p)
+}
+
+var fieldIDToName_AdminProjectListQuery = map[int16]string{
+	1: "page",
+	2: "pageSize",
+	3: "keyword",
+	4: "userId",
+	5: "status",
+}
+
+type ProjectDeletionListQuery struct {
+	Page     *int32  `thrift:"page,1,optional" frugal:"1,optional,i32" json:"page,omitempty"`
+	PageSize *int32  `thrift:"pageSize,2,optional" frugal:"2,optional,i32" json:"pageSize,omitempty"`
+	Keyword  *string `thrift:"keyword,3,optional" frugal:"3,optional,string" json:"keyword,omitempty"`
+	OwnerId  *string `thrift:"ownerId,4,optional" frugal:"4,optional,string" json:"ownerId,omitempty"`
+}
+
+func NewProjectDeletionListQuery() *ProjectDeletionListQuery {
+	return &ProjectDeletionListQuery{}
+}
+
+func (p *ProjectDeletionListQuery) InitDefault() {
+}
+
+var ProjectDeletionListQuery_Page_DEFAULT int32
+
+func (p *ProjectDeletionListQuery) GetPage() (v int32) {
+	if !p.IsSetPage() {
+		return ProjectDeletionListQuery_Page_DEFAULT
+	}
+	return *p.Page
+}
+
+var ProjectDeletionListQuery_PageSize_DEFAULT int32
+
+func (p *ProjectDeletionListQuery) GetPageSize() (v int32) {
+	if !p.IsSetPageSize() {
+		return ProjectDeletionListQuery_PageSize_DEFAULT
+	}
+	return *p.PageSize
+}
+
+var ProjectDeletionListQuery_Keyword_DEFAULT string
+
+func (p *ProjectDeletionListQuery) GetKeyword() (v string) {
+	if !p.IsSetKeyword() {
+		return ProjectDeletionListQuery_Keyword_DEFAULT
+	}
+	return *p.Keyword
+}
+
+var ProjectDeletionListQuery_OwnerId_DEFAULT string
+
+func (p *ProjectDeletionListQuery) GetOwnerId() (v string) {
+	if !p.IsSetOwnerId() {
+		return ProjectDeletionListQuery_OwnerId_DEFAULT
+	}
+	return *p.OwnerId
+}
+func (p *ProjectDeletionListQuery) SetPage(val *int32) {
+	p.Page = val
+}
+func (p *ProjectDeletionListQuery) SetPageSize(val *int32) {
+	p.PageSize = val
+}
+func (p *ProjectDeletionListQuery) SetKeyword(val *string) {
+	p.Keyword = val
+}
+func (p *ProjectDeletionListQuery) SetOwnerId(val *string) {
+	p.OwnerId = val
+}
+
+func (p *ProjectDeletionListQuery) IsSetPage() bool {
+	return p.Page != nil
+}
+
+func (p *ProjectDeletionListQuery) IsSetPageSize() bool {
+	return p.PageSize != nil
+}
+
+func (p *ProjectDeletionListQuery) IsSetKeyword() bool {
+	return p.Keyword != nil
+}
+
+func (p *ProjectDeletionListQuery) IsSetOwnerId() bool {
+	return p.OwnerId != nil
+}
+
+func (p *ProjectDeletionListQuery) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectDeletionListQuery(%+v)", *p)
+}
+
+var fieldIDToName_ProjectDeletionListQuery = map[int16]string{
+	1: "page",
+	2: "pageSize",
+	3: "keyword",
+	4: "ownerId",
+}
+
 type AdminUserInput struct {
 	Id     string `thrift:"id,1,required" frugal:"1,required,string" json:"id"`
 	Action string `thrift:"action,2,required" frugal:"2,required,string" json:"action"`

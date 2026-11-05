@@ -36,7 +36,7 @@ func run() error {
 	if e = rendererBuild.Run(); e != nil {
 		return e
 	}
-	for _, name := range []string{"core", "gateway", "export-worker"} {
+	for _, name := range []string{"core", "gateway", "export-worker", "cleanup-worker"} {
 		cmd := exec.CommandContext(ctx, "go", "build", "-o", filepath.Join(bin, name), "./server/cmd/"+name)
 		cmd.Dir = root
 		cmd.Stdout = os.Stdout
@@ -45,7 +45,7 @@ func run() error {
 			return fmt.Errorf("build %s: %w", name, e)
 		}
 	}
-	commands := [][]string{{filepath.Join(bin, "core")}, {filepath.Join(bin, "gateway")}, {filepath.Join(bin, "export-worker")}, {"pnpm", "--filter", "@fastposter/web", "dev"}, {"pnpm", "--filter", "@fastposter/admin", "dev"}}
+	commands := [][]string{{filepath.Join(bin, "core")}, {filepath.Join(bin, "gateway")}, {filepath.Join(bin, "export-worker")}, {filepath.Join(bin, "cleanup-worker")}, {"pnpm", "--filter", "@fastposter/web", "dev"}, {"pnpm", "--filter", "@fastposter/admin", "dev"}}
 	var procs []*exec.Cmd
 	done := make(chan error, len(commands))
 	defer func() {

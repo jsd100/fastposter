@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fastposter/server/internal/auth"
 	"fastposter/server/internal/document"
 	"fastposter/server/internal/domain"
@@ -34,15 +35,28 @@ func (s *Service) resolveRefs(ctx context.Context, tx *sql.Tx, p auth.Principal,
 	for _, f := range d.Fonts {
 		refs = append(refs, document.AssetRef{AssetID: f.AssetID, Version: f.Version})
 	}
-	for i, ref := range refs {
-		if _, e := parseRevision(ref.Version); e != nil {
+	locks := make([]storage.AssetVersionRef, 0, len(refs))
+	for _, ref := range refs {
+		version, e := parseRevision(ref.Version)
+		if e != nil {
 			return out, domain.E("INVALID_INPUT", "素材版本无效")
 		}
+		locks = append(locks, storage.AssetVersionRef{AssetID: ref.AssetID, Version: version})
+	}
+	// Lock every referenced version in a stable order before writing or
+	// returning it, so a concurrent retirement cannot delete it mid-transaction.
+	if e := storage.LockAssetVersions(ctx, tx, locks); e != nil {
+		if errors.Is(e, storage.ErrAssetVersionMissing) {
+			return out, domain.E("NOT_FOUND", "引用素材不存在或无权使用")
+		}
+		return out, e
+	}
+	for i, ref := range refs {
 		var owner sql.NullString
 		var kind, key, hash string
 		var w, h int
 		var meta []byte
-		e := tx.QueryRowContext(ctx, "SELECT a.owner_id,a.kind,v.normalized_key,v.normalized_sha256,v.width,v.height,v.metadata FROM assets a JOIN asset_versions v ON v.asset_id=a.id WHERE a.id=? AND v.version=? FOR SHARE", ref.AssetID, ref.Version).Scan(&owner, &kind, &key, &hash, &w, &h, &meta)
+		e := tx.QueryRowContext(ctx, "SELECT a.owner_id,a.kind,v.normalized_key,v.normalized_sha256,v.width,v.height,v.metadata FROM assets a JOIN asset_versions v ON v.asset_id=a.id WHERE a.id=? AND v.version=?", ref.AssetID, ref.Version).Scan(&owner, &kind, &key, &hash, &w, &h, &meta)
 		if e == sql.ErrNoRows {
 			return out, domain.E("NOT_FOUND", "引用素材不存在或无权使用")
 		}
@@ -117,6 +131,24 @@ func (s *Service) writeRevision(ctx context.Context, tx *sql.Tx, id string, revi
 	return nil
 }
 func (s *Service) ResolveSnapshot(ctx context.Context, p auth.Principal, id, revision string) (RenderSnapshot, error) {
+	tx, e := s.DB.BeginTx(ctx, nil)
+	if e != nil {
+		return RenderSnapshot{}, e
+	}
+	defer tx.Rollback()
+	out, e := s.ResolveSnapshotTx(ctx, tx, p, id, revision)
+	if e != nil {
+		return RenderSnapshot{}, e
+	}
+	if e = tx.Commit(); e != nil {
+		return RenderSnapshot{}, e
+	}
+	return out, nil
+}
+
+// ResolveSnapshotTx resolves a project revision inside the caller's transaction
+// so a snapshot and the rows referencing it cannot straddle a deletion.
+func (s *Service) ResolveSnapshotTx(ctx context.Context, tx *sql.Tx, p auth.Principal, id, revision string) (RenderSnapshot, error) {
 	if e := auth.RequireUsable(p); e != nil {
 		return RenderSnapshot{}, e
 	}
@@ -124,11 +156,6 @@ func (s *Service) ResolveSnapshot(ctx context.Context, p auth.Principal, id, rev
 	if e != nil {
 		return RenderSnapshot{}, e
 	}
-	tx, e := s.DB.BeginTx(ctx, nil)
-	if e != nil {
-		return RenderSnapshot{}, e
-	}
-	defer tx.Rollback()
 	if _, e = scanProject(tx.QueryRowContext(ctx, "SELECT "+columns+" FROM projects WHERE id=? AND owner_id=? AND deleted_at IS NULL FOR SHARE", id, p.UserID)); e != nil {
 		return RenderSnapshot{}, e
 	}
@@ -144,14 +171,7 @@ func (s *Service) ResolveSnapshot(ctx context.Context, p auth.Principal, id, rev
 	if e != nil {
 		return RenderSnapshot{}, e
 	}
-	out, e := s.resolveRefs(ctx, tx, p, doc)
-	if e != nil {
-		return RenderSnapshot{}, e
-	}
-	if e = tx.Commit(); e != nil {
-		return RenderSnapshot{}, e
-	}
-	return out, nil
+	return s.resolveRefs(ctx, tx, p, doc)
 }
 
 func (s *Service) ValidateDocument(ctx context.Context, p auth.Principal, d document.Document) (RenderSnapshot, error) {

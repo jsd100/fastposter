@@ -10,7 +10,14 @@ export function documentSignature(value: unknown): string {
   );
 }
 export type SaveStatus =
-  "saved" | "dirty" | "saving" | "blocked" | "offline" | "conflict" | "error";
+  | "saved"
+  | "dirty"
+  | "saving"
+  | "blocked"
+  | "offline"
+  | "conflict"
+  | "error"
+  | "deleted";
 export type DraftSnapshot<T> = {
   document: T;
   baseRevision: string;
@@ -40,6 +47,7 @@ export class Autosave<T> {
   private listeners = new Set<() => void>();
   private inFlight: Promise<{ document: T; revision: string }> | null = null;
   private blocked = false;
+  private deleted = false;
   private disposed = false;
   private editedAt = 0;
   private persistence: Promise<void> = Promise.resolve();
@@ -67,6 +75,7 @@ export class Autosave<T> {
     return documentSignature(this.state.document) !== this.acknowledged;
   }
   private persist() {
+    if (this.deleted) return Promise.resolve();
     const snapshot = {
       document: structuredClone(this.state.document),
       baseRevision: this.state.revision,
@@ -81,7 +90,7 @@ export class Autosave<T> {
     return this.persistence;
   }
   update(document: T) {
-    if (this.disposed) return;
+    if (this.disposed || this.deleted) return;
     this.generation++;
     this.editedAt = Date.now();
     const dirty = documentSignature(document) !== this.acknowledged;
@@ -101,7 +110,7 @@ export class Autosave<T> {
     this.schedule();
   }
   setBlocked(blocked: boolean) {
-    if (this.blocked === blocked) return;
+    if (this.deleted || this.blocked === blocked) return;
     this.blocked = blocked;
     if (this.state.status !== "conflict")
       this.emit({
@@ -109,11 +118,19 @@ export class Autosave<T> {
       });
     this.schedule();
   }
+  stopDeleted() {
+    if (this.deleted) return;
+    this.deleted = true;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.emit({ status: "deleted", error: undefined });
+  }
   private schedule() {
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
     if (
       this.disposed ||
+      this.deleted ||
       this.blocked ||
       this.inFlight ||
       !this.dirty() ||
@@ -130,6 +147,10 @@ export class Autosave<T> {
   }
   async flush(drain = true): Promise<{ document: T; revision: string }> {
     if (this.disposed) throw Error("保存已停止");
+    if (this.deleted)
+      throw Object.assign(Error("作品已删除，无法继续保存到原作品"), {
+        code: "PROJECT_DELETED",
+      });
     if (this.blocked) throw Error("请等待上传或文字编辑事务完成");
     if (this.state.status === "conflict")
       throw Object.assign(new Error("请先处理版本冲突"), {
@@ -153,6 +174,10 @@ export class Autosave<T> {
       try {
         await this.persistence;
         const result = await this.options.save(document, revision);
+        if (this.deleted)
+          throw Object.assign(Error("作品已删除，无法继续保存到原作品"), {
+            code: "PROJECT_DELETED",
+          });
         this.acknowledged = documentSignature(document);
         this.emit({
           revision: result.revision,
@@ -167,7 +192,12 @@ export class Autosave<T> {
         await this.options.onSaved?.(document, result.revision);
         return result;
       } catch (error) {
+        if (this.deleted) throw error;
         const code = (error as { code?: string })?.code;
+        if (code === "NOT_FOUND") {
+          this.stopDeleted();
+          throw error;
+        }
         this.emit({
           status:
             code === "REVISION_CONFLICT"
@@ -182,6 +212,7 @@ export class Autosave<T> {
         this.inFlight = null;
         if (
           !this.disposed &&
+          !this.deleted &&
           this.state.status !== "conflict" &&
           this.state.status !== "error" &&
           this.state.status !== "offline"
@@ -195,6 +226,7 @@ export class Autosave<T> {
     return result;
   }
   reset(document: T, revision: string) {
+    if (this.deleted) throw Error("作品已删除，无法继续保存到原作品");
     if (this.inFlight) throw Error("保存进行中，暂不能替换文档");
     this.generation++;
     this.acknowledged = documentSignature(document);
@@ -207,6 +239,7 @@ export class Autosave<T> {
     return this.persist();
   }
   restore(document: T, baseRevision: string) {
+    if (this.deleted) throw Error("作品已删除，无法继续保存到原作品");
     if (this.inFlight) throw Error("保存进行中");
     this.generation++;
     this.editedAt = Date.now();

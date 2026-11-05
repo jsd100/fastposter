@@ -12,9 +12,11 @@ import (
 	"fastposter/server/internal/document"
 	"fastposter/server/internal/domain"
 	"fastposter/server/internal/exports"
+	"fastposter/server/internal/projectdeletions"
 	"fastposter/server/internal/projects"
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/testutil"
+	"fastposter/server/migrations"
 	"github.com/go-sql-driver/mysql"
 	"image/png"
 	"io"
@@ -145,6 +147,19 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 	if e = exportService.Complete(ctx, *lease, resultKey, previewKey, int64(len(result)), completedAt); e != nil {
 		t.Fatal(e)
 	}
+	if _, e = db.Exec("INSERT INTO project_deletions(id,project_id,owner_id,actor_id,title,width,height,deleted_at,state,attempts,next_attempt_at) VALUES('rec-del','rec-trash','rec-u1','rec-u1','待清理作品',1200,1600,UTC_TIMESTAMP(6),'retry_wait',2,UTC_TIMESTAMP(6)+INTERVAL 30 SECOND)"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("INSERT INTO project_deletion_assets(task_id,asset_id,asset_version,original_key,normalized_key,preview_key,state) VALUES('rec-del','rec-bg',1,?,?,'','retired')", string(background), string(background)); e != nil {
+		t.Fatal(e)
+	}
+	orphanKey := storage.NewKey("exports")
+	if _, e = store.Put(ctx, orphanKey, bytes.NewReader([]byte("orphan"))); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("INSERT INTO project_deletion_files(task_id,file_key,state,source) VALUES('rec-del',?,'pending','export-result')", string(orphanKey)); e != nil {
+		t.Fatal(e)
+	}
 	backgroundInfo, e := store.Stat(ctx, background)
 	if e != nil {
 		t.Fatal(e)
@@ -209,10 +224,10 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 	if e = json.Unmarshal(manifestRaw, &manifest); e != nil {
 		t.Fatal(e)
 	}
-	if manifest.Format != "fastposter-backup" || manifest.Version != 1 || manifest.SchemaVersion != 1 || manifest.DataFiles < 3 {
+	if manifest.Format != "fastposter-backup" || manifest.Version != 1 || manifest.SchemaVersion != migrations.CurrentVersion || manifest.DataFiles < 3 {
 		t.Fatalf("unexpected backup manifest: %+v", manifest)
 	}
-	if manifest.Counts["projects"] != 1 || manifest.Counts["export_jobs"] != 1 {
+	if manifest.Counts["projects"] != 1 || manifest.Counts["export_jobs"] != 1 || manifest.Counts["project_deletions"] != 1 || manifest.Counts["project_deletion_assets"] != 1 || manifest.Counts["project_deletion_files"] != 1 {
 		t.Fatalf("backup counts do not match source: %+v", manifest.Counts)
 	}
 	adminConfig := *baseConfig
@@ -240,6 +255,28 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 	targetConfig.DBName = targetDB
 	targetDSN := targetConfig.FormatDSN()
 	targetDir := filepath.Join(t.TempDir(), "restored")
+	var manifestFields map[string]any
+	if e = json.Unmarshal(manifestRaw, &manifestFields); e != nil {
+		t.Fatal(e)
+	}
+	manifestFields["schemaVersion"] = float64(migrations.CurrentVersion + 1)
+	badManifest, e := json.Marshal(manifestFields)
+	if e != nil {
+		t.Fatal(e)
+	}
+	badBackup := filepath.Join(t.TempDir(), "bad-backup")
+	if e = os.MkdirAll(badBackup, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(filepath.Join(badBackup, "manifest.json"), badManifest, 0600); e != nil {
+		t.Fatal(e)
+	}
+	badRestore := exec.Command(binary, "restore", "-source", badBackup, "-dsn", targetDSN, "-data-dir", filepath.Join(t.TempDir(), "bad-data"))
+	badRestore.Dir = root
+	badRestore.Env = recoveryEnv(map[string]string{"MYSQL_DSN": sourceDSN, "APP_DATA_DIR": sourceDir})
+	if output, e := badRestore.CombinedOutput(); e == nil || !strings.Contains(string(output), "schema version") {
+		t.Fatalf("restore accepted an unsupported schema: %v %s", e, output)
+	}
 	restore := exec.Command(binary, "restore", "-source", backupDir, "-dsn", targetDSN, "-data-dir", targetDir)
 	restore.Dir = root
 	restore.Env = recoveryEnv(map[string]string{"MYSQL_DSN": sourceDSN, "APP_DATA_DIR": sourceDir})
@@ -255,6 +292,17 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer targetDBHandle.Close()
+	var restoredState string
+	var restoredFiles, restoredAssets int
+	if e = targetDBHandle.QueryRow("SELECT state FROM project_deletions WHERE id='rec-del'").Scan(&restoredState); e != nil || restoredState != "retry_wait" {
+		t.Fatalf("unfinished deletion task was not restored: %s %v", restoredState, e)
+	}
+	if e = targetDBHandle.QueryRow("SELECT COUNT(*) FROM project_deletion_files WHERE task_id='rec-del'").Scan(&restoredFiles); e != nil || restoredFiles != 1 {
+		t.Fatalf("restored deletion file work is wrong: %d %v", restoredFiles, e)
+	}
+	if e = targetDBHandle.QueryRow("SELECT COUNT(*) FROM project_deletion_assets WHERE task_id='rec-del'").Scan(&restoredAssets); e != nil || restoredAssets != 1 {
+		t.Fatalf("restored deletion asset work is wrong: %d %v", restoredAssets, e)
+	}
 	targetStore, e := storage.NewLocal(targetDir)
 	if e != nil {
 		t.Fatal(e)
@@ -342,6 +390,30 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 	var otherDBProjects int
 	if e = admin.QueryRowContext(ctx, "SELECT COUNT(*) FROM `"+sentinelDB+"`.projects").Scan(&otherDBProjects); e != nil || otherDBProjects != 1 {
 		t.Fatalf("restore changed another database: %d %v", otherDBProjects, e)
+	}
+
+	// The restored instance must resume work captured in the backup: the
+	// durable cleanup task finishes and removes its private file, while a
+	// referenced asset survives.
+	if _, e = targetDBHandle.ExecContext(ctx, "UPDATE project_deletions SET next_attempt_at=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND WHERE id='rec-del'"); e != nil {
+		t.Fatal(e)
+	}
+	cleanupWorker := projectdeletions.Worker{Service: projectdeletions.NewService(targetDBHandle, targetStore), Writers: storage.NewWriterGate(targetDir), ID: "restored-cleanup"}
+	if ran, e := cleanupWorker.RunOnce(ctx, time.Now().UTC()); e != nil || !ran {
+		t.Fatalf("restored cleanup task did not run: %v %v", ran, e)
+	}
+	var cleanupState string
+	if e = targetDBHandle.QueryRow("SELECT state FROM project_deletions WHERE id='rec-del'").Scan(&cleanupState); e != nil || cleanupState != "completed" {
+		t.Fatalf("restored cleanup task did not complete: %s %v", cleanupState, e)
+	}
+	if _, e = targetStore.Stat(ctx, orphanKey); !errors.Is(e, os.ErrNotExist) {
+		t.Fatalf("restored cleanup did not remove its private file: %v", e)
+	}
+	if _, e = targetStore.Stat(ctx, background); e != nil {
+		t.Fatalf("restored cleanup removed a referenced asset: %v", e)
+	}
+	if e = targetDBHandle.QueryRow("SELECT COUNT(*) FROM project_deletion_files WHERE task_id='rec-del'").Scan(&restoredFiles); e != nil || restoredFiles != 0 {
+		t.Fatalf("completed cleanup kept file work: %d %v", restoredFiles, e)
 	}
 
 	// A second -force restore targets a non-empty database and a non-empty data

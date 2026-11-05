@@ -422,6 +422,179 @@ var fieldIDToName_ProjectMetadataDTO = map[int16]string{
 	8: "deletedAt",
 }
 
+type ProjectDeletionDTO struct {
+	Id          string  `thrift:"id,1,required" frugal:"1,required,string" json:"id"`
+	ProjectId   string  `thrift:"projectId,2,required" frugal:"2,required,string" json:"projectId"`
+	OwnerId     string  `thrift:"ownerId,3,required" frugal:"3,required,string" json:"ownerId"`
+	State       string  `thrift:"state,4,required" frugal:"4,required,string" json:"state"`
+	CreatedAt   string  `thrift:"createdAt,5,required" frugal:"5,required,string" json:"createdAt"`
+	Title       *string `thrift:"title,6,optional" frugal:"6,optional,string" json:"title,omitempty"`
+	Width       *int32  `thrift:"width,7,optional" frugal:"7,optional,i32" json:"width,omitempty"`
+	Height      *int32  `thrift:"height,8,optional" frugal:"8,optional,i32" json:"height,omitempty"`
+	DeletedAt   *string `thrift:"deletedAt,9,optional" frugal:"9,optional,string" json:"deletedAt,omitempty"`
+	CompletedAt *string `thrift:"completedAt,10,optional" frugal:"10,optional,string" json:"completedAt,omitempty"`
+	ErrorCode   *string `thrift:"errorCode,11,optional" frugal:"11,optional,string" json:"errorCode,omitempty"`
+}
+
+func NewProjectDeletionDTO() *ProjectDeletionDTO {
+	return &ProjectDeletionDTO{}
+}
+
+func (p *ProjectDeletionDTO) InitDefault() {
+}
+
+func (p *ProjectDeletionDTO) GetId() (v string) {
+	return p.Id
+}
+
+func (p *ProjectDeletionDTO) GetProjectId() (v string) {
+	return p.ProjectId
+}
+
+func (p *ProjectDeletionDTO) GetOwnerId() (v string) {
+	return p.OwnerId
+}
+
+func (p *ProjectDeletionDTO) GetState() (v string) {
+	return p.State
+}
+
+func (p *ProjectDeletionDTO) GetCreatedAt() (v string) {
+	return p.CreatedAt
+}
+
+var ProjectDeletionDTO_Title_DEFAULT string
+
+func (p *ProjectDeletionDTO) GetTitle() (v string) {
+	if !p.IsSetTitle() {
+		return ProjectDeletionDTO_Title_DEFAULT
+	}
+	return *p.Title
+}
+
+var ProjectDeletionDTO_Width_DEFAULT int32
+
+func (p *ProjectDeletionDTO) GetWidth() (v int32) {
+	if !p.IsSetWidth() {
+		return ProjectDeletionDTO_Width_DEFAULT
+	}
+	return *p.Width
+}
+
+var ProjectDeletionDTO_Height_DEFAULT int32
+
+func (p *ProjectDeletionDTO) GetHeight() (v int32) {
+	if !p.IsSetHeight() {
+		return ProjectDeletionDTO_Height_DEFAULT
+	}
+	return *p.Height
+}
+
+var ProjectDeletionDTO_DeletedAt_DEFAULT string
+
+func (p *ProjectDeletionDTO) GetDeletedAt() (v string) {
+	if !p.IsSetDeletedAt() {
+		return ProjectDeletionDTO_DeletedAt_DEFAULT
+	}
+	return *p.DeletedAt
+}
+
+var ProjectDeletionDTO_CompletedAt_DEFAULT string
+
+func (p *ProjectDeletionDTO) GetCompletedAt() (v string) {
+	if !p.IsSetCompletedAt() {
+		return ProjectDeletionDTO_CompletedAt_DEFAULT
+	}
+	return *p.CompletedAt
+}
+
+var ProjectDeletionDTO_ErrorCode_DEFAULT string
+
+func (p *ProjectDeletionDTO) GetErrorCode() (v string) {
+	if !p.IsSetErrorCode() {
+		return ProjectDeletionDTO_ErrorCode_DEFAULT
+	}
+	return *p.ErrorCode
+}
+func (p *ProjectDeletionDTO) SetId(val string) {
+	p.Id = val
+}
+func (p *ProjectDeletionDTO) SetProjectId(val string) {
+	p.ProjectId = val
+}
+func (p *ProjectDeletionDTO) SetOwnerId(val string) {
+	p.OwnerId = val
+}
+func (p *ProjectDeletionDTO) SetState(val string) {
+	p.State = val
+}
+func (p *ProjectDeletionDTO) SetCreatedAt(val string) {
+	p.CreatedAt = val
+}
+func (p *ProjectDeletionDTO) SetTitle(val *string) {
+	p.Title = val
+}
+func (p *ProjectDeletionDTO) SetWidth(val *int32) {
+	p.Width = val
+}
+func (p *ProjectDeletionDTO) SetHeight(val *int32) {
+	p.Height = val
+}
+func (p *ProjectDeletionDTO) SetDeletedAt(val *string) {
+	p.DeletedAt = val
+}
+func (p *ProjectDeletionDTO) SetCompletedAt(val *string) {
+	p.CompletedAt = val
+}
+func (p *ProjectDeletionDTO) SetErrorCode(val *string) {
+	p.ErrorCode = val
+}
+
+func (p *ProjectDeletionDTO) IsSetTitle() bool {
+	return p.Title != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetWidth() bool {
+	return p.Width != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetHeight() bool {
+	return p.Height != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetDeletedAt() bool {
+	return p.DeletedAt != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetCompletedAt() bool {
+	return p.CompletedAt != nil
+}
+
+func (p *ProjectDeletionDTO) IsSetErrorCode() bool {
+	return p.ErrorCode != nil
+}
+
+func (p *ProjectDeletionDTO) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectDeletionDTO(%+v)", *p)
+}
+
+var fieldIDToName_ProjectDeletionDTO = map[int16]string{
+	1:  "id",
+	2:  "projectId",
+	3:  "ownerId",
+	4:  "state",
+	5:  "createdAt",
+	6:  "title",
+	7:  "width",
+	8:  "height",
+	9:  "deletedAt",
+	10: "completedAt",
+	11: "errorCode",
+}
+
 type AdminProjectListReply struct {
 	RequestId string                `thrift:"requestId,1,required" frugal:"1,required,string" json:"requestId"`
 	Projects  []*ProjectMetadataDTO `thrift:"projects,2,required" frugal:"2,required,list<ProjectMetadataDTO>" json:"projects"`
@@ -466,6 +639,100 @@ func (p *AdminProjectListReply) String() string {
 var fieldIDToName_AdminProjectListReply = map[int16]string{
 	1: "requestId",
 	2: "projects",
+	3: "total",
+}
+
+type ProjectDeletionReply struct {
+	RequestId string              `thrift:"requestId,1,required" frugal:"1,required,string" json:"requestId"`
+	Deletion  *ProjectDeletionDTO `thrift:"deletion,2,required" frugal:"2,required,ProjectDeletionDTO" json:"deletion"`
+}
+
+func NewProjectDeletionReply() *ProjectDeletionReply {
+	return &ProjectDeletionReply{}
+}
+
+func (p *ProjectDeletionReply) InitDefault() {
+}
+
+func (p *ProjectDeletionReply) GetRequestId() (v string) {
+	return p.RequestId
+}
+
+var ProjectDeletionReply_Deletion_DEFAULT *ProjectDeletionDTO
+
+func (p *ProjectDeletionReply) GetDeletion() (v *ProjectDeletionDTO) {
+	if !p.IsSetDeletion() {
+		return ProjectDeletionReply_Deletion_DEFAULT
+	}
+	return p.Deletion
+}
+func (p *ProjectDeletionReply) SetRequestId(val string) {
+	p.RequestId = val
+}
+func (p *ProjectDeletionReply) SetDeletion(val *ProjectDeletionDTO) {
+	p.Deletion = val
+}
+
+func (p *ProjectDeletionReply) IsSetDeletion() bool {
+	return p.Deletion != nil
+}
+
+func (p *ProjectDeletionReply) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectDeletionReply(%+v)", *p)
+}
+
+var fieldIDToName_ProjectDeletionReply = map[int16]string{
+	1: "requestId",
+	2: "deletion",
+}
+
+type ProjectDeletionListReply struct {
+	RequestId string                `thrift:"requestId,1,required" frugal:"1,required,string" json:"requestId"`
+	Deletions []*ProjectDeletionDTO `thrift:"deletions,2,required" frugal:"2,required,list<ProjectDeletionDTO>" json:"deletions"`
+	Total     int32                 `thrift:"total,3,required" frugal:"3,required,i32" json:"total"`
+}
+
+func NewProjectDeletionListReply() *ProjectDeletionListReply {
+	return &ProjectDeletionListReply{}
+}
+
+func (p *ProjectDeletionListReply) InitDefault() {
+}
+
+func (p *ProjectDeletionListReply) GetRequestId() (v string) {
+	return p.RequestId
+}
+
+func (p *ProjectDeletionListReply) GetDeletions() (v []*ProjectDeletionDTO) {
+	return p.Deletions
+}
+
+func (p *ProjectDeletionListReply) GetTotal() (v int32) {
+	return p.Total
+}
+func (p *ProjectDeletionListReply) SetRequestId(val string) {
+	p.RequestId = val
+}
+func (p *ProjectDeletionListReply) SetDeletions(val []*ProjectDeletionDTO) {
+	p.Deletions = val
+}
+func (p *ProjectDeletionListReply) SetTotal(val int32) {
+	p.Total = val
+}
+
+func (p *ProjectDeletionListReply) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectDeletionListReply(%+v)", *p)
+}
+
+var fieldIDToName_ProjectDeletionListReply = map[int16]string{
+	1: "requestId",
+	2: "deletions",
 	3: "total",
 }
 
@@ -1822,6 +2089,8 @@ type PublicPayload struct {
 	Total            *int32                `thrift:"total,14,optional" frugal:"14,optional,i32" json:"total,omitempty"`
 	ResetToken       *string               `thrift:"resetToken,15,optional" frugal:"15,optional,string" json:"resetToken,omitempty"`
 	MetadataProjects []*ProjectMetadataDTO `thrift:"metadataProjects,16,optional" frugal:"16,optional,list<ProjectMetadataDTO>" json:"metadataProjects,omitempty"`
+	Deletion         *ProjectDeletionDTO   `thrift:"deletion,17,optional" frugal:"17,optional,ProjectDeletionDTO" json:"deletion,omitempty"`
+	Deletions        []*ProjectDeletionDTO `thrift:"deletions,18,optional" frugal:"18,optional,list<ProjectDeletionDTO>" json:"deletions,omitempty"`
 }
 
 func NewPublicPayload() *PublicPayload {
@@ -1969,6 +2238,24 @@ func (p *PublicPayload) GetMetadataProjects() (v []*ProjectMetadataDTO) {
 	}
 	return p.MetadataProjects
 }
+
+var PublicPayload_Deletion_DEFAULT *ProjectDeletionDTO
+
+func (p *PublicPayload) GetDeletion() (v *ProjectDeletionDTO) {
+	if !p.IsSetDeletion() {
+		return PublicPayload_Deletion_DEFAULT
+	}
+	return p.Deletion
+}
+
+var PublicPayload_Deletions_DEFAULT []*ProjectDeletionDTO
+
+func (p *PublicPayload) GetDeletions() (v []*ProjectDeletionDTO) {
+	if !p.IsSetDeletions() {
+		return PublicPayload_Deletions_DEFAULT
+	}
+	return p.Deletions
+}
 func (p *PublicPayload) SetRequestId(val string) {
 	p.RequestId = val
 }
@@ -2016,6 +2303,12 @@ func (p *PublicPayload) SetResetToken(val *string) {
 }
 func (p *PublicPayload) SetMetadataProjects(val []*ProjectMetadataDTO) {
 	p.MetadataProjects = val
+}
+func (p *PublicPayload) SetDeletion(val *ProjectDeletionDTO) {
+	p.Deletion = val
+}
+func (p *PublicPayload) SetDeletions(val []*ProjectDeletionDTO) {
+	p.Deletions = val
 }
 
 func (p *PublicPayload) IsSetUser() bool {
@@ -2078,6 +2371,14 @@ func (p *PublicPayload) IsSetMetadataProjects() bool {
 	return p.MetadataProjects != nil
 }
 
+func (p *PublicPayload) IsSetDeletion() bool {
+	return p.Deletion != nil
+}
+
+func (p *PublicPayload) IsSetDeletions() bool {
+	return p.Deletions != nil
+}
+
 func (p *PublicPayload) String() string {
 	if p == nil {
 		return "<nil>"
@@ -2102,4 +2403,6 @@ var fieldIDToName_PublicPayload = map[int16]string{
 	14: "total",
 	15: "resetToken",
 	16: "metadataProjects",
+	17: "deletion",
+	18: "deletions",
 }

@@ -23,6 +23,14 @@ type ProjectsHTTP interface {
 	CloneProject(ctx context.Context, request *common.IDRequest) (r *common.ProjectReply, err error)
 
 	RestoreProject(ctx context.Context, request *common.IDRequest) (r *common.ProjectReply, err error)
+
+	PermanentlyDeleteProject(ctx context.Context, request *common.IDRequest) (r *common.ProjectDeletionReply, err error)
+
+	ListProjectDeletions(ctx context.Context, request *common.ProjectDeletionListQuery) (r *common.ProjectDeletionListReply, err error)
+
+	GetProjectDeletion(ctx context.Context, request *common.IDRequest) (r *common.ProjectDeletionReply, err error)
+
+	RetryProjectDeletion(ctx context.Context, request *common.IDRequest) (r *common.ProjectDeletionReply, err error)
 }
 
 type ProjectsHTTPClient struct {
@@ -114,6 +122,42 @@ func (p *ProjectsHTTPClient) RestoreProject(ctx context.Context, request *common
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *ProjectsHTTPClient) PermanentlyDeleteProject(ctx context.Context, request *common.IDRequest) (r *common.ProjectDeletionReply, err error) {
+	var _args ProjectsHTTPPermanentlyDeleteProjectArgs
+	_args.Request = request
+	var _result ProjectsHTTPPermanentlyDeleteProjectResult
+	if err = p.Client_().Call(ctx, "PermanentlyDeleteProject", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *ProjectsHTTPClient) ListProjectDeletions(ctx context.Context, request *common.ProjectDeletionListQuery) (r *common.ProjectDeletionListReply, err error) {
+	var _args ProjectsHTTPListProjectDeletionsArgs
+	_args.Request = request
+	var _result ProjectsHTTPListProjectDeletionsResult
+	if err = p.Client_().Call(ctx, "ListProjectDeletions", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *ProjectsHTTPClient) GetProjectDeletion(ctx context.Context, request *common.IDRequest) (r *common.ProjectDeletionReply, err error) {
+	var _args ProjectsHTTPGetProjectDeletionArgs
+	_args.Request = request
+	var _result ProjectsHTTPGetProjectDeletionResult
+	if err = p.Client_().Call(ctx, "GetProjectDeletion", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *ProjectsHTTPClient) RetryProjectDeletion(ctx context.Context, request *common.IDRequest) (r *common.ProjectDeletionReply, err error) {
+	var _args ProjectsHTTPRetryProjectDeletionArgs
+	_args.Request = request
+	var _result ProjectsHTTPRetryProjectDeletionResult
+	if err = p.Client_().Call(ctx, "RetryProjectDeletion", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 
 type ProjectsHTTPProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
@@ -142,6 +186,10 @@ func NewProjectsHTTPProcessor(handler ProjectsHTTP) *ProjectsHTTPProcessor {
 	self.AddToProcessorMap("DeleteProject", &projectsHTTPProcessorDeleteProject{handler: handler})
 	self.AddToProcessorMap("CloneProject", &projectsHTTPProcessorCloneProject{handler: handler})
 	self.AddToProcessorMap("RestoreProject", &projectsHTTPProcessorRestoreProject{handler: handler})
+	self.AddToProcessorMap("PermanentlyDeleteProject", &projectsHTTPProcessorPermanentlyDeleteProject{handler: handler})
+	self.AddToProcessorMap("ListProjectDeletions", &projectsHTTPProcessorListProjectDeletions{handler: handler})
+	self.AddToProcessorMap("GetProjectDeletion", &projectsHTTPProcessorGetProjectDeletion{handler: handler})
+	self.AddToProcessorMap("RetryProjectDeletion", &projectsHTTPProcessorRetryProjectDeletion{handler: handler})
 	return self
 }
 func (p *ProjectsHTTPProcessor) Process(ctx context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -481,6 +529,198 @@ func (p *projectsHTTPProcessorRestoreProject) Process(ctx context.Context, seqId
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("RestoreProject", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type projectsHTTPProcessorPermanentlyDeleteProject struct {
+	handler ProjectsHTTP
+}
+
+func (p *projectsHTTPProcessorPermanentlyDeleteProject) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := ProjectsHTTPPermanentlyDeleteProjectArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("PermanentlyDeleteProject", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := ProjectsHTTPPermanentlyDeleteProjectResult{}
+	var retval *common.ProjectDeletionReply
+	if retval, err2 = p.handler.PermanentlyDeleteProject(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing PermanentlyDeleteProject: "+err2.Error())
+		oprot.WriteMessageBegin("PermanentlyDeleteProject", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("PermanentlyDeleteProject", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type projectsHTTPProcessorListProjectDeletions struct {
+	handler ProjectsHTTP
+}
+
+func (p *projectsHTTPProcessorListProjectDeletions) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := ProjectsHTTPListProjectDeletionsArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("ListProjectDeletions", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := ProjectsHTTPListProjectDeletionsResult{}
+	var retval *common.ProjectDeletionListReply
+	if retval, err2 = p.handler.ListProjectDeletions(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListProjectDeletions: "+err2.Error())
+		oprot.WriteMessageBegin("ListProjectDeletions", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("ListProjectDeletions", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type projectsHTTPProcessorGetProjectDeletion struct {
+	handler ProjectsHTTP
+}
+
+func (p *projectsHTTPProcessorGetProjectDeletion) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := ProjectsHTTPGetProjectDeletionArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("GetProjectDeletion", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := ProjectsHTTPGetProjectDeletionResult{}
+	var retval *common.ProjectDeletionReply
+	if retval, err2 = p.handler.GetProjectDeletion(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetProjectDeletion: "+err2.Error())
+		oprot.WriteMessageBegin("GetProjectDeletion", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("GetProjectDeletion", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type projectsHTTPProcessorRetryProjectDeletion struct {
+	handler ProjectsHTTP
+}
+
+func (p *projectsHTTPProcessorRetryProjectDeletion) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := ProjectsHTTPRetryProjectDeletionArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("RetryProjectDeletion", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := ProjectsHTTPRetryProjectDeletionResult{}
+	var retval *common.ProjectDeletionReply
+	if retval, err2 = p.handler.RetryProjectDeletion(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing RetryProjectDeletion: "+err2.Error())
+		oprot.WriteMessageBegin("RetryProjectDeletion", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("RetryProjectDeletion", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -2553,5 +2793,1181 @@ func (p *ProjectsHTTPRestoreProjectResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("ProjectsHTTPRestoreProjectResult(%+v)", *p)
+
+}
+
+type ProjectsHTTPPermanentlyDeleteProjectArgs struct {
+	Request *common.IDRequest `thrift:"request,1"`
+}
+
+func NewProjectsHTTPPermanentlyDeleteProjectArgs() *ProjectsHTTPPermanentlyDeleteProjectArgs {
+	return &ProjectsHTTPPermanentlyDeleteProjectArgs{}
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectArgs) InitDefault() {
+}
+
+var ProjectsHTTPPermanentlyDeleteProjectArgs_Request_DEFAULT *common.IDRequest
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectArgs) GetRequest() (v *common.IDRequest) {
+	if !p.IsSetRequest() {
+		return ProjectsHTTPPermanentlyDeleteProjectArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_ProjectsHTTPPermanentlyDeleteProjectArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectsHTTPPermanentlyDeleteProjectArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := common.NewIDRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("PermanentlyDeleteProject_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectsHTTPPermanentlyDeleteProjectArgs(%+v)", *p)
+
+}
+
+type ProjectsHTTPPermanentlyDeleteProjectResult struct {
+	Success *common.ProjectDeletionReply `thrift:"success,0,optional"`
+}
+
+func NewProjectsHTTPPermanentlyDeleteProjectResult() *ProjectsHTTPPermanentlyDeleteProjectResult {
+	return &ProjectsHTTPPermanentlyDeleteProjectResult{}
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectResult) InitDefault() {
+}
+
+var ProjectsHTTPPermanentlyDeleteProjectResult_Success_DEFAULT *common.ProjectDeletionReply
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectResult) GetSuccess() (v *common.ProjectDeletionReply) {
+	if !p.IsSetSuccess() {
+		return ProjectsHTTPPermanentlyDeleteProjectResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_ProjectsHTTPPermanentlyDeleteProjectResult = map[int16]string{
+	0: "success",
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectsHTTPPermanentlyDeleteProjectResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := common.NewProjectDeletionReply()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("PermanentlyDeleteProject_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *ProjectsHTTPPermanentlyDeleteProjectResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectsHTTPPermanentlyDeleteProjectResult(%+v)", *p)
+
+}
+
+type ProjectsHTTPListProjectDeletionsArgs struct {
+	Request *common.ProjectDeletionListQuery `thrift:"request,1"`
+}
+
+func NewProjectsHTTPListProjectDeletionsArgs() *ProjectsHTTPListProjectDeletionsArgs {
+	return &ProjectsHTTPListProjectDeletionsArgs{}
+}
+
+func (p *ProjectsHTTPListProjectDeletionsArgs) InitDefault() {
+}
+
+var ProjectsHTTPListProjectDeletionsArgs_Request_DEFAULT *common.ProjectDeletionListQuery
+
+func (p *ProjectsHTTPListProjectDeletionsArgs) GetRequest() (v *common.ProjectDeletionListQuery) {
+	if !p.IsSetRequest() {
+		return ProjectsHTTPListProjectDeletionsArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_ProjectsHTTPListProjectDeletionsArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *ProjectsHTTPListProjectDeletionsArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *ProjectsHTTPListProjectDeletionsArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectsHTTPListProjectDeletionsArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPListProjectDeletionsArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := common.NewProjectDeletionListQuery()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *ProjectsHTTPListProjectDeletionsArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListProjectDeletions_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPListProjectDeletionsArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ProjectsHTTPListProjectDeletionsArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectsHTTPListProjectDeletionsArgs(%+v)", *p)
+
+}
+
+type ProjectsHTTPListProjectDeletionsResult struct {
+	Success *common.ProjectDeletionListReply `thrift:"success,0,optional"`
+}
+
+func NewProjectsHTTPListProjectDeletionsResult() *ProjectsHTTPListProjectDeletionsResult {
+	return &ProjectsHTTPListProjectDeletionsResult{}
+}
+
+func (p *ProjectsHTTPListProjectDeletionsResult) InitDefault() {
+}
+
+var ProjectsHTTPListProjectDeletionsResult_Success_DEFAULT *common.ProjectDeletionListReply
+
+func (p *ProjectsHTTPListProjectDeletionsResult) GetSuccess() (v *common.ProjectDeletionListReply) {
+	if !p.IsSetSuccess() {
+		return ProjectsHTTPListProjectDeletionsResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_ProjectsHTTPListProjectDeletionsResult = map[int16]string{
+	0: "success",
+}
+
+func (p *ProjectsHTTPListProjectDeletionsResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *ProjectsHTTPListProjectDeletionsResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectsHTTPListProjectDeletionsResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPListProjectDeletionsResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := common.NewProjectDeletionListReply()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *ProjectsHTTPListProjectDeletionsResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListProjectDeletions_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPListProjectDeletionsResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *ProjectsHTTPListProjectDeletionsResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectsHTTPListProjectDeletionsResult(%+v)", *p)
+
+}
+
+type ProjectsHTTPGetProjectDeletionArgs struct {
+	Request *common.IDRequest `thrift:"request,1"`
+}
+
+func NewProjectsHTTPGetProjectDeletionArgs() *ProjectsHTTPGetProjectDeletionArgs {
+	return &ProjectsHTTPGetProjectDeletionArgs{}
+}
+
+func (p *ProjectsHTTPGetProjectDeletionArgs) InitDefault() {
+}
+
+var ProjectsHTTPGetProjectDeletionArgs_Request_DEFAULT *common.IDRequest
+
+func (p *ProjectsHTTPGetProjectDeletionArgs) GetRequest() (v *common.IDRequest) {
+	if !p.IsSetRequest() {
+		return ProjectsHTTPGetProjectDeletionArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_ProjectsHTTPGetProjectDeletionArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *ProjectsHTTPGetProjectDeletionArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *ProjectsHTTPGetProjectDeletionArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectsHTTPGetProjectDeletionArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPGetProjectDeletionArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := common.NewIDRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *ProjectsHTTPGetProjectDeletionArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetProjectDeletion_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPGetProjectDeletionArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ProjectsHTTPGetProjectDeletionArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectsHTTPGetProjectDeletionArgs(%+v)", *p)
+
+}
+
+type ProjectsHTTPGetProjectDeletionResult struct {
+	Success *common.ProjectDeletionReply `thrift:"success,0,optional"`
+}
+
+func NewProjectsHTTPGetProjectDeletionResult() *ProjectsHTTPGetProjectDeletionResult {
+	return &ProjectsHTTPGetProjectDeletionResult{}
+}
+
+func (p *ProjectsHTTPGetProjectDeletionResult) InitDefault() {
+}
+
+var ProjectsHTTPGetProjectDeletionResult_Success_DEFAULT *common.ProjectDeletionReply
+
+func (p *ProjectsHTTPGetProjectDeletionResult) GetSuccess() (v *common.ProjectDeletionReply) {
+	if !p.IsSetSuccess() {
+		return ProjectsHTTPGetProjectDeletionResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_ProjectsHTTPGetProjectDeletionResult = map[int16]string{
+	0: "success",
+}
+
+func (p *ProjectsHTTPGetProjectDeletionResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *ProjectsHTTPGetProjectDeletionResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectsHTTPGetProjectDeletionResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPGetProjectDeletionResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := common.NewProjectDeletionReply()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *ProjectsHTTPGetProjectDeletionResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetProjectDeletion_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPGetProjectDeletionResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *ProjectsHTTPGetProjectDeletionResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectsHTTPGetProjectDeletionResult(%+v)", *p)
+
+}
+
+type ProjectsHTTPRetryProjectDeletionArgs struct {
+	Request *common.IDRequest `thrift:"request,1"`
+}
+
+func NewProjectsHTTPRetryProjectDeletionArgs() *ProjectsHTTPRetryProjectDeletionArgs {
+	return &ProjectsHTTPRetryProjectDeletionArgs{}
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionArgs) InitDefault() {
+}
+
+var ProjectsHTTPRetryProjectDeletionArgs_Request_DEFAULT *common.IDRequest
+
+func (p *ProjectsHTTPRetryProjectDeletionArgs) GetRequest() (v *common.IDRequest) {
+	if !p.IsSetRequest() {
+		return ProjectsHTTPRetryProjectDeletionArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_ProjectsHTTPRetryProjectDeletionArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectsHTTPRetryProjectDeletionArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := common.NewIDRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RetryProjectDeletion_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectsHTTPRetryProjectDeletionArgs(%+v)", *p)
+
+}
+
+type ProjectsHTTPRetryProjectDeletionResult struct {
+	Success *common.ProjectDeletionReply `thrift:"success,0,optional"`
+}
+
+func NewProjectsHTTPRetryProjectDeletionResult() *ProjectsHTTPRetryProjectDeletionResult {
+	return &ProjectsHTTPRetryProjectDeletionResult{}
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionResult) InitDefault() {
+}
+
+var ProjectsHTTPRetryProjectDeletionResult_Success_DEFAULT *common.ProjectDeletionReply
+
+func (p *ProjectsHTTPRetryProjectDeletionResult) GetSuccess() (v *common.ProjectDeletionReply) {
+	if !p.IsSetSuccess() {
+		return ProjectsHTTPRetryProjectDeletionResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_ProjectsHTTPRetryProjectDeletionResult = map[int16]string{
+	0: "success",
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ProjectsHTTPRetryProjectDeletionResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := common.NewProjectDeletionReply()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RetryProjectDeletion_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *ProjectsHTTPRetryProjectDeletionResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ProjectsHTTPRetryProjectDeletionResult(%+v)", *p)
 
 }

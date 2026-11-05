@@ -11,9 +11,14 @@ export type Draft = {
 export class DraftStore {
   private database: Promise<IDBDatabase> | null = null;
   private epochs = new Map<string, number>();
+  private userEpochs = new Map<string, number>();
   private blocked = new Set<string>();
+  private blockedUsers = new Set<string>();
   activate(userId: string) {
-    this.blocked.delete(userId);
+    this.blockedUsers.delete(userId);
+  }
+  private projectKey(userId: string, projectId: string) {
+    return `${userId}\u0000${projectId}`;
   }
   private open() {
     if (!this.database)
@@ -47,12 +52,16 @@ export class DraftStore {
     return this.database;
   }
   async put(draft: Draft) {
-    const epoch = this.epochs.get(draft.userId) ?? 0;
+    const key = this.projectKey(draft.userId, draft.projectId);
+    const epoch = this.epochs.get(key) ?? 0;
+    const userEpoch = this.userEpochs.get(draft.userId) ?? 0;
     const copy = structuredClone(draft);
     const db = await this.open();
     if (
-      this.blocked.has(draft.userId) ||
-      (this.epochs.get(draft.userId) ?? 0) !== epoch
+      this.blockedUsers.has(draft.userId) ||
+      this.blocked.has(key) ||
+      (this.epochs.get(key) ?? 0) !== epoch ||
+      (this.userEpochs.get(draft.userId) ?? 0) !== userEpoch
     )
       return;
     return new Promise<void>((resolve, reject) => {
@@ -61,6 +70,18 @@ export class DraftStore {
       tx.oncomplete = () => resolve();
       tx.onabort = tx.onerror = () =>
         reject(Error("本地草稿保存失败，存储空间可能不足"));
+    });
+  }
+  async blockProject(userId: string, projectId: string) {
+    const key = this.projectKey(userId, projectId);
+    this.blocked.add(key);
+    this.epochs.set(key, (this.epochs.get(key) ?? 0) + 1);
+    const db = await this.open();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("drafts", "readwrite");
+      tx.objectStore("drafts").delete([userId, projectId]);
+      tx.oncomplete = () => resolve();
+      tx.onerror = tx.onabort = () => reject(Error("清理本地草稿失败"));
     });
   }
   async get(userId: string, projectId: string) {
@@ -84,8 +105,8 @@ export class DraftStore {
     });
   }
   async clearUser(userId: string) {
-    this.blocked.add(userId);
-    this.epochs.set(userId, (this.epochs.get(userId) ?? 0) + 1);
+    this.blockedUsers.add(userId);
+    this.userEpochs.set(userId, (this.userEpochs.get(userId) ?? 0) + 1);
     const db = await this.open();
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction("drafts", "readwrite");

@@ -5,7 +5,11 @@ service AdminHTTP {
  base.OverviewReply AdminOverview(1: base.EmptyRequest request) (api.get="/api/v1/admin/overview");
  base.UsersReply AdminUsers(1: requests.ListQuery request) (api.get="/api/v1/admin/users");
  base.AdminUserReply AdminUser(1: requests.AdminUserInput request) (api.post="/api/v1/admin/users/:id");
- base.AdminProjectListReply AdminProjects(1: requests.ListQuery request) (api.get="/api/v1/admin/projects");
+ base.AdminProjectListReply AdminProjects(1: requests.AdminProjectListQuery request) (api.get="/api/v1/admin/projects");
+ base.ProjectDeletionReply AdminPermanentlyDeleteProject(1: requests.IDRequest request) (api.delete="/api/v1/admin/projects/:id/permanent");
+ base.ProjectDeletionListReply AdminListProjectDeletions(1: requests.ProjectDeletionListQuery request) (api.get="/api/v1/admin/project-deletions");
+ base.ProjectDeletionReply AdminGetProjectDeletion(1: requests.IDRequest request) (api.get="/api/v1/admin/project-deletions/:id");
+ base.ProjectDeletionReply AdminRetryProjectDeletion(1: requests.IDRequest request) (api.post="/api/v1/admin/project-deletions/:id/retry");
  base.JobsReply AdminJobs(1: requests.ListQuery request) (api.get="/api/v1/admin/jobs");
  base.AuditReply AdminAudit(1: requests.ListQuery request) (api.get="/api/v1/admin/audit");
  base.CatalogReply AdminResources(1: requests.CatalogQuery request) (api.get="/api/v1/admin/resources/:kind");
