@@ -29,6 +29,18 @@ type Gesture =
       height: number;
       scale: number;
     };
+/**
+ * A press on a control must not read as a press on empty canvas: it would pan
+ * the view or drop the selection while the user is only choosing a zoom level.
+ * Tag names no longer tell — the shared select renders as a div with an inner
+ * input — so the test follows the hooks every shared control carries.
+ */
+function isControlPress(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest("button,select,[data-fp-control],[data-fp-input]") !== null
+  );
+}
 export function Stage({
   store,
   state,
@@ -207,7 +219,7 @@ export function Stage({
           !e.currentTarget.contains(e.target as Node) ||
           e.pointerType !== "touch" ||
           state.mode === "edit" ||
-          (e.target as HTMLElement).closest("button,select")
+          isControlPress(e.target)
         )
           return;
         const rect = e.currentTarget.getBoundingClientRect();
@@ -229,7 +241,8 @@ export function Stage({
         if (
           e.button !== 0 ||
           !e.currentTarget.contains(e.target as Node) ||
-          (e.target as HTMLElement).closest("button,[data-text-block]")
+          isControlPress(e.target) ||
+          (e.target as HTMLElement).closest("[data-text-block]")
         )
           return;
         store.select(null);

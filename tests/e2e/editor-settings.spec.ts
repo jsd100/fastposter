@@ -129,6 +129,14 @@ test("a mixed font-size selection steps from its first character and undoes once
   );
 
   await input.focus();
+  // Typing the size left the DOM selection inside that field. Tiptap restores
+  // its own selection asynchronously when the canvas regains focus, so wait for
+  // that caret before the keystrokes: sent immediately, the restore lands in the
+  // middle of them and the panel ends up describing a shorter range than the
+  // canvas highlights — a real pointer cannot type that fast.
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+    .toBe("风景");
   await input.press("Home");
   for (let i = 0; i < 4; i++) await input.press("Shift+ArrowRight");
   await expect
