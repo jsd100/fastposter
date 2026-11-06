@@ -22,6 +22,16 @@ test("administrator publishes a background, user adopts it, unpublication preser
     .getByRole("button", { name: "登录管理后台", exact: true })
     .click();
   await expect(admin).toHaveURL(/\/admin\/overview$/);
+  // Selecting a file is not uploading it: every request below is one the page
+  // makes when the form is submitted, so the count is the contract.
+  const uploads: string[] = [];
+  admin.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      /\/api\/v1\/assets\/images$/.test(new URL(request.url()).pathname)
+    )
+      uploads.push(request.url());
+  });
   await admin.getByRole("link", { name: "背景库", exact: true }).click();
   await admin.getByRole("button", { name: "添加分类", exact: true }).click();
   const categoryForm = admin.getByRole("dialog", { name: "添加分类" });
@@ -43,11 +53,25 @@ test("administrator publishes a background, user adopts it, unpublication preser
   ).toBeVisible();
   await admin.getByRole("button", { name: "添加背景", exact: true }).click();
   await admin.getByLabel("素材名称", { exact: true }).fill("另一背景");
+  const secondForm = admin.getByRole("dialog", { name: "添加背景" });
+  await admin
+    .getByLabel("背景图片文件", { exact: true })
+    .setInputFiles(path.resolve("tests/fixtures/images/rgba.png"));
+  await expect(secondForm.getByText("rgba.png", { exact: true })).toBeVisible();
+  expect(uploads).toHaveLength(1);
+  // Cancelling the pick takes the pending file back and sends nothing.
+  await secondForm
+    .getByRole("button", { name: "删除文件", exact: true })
+    .click();
+  await expect(secondForm.getByText("rgba.png", { exact: true })).toHaveCount(
+    0,
+  );
   await admin
     .getByLabel("背景图片文件", { exact: true })
     .setInputFiles(path.resolve("tests/fixtures/images/rgba.png"));
   await admin.getByLabel("立即发布", { exact: true }).check();
   await admin.getByRole("button", { name: "保存素材", exact: true }).click();
+  expect(uploads).toHaveLength(2);
   await expect(admin.getByTestId("resource-card")).toHaveCount(2);
   await chooseOption(admin, "筛选素材分类", "风景摄影");
   await expect(selectValue(admin, "筛选素材分类")).toHaveText("风景摄影");
@@ -143,7 +167,9 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
     page.getByTestId("notice").filter({ hasText: "缺少字形" }),
   ).toBeVisible();
   await expect(input).toHaveCSS("font-family", /fp_builtin-noto-sc-400/);
-  await expect(font).toHaveValue("思源黑体");
+  // The combobox keeps its search field empty once the menu closes; the chosen
+  // family is what the trigger shows.
+  await expect(selectValue(page, "文字字体")).toHaveText("思源黑体");
   await expect(selectValue(page, "文字字重")).toHaveText("400");
   await expect(
     page.getByRole("button", { name: "导出 PNG", exact: true }),

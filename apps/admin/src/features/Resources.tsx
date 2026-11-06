@@ -9,8 +9,11 @@ import {
 } from "@fastposter/api-client";
 import {
   Button,
+  CheckboxField,
   Dialog,
+  FileField,
   FormField,
+  NumberField,
   Select,
   TextInput,
   Textarea,
@@ -18,7 +21,7 @@ import {
 } from "@fastposter/ui";
 import { Plus, ImagePlus, Type } from "lucide-react";
 import { request, errorMessage } from "../api";
-import { Pager } from "./Metadata";
+import { PAGE_SIZE, RecordPager } from "./records";
 export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
   const cache = useQueryClient();
   const [page, setPage] = useState(1),
@@ -35,7 +38,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
       request(routes.AdminResources, {
         kind,
         page,
-        pageSize: 24,
+        pageSize: PAGE_SIZE,
         keyword,
         categoryId: category || undefined,
       }),
@@ -203,7 +206,12 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
           <p>添加素材并发布后，用户即可在创作空间选用。</p>
         </div>
       )}
-      <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
+      <RecordPager
+        page={page}
+        total={q.data?.total ?? 0}
+        onPage={setPage}
+        label={kind === "background" ? "背景分页" : "字体分页"}
+      />
       {editing && (
         <ResourceForm
           kind={kind}
@@ -360,14 +368,16 @@ function ResourceForm({
             ]}
           />
         </label>
-        <FormField
-          label="排序"
-          type="number"
-          min={0}
-          max={100000}
-          value={sort}
-          onChange={(e) => setSort(Number(e.target.value))}
-        />
+        <label className="form-field">
+          排序
+          <NumberField
+            aria-label="素材排序"
+            min={0}
+            max={100000}
+            value={sort}
+            onValueChange={setSort}
+          />
+        </label>
         {kind === "font" && (
           <>
             <FormField
@@ -407,25 +417,24 @@ function ResourceForm({
             </div>
           </>
         )}
-        <label className="form-field">
-          {kind === "font" ? "字体文件" : "背景图片"}
-          <input
-            type="file"
-            aria-label={kind === "font" ? "字体文件" : "背景图片文件"}
-            accept={
-              kind === "font"
-                ? ".ttf,.otf,.woff2"
-                : "image/jpeg,image/png,image/webp"
-            }
-            required={!resource}
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-          <small>
-            {kind === "font"
+        <FileField
+          aria-label={kind === "font" ? "字体文件" : "背景图片文件"}
+          label={kind === "font" ? "选择字体文件" : "选择背景图片"}
+          icon={kind === "font" ? <Type size={14} /> : <ImagePlus size={14} />}
+          accept={
+            kind === "font"
+              ? ".ttf,.otf,.woff2"
+              : "image/jpeg,image/png,image/webp"
+          }
+          disabled={busy}
+          value={file}
+          onChange={setFile}
+          hint={
+            kind === "font"
               ? "TTF / OTF / WOFF2 · 最大 20 MiB；字重样式须与文件真实提供的版本一致。"
-              : "JPG / PNG / WebP · 原文件最大 40 MiB。"}
-          </small>
-        </label>
+              : "JPG / PNG / WebP · 原文件最大 40 MiB。"
+          }
+        />
         <label className="form-field">
           授权说明
           <Textarea variant="bare"
@@ -436,15 +445,12 @@ function ResourceForm({
             rows={3}
           />
         </label>
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={published}
-            onChange={(e) => setPublished(e.target.checked)}
-            aria-label="立即发布"
-          />
-          立即发布
-        </label>
+        <CheckboxField
+          label="立即发布"
+          checked={published}
+          onChange={setPublished}
+          disabled={busy}
+        />
         <div className="dialog-actions">
           <Button type="button" disabled={busy} onClick={close}>
             取消

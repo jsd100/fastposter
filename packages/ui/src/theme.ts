@@ -41,5 +41,17 @@ export const fastPosterTheme: ThemeConfig = {
     Tooltip: {
       maxWidth: 240,
     },
+    /**
+     * The copy tree nests five levels inside a 250px sidebar, so the default
+     * 24px indent plus its switcher would leave nothing for the label. The
+     * selected and hovered fills are the brand greens the hand-built rows had.
+     */
+    Tree: {
+      indentSize: 14,
+      titleHeight: 30,
+      nodeSelectedBg: "#edf5e3",
+      nodeSelectedColor: "#4d6140",
+      nodeHoverBg: "#f2f7ec",
+    },
   },
 };

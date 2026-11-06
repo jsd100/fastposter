@@ -1,7 +1,16 @@
 import { useState, type FormEvent } from "react";
 import type { ResourceDTO } from "@fastposter/api-client";
 import { routes } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Textarea, useErrorNotice } from "@fastposter/ui";
+import {
+  Button,
+  CheckboxField,
+  Dialog,
+  FormField,
+  NumberField,
+  Select,
+  Textarea,
+  useErrorNotice,
+} from "@fastposter/ui";
 import { errorMessage, request } from "../../api";
 import { flattenCategories } from "./CategoryTree";
 
@@ -117,23 +126,21 @@ export function CategoryForm({
             ]}
           />
         </label>
-        <FormField
-          label="分类排序"
-          type="number"
-          min={0}
-          max={100000}
-          value={sort}
-          onChange={(e) => setSort(Number(e.target.value))}
-        />
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={published}
-            onChange={(e) => setPublished(e.target.checked)}
-            aria-label="发布分类"
+        <label className="form-field">
+          分类排序
+          <NumberField
+            aria-label="分类排序"
+            min={0}
+            max={100000}
+            value={sort}
+            onValueChange={setSort}
           />
-          发布分类
         </label>
+        <CheckboxField
+          label="发布分类"
+          checked={published}
+          onChange={setPublished}
+        />
         {confirming && (
           <div className="inline-confirm">
             <span>删除后无法恢复，确认删除这个空分类？</span>
@@ -275,23 +282,21 @@ export function CopyForm({
             ]}
           />
         </label>
-        <FormField
-          label="文案排序"
-          type="number"
-          min={0}
-          max={100000}
-          value={sort}
-          onChange={(e) => setSort(Number(e.target.value))}
-        />
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={published}
-            onChange={(e) => setPublished(e.target.checked)}
-            aria-label="发布文案"
+        <label className="form-field">
+          文案排序
+          <NumberField
+            aria-label="文案排序"
+            min={0}
+            max={100000}
+            value={sort}
+            onValueChange={setSort}
           />
-          发布文案
         </label>
+        <CheckboxField
+          label="发布文案"
+          checked={published}
+          onChange={setPublished}
+        />
         {confirming && (
           <div className="inline-confirm">
             <span>确认删除这条文案？</span>

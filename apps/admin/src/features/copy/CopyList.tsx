@@ -1,22 +1,34 @@
 import type { ResourceDTO } from "@fastposter/api-client";
 import { Button, Status } from "@fastposter/ui";
 import { FileText } from "lucide-react";
+import { listState } from "../catalog-state";
 
 export function CopyList({
   resources,
   loading,
+  failed,
   busy,
   onEdit,
   onToggle,
 }: {
   resources: ResourceDTO[];
   loading: boolean;
+  failed: boolean;
   busy: string;
   onEdit: (copy: ResourceDTO) => void;
   onToggle: (copy: ResourceDTO) => void;
 }) {
-  if (loading) return <Status>正在加载文案…</Status>;
-  if (!resources.length)
+  // "Nothing here" only means something once the request came back; a failed
+  // list keeps its own notice inside this container.
+  const state = listState({
+    pending: loading,
+    failed,
+    rows: resources.length,
+  });
+  if (state === "loading") return <Status>正在加载文案…</Status>;
+  if (state === "failed")
+    return <Status tone="error">文案加载失败。请重试，或检查服务状态。</Status>;
+  if (state === "empty")
     return (
       <div className="admin-empty">
         <FileText size={30} />

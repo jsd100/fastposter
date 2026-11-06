@@ -1,4 +1,4 @@
-let layers: HTMLElement[] = [];
+let layers: { element: HTMLElement; blocksShortcuts: boolean }[] = [];
 let popupLayers = 0;
 const listeners = new Set<() => void>();
 
@@ -6,11 +6,26 @@ function publish() {
   for (const listener of listeners) listener();
 }
 
-export function registerModalLayer(element: HTMLElement) {
-  layers = [...layers.filter((item) => item !== element), element];
+/**
+ * Put a floating container on top of the stack. Notices route into the topmost
+ * layer and, unless `blocksShortcuts` is false, the layer owns the keyboard.
+ *
+ * A container that *hosts* the editor — the template workspace — is registered
+ * with `blocksShortcuts: false`: it should still receive notices, but undo,
+ * redo and delete belong to the canvas inside it.
+ */
+export function registerModalLayer(
+  element: HTMLElement,
+  options?: { blocksShortcuts?: boolean },
+) {
+  const blocks = options?.blocksShortcuts ?? true;
+  layers = [
+    ...layers.filter((item) => item.element !== element),
+    { element, blocksShortcuts: blocks },
+  ];
   publish();
   return () => {
-    layers = layers.filter((item) => item !== element);
+    layers = layers.filter((item) => item.element !== element);
     publish();
   };
 }
@@ -39,7 +54,7 @@ export function subscribeModalLayers(listener: () => void) {
 }
 
 export function topModalLayer() {
-  return layers[layers.length - 1] ?? null;
+  return layers[layers.length - 1]?.element ?? null;
 }
 
 export function hasPopupLayer() {
@@ -58,6 +73,11 @@ export function hasVisiblePopup() {
   ).some((popup) => popup.getClientRects().length > 0);
 }
 
-export function hasActiveOverlay() {
-  return layers.length > 0 || popupLayers > 0;
+/**
+ * Whether the keyboard belongs to something other than the canvas. A workbench
+ * layer sits on the stack but does not claim the keystrokes, because the editor
+ * it hosts still answers undo, redo and delete.
+ */
+export function hasBlockingOverlay() {
+  return layers.some((layer) => layer.blocksShortcuts) || popupLayers > 0;
 }

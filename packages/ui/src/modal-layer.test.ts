@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  hasActiveOverlay,
+  hasBlockingOverlay,
   hasPopupLayer,
   hasVisiblePopup,
   registerModalLayer,
@@ -23,13 +23,13 @@ describe("modal layer registry", () => {
     const releaseSecond = registerModalLayer(second);
 
     expect(topModalLayer()).toBe(second);
-    expect(hasActiveOverlay()).toBe(true);
+    expect(hasBlockingOverlay()).toBe(true);
 
     releaseSecond();
     expect(topModalLayer()).toBe(first);
     releaseFirst();
     expect(topModalLayer()).toBeNull();
-    expect(hasActiveOverlay()).toBe(false);
+    expect(hasBlockingOverlay()).toBe(false);
     expect(listener).toHaveBeenCalledTimes(4);
     unsubscribe();
   });
@@ -48,11 +48,41 @@ describe("modal layer registry", () => {
     expect(hasPopupLayer()).toBe(false);
   });
 
-  it("treats a popup as an active overlay without a modal", () => {
-    const release = registerPopupLayer();
-    expect(hasActiveOverlay()).toBe(true);
+  it("carries a workbench layer without letting it claim the keystrokes", () => {
+    const workbench = element("workbench");
+    const release = registerModalLayer(workbench, { blocksShortcuts: false });
+
+    // The workspace still owns the notices and sits on the stack; only the
+    // shortcut blocking is dropped, because the workspace hosts the editor.
+    expect(topModalLayer()).toBe(workbench);
+    expect(hasBlockingOverlay()).toBe(false);
     release();
-    expect(hasActiveOverlay()).toBe(false);
+    expect(topModalLayer()).toBeNull();
+    expect(hasBlockingOverlay()).toBe(false);
+  });
+
+  it("keeps blocking while a dialog opens above a workbench and after it closes", () => {
+    const workbench = element("workbench");
+    const dialog = element("dialog");
+    const releaseWorkbench = registerModalLayer(workbench, {
+      blocksShortcuts: false,
+    });
+    const releaseDialog = registerModalLayer(dialog);
+
+    expect(topModalLayer()).toBe(dialog);
+    expect(hasBlockingOverlay()).toBe(true);
+
+    releaseDialog();
+    expect(topModalLayer()).toBe(workbench);
+    expect(hasBlockingOverlay()).toBe(false);
+    releaseWorkbench();
+  });
+
+  it("counts a registered popup as a blocking overlay", () => {
+    const release = registerPopupLayer();
+    expect(hasBlockingOverlay()).toBe(true);
+    release();
+    expect(hasBlockingOverlay()).toBe(false);
   });
 });
 

@@ -72,6 +72,80 @@ test("blank template editor loads only the fonts it needs", async ({
   await adminContext.close();
 });
 
+/**
+ * The template workspace is a full-screen container that hosts the shared
+ * Editor, so it has to behave like one: the keyboard goes to it on open and
+ * back to the row that opened it on close, while the list keeps the filters
+ * that produced that row.
+ */
+test("closing template editor returns to the filtered list", async ({
+  browser,
+}) => {
+  test.setTimeout(150_000);
+  const category = "关闭回到筛选列表";
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  await admin.getByRole("link", { name: "模板", exact: true }).click();
+  await expect(admin).toHaveURL(/\/admin\/templates$/);
+  const categoryReply = await admin.request.post(
+    "http://127.0.0.1:15174/api/v1/admin/resources",
+    { data: { kind: "template-category", title: category, published: true } },
+  );
+  expect(categoryReply.ok()).toBeTruthy();
+  await admin.getByRole("button", { name: "新建模板", exact: true }).click();
+  const created = admin.getByRole("dialog", { name: "模板编辑器" });
+  await created
+    .getByLabel("模板背景图片文件", { exact: true })
+    .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+  await expect(
+    created.getByRole("button", { name: "添加文字", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await created.getByLabel("模板名称", { exact: true }).fill("筛选回归模板");
+  await chooseOption(admin, "模板分类", category);
+  await created.getByLabel("发布模板", { exact: true }).check();
+  await expect(
+    created.getByRole("button", { name: "保存模板", exact: true }),
+  ).toBeEnabled({ timeout: 15_000 });
+  await created.getByRole("button", { name: "保存模板", exact: true }).click();
+  const card = admin
+    .getByTestId("template-card")
+    .filter({ hasText: "筛选回归模板" });
+  await expect(card).toBeVisible();
+
+  await chooseOption(admin, "筛选模板分类", category);
+  await admin.getByLabel("搜索模板", { exact: true }).fill("筛选回归");
+  await expect(admin.getByTestId("template-card")).toHaveCount(1);
+
+  await card.getByRole("button", { name: "编辑", exact: true }).click();
+  const workspace = admin.getByRole("dialog", { name: "模板编辑器" });
+  await expect(workspace).toBeVisible();
+  // Opening the workspace takes the keyboard; the row keeps it only until then.
+  await expect(workspace).toBeFocused();
+  // Font and background picks stay reachable inside the registered container.
+  await expect(
+    workspace.getByLabel("模板背景图片文件", { exact: true }),
+  ).toHaveCount(1);
+  await workspace
+    .getByRole("button", { name: "添加文字", exact: true })
+    .click();
+  await workspace
+    .getByRole("button", { name: "编辑文字", exact: true })
+    .click();
+  await chooseOption(admin, "文字字体", "思源黑体");
+
+  await workspace.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(workspace).toHaveCount(0);
+  await expect(selectValue(admin, "筛选模板分类")).toHaveText(category);
+  await expect(admin.getByLabel("搜索模板", { exact: true })).toHaveValue(
+    "筛选回归",
+  );
+  await expect(
+    card.getByRole("button", { name: "编辑", exact: true }),
+  ).toBeFocused();
+  await adminContext.close();
+});
+
 test("administrator publishes a template, user applies and re-imports an independent package, unpublication preserves the applied work", async ({
   browser,
   page,

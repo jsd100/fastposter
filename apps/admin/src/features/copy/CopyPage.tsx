@@ -4,7 +4,7 @@ import { routes, type ResourceDTO } from "@fastposter/api-client";
 import { Button, TextInput, useErrorNotice } from "@fastposter/ui";
 import { Plus } from "lucide-react";
 import { errorMessage, request } from "../../api";
-import { Pager } from "../Metadata";
+import { PAGE_SIZE, RecordPager } from "../records";
 import { CategoryTree } from "./CategoryTree";
 import { CategoryForm, CopyForm } from "./CopyForm";
 import { CopyList } from "./CopyList";
@@ -37,7 +37,7 @@ export function CopyPage() {
       request(routes.AdminResources, {
         kind: "copy",
         page,
-        pageSize: 24,
+        pageSize: PAGE_SIZE,
         keyword,
         categoryId: selected || undefined,
       }),
@@ -117,6 +117,9 @@ export function CopyPage() {
         <CategoryTree
           categories={categoryRows}
           selected={selected}
+          loading={categories.isPending}
+          failed={!!categories.error}
+          onRetry={() => void categories.refetch()}
           onSelect={(id) => {
             setSelected(id);
             setPage(1);
@@ -145,11 +148,17 @@ export function CopyPage() {
           <CopyList
             resources={copies.data?.resources ?? []}
             loading={copies.isPending}
+            failed={!!copies.error}
             busy={busy}
             onEdit={setEditingCopy}
             onToggle={toggle}
           />
-          <Pager page={page} total={copies.data?.total ?? 0} onPage={setPage} />
+          <RecordPager
+            page={page}
+            total={copies.data?.total ?? 0}
+            onPage={setPage}
+            label="文案分页"
+          />
         </section>
       </div>
       {editingCategory && (

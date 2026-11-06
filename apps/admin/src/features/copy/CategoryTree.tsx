@@ -1,8 +1,18 @@
-import { Tooltip } from "@fastposter/ui";
+import { Tree } from "antd";
+import type { TreeDataNode } from "antd";
+import { IconButton, Status, Tooltip } from "@fastposter/ui";
 import type { ResourceDTO } from "@fastposter/api-client";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, RotateCcw } from "lucide-react";
+import { listState } from "../catalog-state";
 
 export type CategoryNode = ResourceDTO & { children: CategoryNode[] };
+
+/**
+ * The tree's root is not a category: it is "everything", which the page already
+ * spells as an empty selection. It gets its own key because an empty string is
+ * what antd reports for "nothing selected".
+ */
+const ALL_KEY = "__all__";
 
 export function categoryTree(rows: ResourceDTO[]): CategoryNode[] {
   const nodes = new Map(
@@ -41,74 +51,106 @@ export function flattenCategories(
 export function CategoryTree({
   categories,
   selected,
+  loading,
+  failed,
+  onRetry,
   onSelect,
   onAdd,
   onEdit,
 }: {
   categories: ResourceDTO[];
   selected: string;
+  loading: boolean;
+  failed: boolean;
+  onRetry: () => void;
   onSelect: (id: string) => void;
   onAdd: (parentId: string) => void;
   onEdit: (category: ResourceDTO) => void;
 }) {
+  const state = listState({
+    pending: loading,
+    failed,
+    rows: categories.length,
+  });
   const roots = categoryTree(categories);
-  const row = (node: CategoryNode, depth: number) => (
-    <div key={node.id}>
-      <div className="copy-node-row">
-        <button
-          className={selected === node.id ? "copy-node active" : "copy-node"}
-          style={{ paddingLeft: 10 + depth * 14 }}
-          onClick={() => onSelect(node.id)}
-        >
-          <span>{node.title}</span>
-          {!node.published && <i>未发布</i>}
-        </button>
+  const node = (category: CategoryNode): TreeDataNode => ({
+    key: category.id,
+    title: (
+      <span className="copy-node-row">
+        <span className="copy-node-title">{category.title}</span>
+        {!category.published && <i>未发布</i>}
         <Tooltip label="添加子分类">
-          <button
+          <IconButton
             className="copy-node-icon"
-            aria-label={`添加子分类 ${node.title}`}
-            onClick={() => onAdd(node.id)}
+            aria-label={`添加子分类 ${category.title}`}
+            onClick={(event) => {
+              // The row owns selection; a icon press must not also select it.
+              event.stopPropagation();
+              onAdd(category.id);
+            }}
           >
             <Plus size={13} />
-          </button>
+          </IconButton>
         </Tooltip>
         <Tooltip label="编辑分类">
-          <button
+          <IconButton
             className="copy-node-icon"
-            aria-label={`编辑分类 ${node.title}`}
-            onClick={() => onEdit(node)}
+            aria-label={`编辑分类 ${category.title}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit(category);
+            }}
           >
             <Pencil size={13} />
-          </button>
+          </IconButton>
         </Tooltip>
-      </div>
-      {node.children.map((child) => row(child, depth + 1))}
-    </div>
-  );
+      </span>
+    ),
+    children: category.children.map(node),
+  });
+  const treeData: TreeDataNode[] = [
+    {
+      key: ALL_KEY,
+      title: <span className="copy-node-title">全部文案</span>,
+      children: roots.map(node),
+    },
+  ];
   return (
-    <aside className="copy-tree">
+    <aside className="copy-tree" aria-label="文案分类树">
       <div className="copy-tree-head">
         <h2>文案分类</h2>
-        <button
-          className="copy-node-add"
-          aria-label="新建根分类"
-          onClick={() => onAdd("")}
-        >
+        <IconButton aria-label="新建根分类" onClick={() => onAdd("")}>
           <Plus size={14} />
-          分类
-        </button>
+        </IconButton>
       </div>
-      <button
-        className={!selected ? "copy-node active root" : "copy-node root"}
-        onClick={() => onSelect("")}
-      >
-        <span>全部文案</span>
-      </button>
-      {roots.map((node) => row(node, 0))}
-      {!roots.length && (
+      {state === "loading" && <Status>正在加载分类…</Status>}
+      {state === "failed" && (
+        <div className="copy-tree-failed">
+          <Status tone="error">分类加载失败</Status>
+          <Tooltip label="重新加载分类">
+            <IconButton aria-label="重新加载分类" onClick={onRetry}>
+              <RotateCcw size={14} />
+            </IconButton>
+          </Tooltip>
+        </div>
+      )}
+      {state === "empty" && (
         <p className="copy-tree-empty">
           还没有分类。先创建一级分类，逐层向下最多五级。
         </p>
+      )}
+      {state === "ready" && (
+        <Tree
+          blockNode
+          defaultExpandAll
+          treeData={treeData}
+          selectedKeys={[selected || ALL_KEY]}
+          onSelect={(keys) => {
+            if (!keys.length) return;
+            const key = String(keys[0]);
+            onSelect(key === ALL_KEY ? "" : key);
+          }}
+        />
       )}
     </aside>
   );

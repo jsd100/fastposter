@@ -1,5 +1,6 @@
 /// <reference path="./css-modules.d.ts" />
 export * from "./Button";
+export * from "./Checkbox";
 export * from "./Dialog";
 export * from "./Form";
 export * from "./Input";
@@ -14,6 +15,8 @@ export * from "./Select";
 export * from "./Status";
 export * from "./Tooltip";
 export * from "./ToggleButton";
+export * from "./Upload";
+export * from "./Workbench";
 export * from "./BrandIcon";
 export * from "./ProjectDeletion";
 export * from "./navigation";

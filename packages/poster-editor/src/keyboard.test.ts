@@ -55,6 +55,27 @@ describe("shouldIgnoreEditorShortcut", () => {
     expect(shouldIgnoreEditorShortcut(keyboardEvent())).toBe(false);
   });
 
+  it("leaves canvas shortcuts alive inside a registered workbench", () => {
+    // The template workspace is the editor's own host: registering it keeps
+    // notices routed, but must not silence undo, redo or delete.
+    const release = registerModalLayer({} as HTMLElement, {
+      blocksShortcuts: false,
+    });
+    expect(shouldIgnoreEditorShortcut(keyboardEvent())).toBe(false);
+    release();
+  });
+
+  it("blocks shortcuts for a dialog opened above the workbench", () => {
+    const releaseWorkbench = registerModalLayer({} as HTMLElement, {
+      blocksShortcuts: false,
+    });
+    const releaseDialog = registerModalLayer({} as HTMLElement);
+    expect(shouldIgnoreEditorShortcut(keyboardEvent())).toBe(true);
+    releaseDialog();
+    expect(shouldIgnoreEditorShortcut(keyboardEvent())).toBe(false);
+    releaseWorkbench();
+  });
+
   it("keeps honouring the legacy DOM markers", () => {
     vi.stubGlobal("document", {
       querySelector: (selector: string) =>

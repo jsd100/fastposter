@@ -274,6 +274,36 @@ textarea[data-fp-input]:focus {
   color: var(--fp-hint-ink);
   line-height: 1.6;
 }
+/* antd draws the checkbox box, its ink and the gap to the label; the shared
+   control only keeps the 11px form-label typography. Qualified on antd's own
+   class so it outranks the injected rule whatever order the stylesheets land
+   in. */
+.checkbox-field.ant-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--fp-green-ink-soft);
+}
+/* antd's Upload owns the trigger, the picked-file row and its remove action.
+   The wrapper is the form row: control above, its hint below. */
+.file-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.file-field-hint {
+  font-size: 10px;
+  color: var(--fp-hint-ink);
+  line-height: 1.6;
+}
+/* The workbench is a region, not a control. It takes focus so the layer stack
+   and assistive tech see it open, and a ring around the whole viewport would
+   read as the page border. */
+.workbench:focus,
+.workbench:focus-visible {
+  outline: none;
+}
 /* antd's alert draws the status surface, ink and padding from theme.ts; the
    class keeps the spacing the pages stack these lines with. */
 .status[data-fp-status] {

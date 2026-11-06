@@ -9,6 +9,7 @@ import {
 import {
   Button,
   Dialog,
+  FileField,
   FormField,
   Select,
   Status,
@@ -23,7 +24,7 @@ import {
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { Download, LayoutTemplate, Plus, Upload } from "lucide-react";
 import { download, errorMessage, request } from "../../api";
-import { Pager } from "../Metadata";
+import { PAGE_SIZE, RecordPager } from "../records";
 
 const TemplateEditor = lazy(() =>
   import("./TemplateEditor").then((module) => ({
@@ -40,6 +41,7 @@ export function TemplatesPage() {
     [preview, setPreview] = useState<ResourceDTO | null>(null),
     [newCategory, setNewCategory] = useState(false),
     [categoryTitle, setCategoryTitle] = useState(""),
+    [importFile, setImportFile] = useState<File | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState("");
   const q = useQuery({
@@ -48,7 +50,7 @@ export function TemplatesPage() {
       request(routes.AdminResources, {
         kind: "template",
         page,
-        pageSize: 24,
+        pageSize: PAGE_SIZE,
         keyword,
         categoryId: category || undefined,
       }),
@@ -156,10 +158,12 @@ export function TemplatesPage() {
       setError(errorMessage(e));
     }
   }
-  async function importPackage(file: File | undefined) {
+  async function importPackage(file: File | null) {
+    setImportFile(file);
     if (!file) return;
     if (file.size > 80 * 1024 * 1024) {
       setError("模板包不能超过 80 MiB");
+      setImportFile(null);
       return;
     }
     setBusy("import");
@@ -176,6 +180,9 @@ export function TemplatesPage() {
       setError(errorMessage(e));
     } finally {
       setBusy("");
+      // The pick is spent once the request has been answered, so the same
+      // package can be selected again without a stale chip in the way.
+      setImportFile(null);
     }
   }
   return (
@@ -191,21 +198,15 @@ export function TemplatesPage() {
           </p>
         </div>
         <div className="admin-title-actions">
-          <label className="button button-secondary button-like">
-            <Upload size={15} />
-            {busy === "import" ? "正在导入…" : "导入模板包"}
-            <input
-              type="file"
-              accept="application/zip,.zip"
-              aria-label="导入管理员模板包"
-              disabled={busy !== ""}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                void importPackage(file);
-              }}
-            />
-          </label>
+          <FileField
+            aria-label="导入管理员模板包"
+            label={busy === "import" ? "正在导入…" : "导入模板包"}
+            icon={<Upload size={15} />}
+            accept="application/zip,.zip"
+            disabled={busy !== ""}
+            value={importFile}
+            onChange={(file) => void importPackage(file)}
+          />
           <Button variant="primary" onClick={() => setEditing("new")}>
             <Plus size={15} />
             新建模板
@@ -320,7 +321,12 @@ export function TemplatesPage() {
           <p>用共享编辑器创建，或导入 FastPoster 模板包。</p>
         </div>
       )}
-      <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
+      <RecordPager
+        page={page}
+        total={q.data?.total ?? 0}
+        onPage={setPage}
+        label="模板分页"
+      />
       {editing && (
         <Suspense fallback={<Status>正在打开模板编辑器…</Status>}>
           <TemplateEditor

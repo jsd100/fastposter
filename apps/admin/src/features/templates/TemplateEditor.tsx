@@ -7,7 +7,16 @@ import {
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, FormField, NumberField, Select, Status, TextInput, useErrorNotice } from "@fastposter/ui";
+import {
+  Button,
+  CheckboxField,
+  NumberField,
+  Select,
+  Status,
+  TextInput,
+  Workbench,
+  useErrorNotice,
+} from "@fastposter/ui";
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
 import {
   loadFonts,
@@ -197,7 +206,7 @@ export function TemplateEditor({
     }
   }
   return (
-    <div className="template-editor-overlay" role="dialog" aria-label="模板编辑器">
+    <Workbench label="模板编辑器" className="template-editor-overlay">
       <header className="template-editor-header">
         <div className="template-editor-meta">
           <TextInput
@@ -232,15 +241,11 @@ export function TemplateEditor({
               onValueChange={setSortOrder}
             />
           </label>
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              aria-label="发布模板"
-              checked={published}
-              onChange={(e) => setPublished(e.target.checked)}
-            />
-            发布
-          </label>
+          <CheckboxField
+            label="发布模板"
+            checked={published}
+            onChange={setPublished}
+          />
         </div>
         <div className="template-editor-actions">
           {overflow && <span className="template-overflow">文字超出画布</span>}
@@ -290,6 +295,12 @@ export function TemplateEditor({
           />
         </div>
       )}
+      {/*
+        The canvas asks for a background through a promise that has to settle
+        when the OS dialog is dismissed, so this stays a headless native input
+        that the editor clicks; `FileField` owns the flows where the page itself
+        submits. Its accessible name is how the request stays reachable.
+      */}
       <input
         ref={backgroundFile}
         className="visually-hidden"
@@ -301,6 +312,6 @@ export function TemplateEditor({
           if (file && !draft) void createFromBackground(file);
         }}
       />
-    </div>
+    </Workbench>
   );
 }
