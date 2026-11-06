@@ -139,41 +139,100 @@ export function Editor({
       "[data-editor-stage]",
     );
     if (!stage) return;
-    const measure = () => {
-      const s = stage.getBoundingClientRect();
-      const panel = window.document.querySelector<HTMLElement>(
+    // The drawer is portaled and its data-fp-overlay marker is attached after
+    // this effect's first frame, so re-query it on every sample instead of
+    // capturing a possibly-null reference once.
+    const findPanel = () =>
+      window.document.querySelector<HTMLElement>(
         "[data-fp-overlay].bottom-sheet",
       );
+    // The drawer already carries the safe-area inset and the visual viewport
+    // reflects the on-screen keyboard; their intersection with the stage is
+    // the band a phone user can still see and operate on.
+    const sample = (): Rect | null => {
+      const panel = findPanel();
+      // Degradation semantics: without a mounted, laid-out drawer we cannot
+      // know the covered band. Return null so the last valid band is kept (or
+      // stay null on the first frame) instead of widening to the whole stage,
+      // which would hide the occlusion and make the selection look visible.
+      if (!panel) return null;
+      const s = stage.getBoundingClientRect();
       const vh = window.visualViewport?.height ?? window.innerHeight;
-      const panelTop = panel ? panel.getBoundingClientRect().top : vh;
-      // The drawer already carries the safe-area inset and the visual viewport
-      // reflects the on-screen keyboard; their intersection with the stage is
-      // the band a phone user can still see and operate on.
+      const panelTop = panel.getBoundingClientRect().top;
       const bottom = Math.min(panelTop, vh, s.bottom);
       const height = clamp(bottom - s.top, 0, s.height);
+      // A 0x0 first frame (the drawer has not been laid out yet) must never
+      // win: a zero-height band would bottom fitSelectionIntoViewport's scale
+      // out at 0.02. Keep the previous valid band, or stay null until a valid
+      // frame arrives; never write a 0-height visible band.
+      if (s.width <= 0 || height <= 0) return null;
+      return { x: 0, y: 0, width: s.width, height };
+    };
+    let observer: ResizeObserver | null = null;
+    let observed: HTMLElement | null = null;
+    const measure = (): string => {
+      const panel = findPanel();
+      if (panel && panel !== observed) {
+        // Observe the drawer's box as soon as it exists; ResizeObserver also
+        // delivers an initial observation, another deterministic re-measure.
+        observer?.disconnect();
+        observer = new ResizeObserver(() => measure());
+        observer.observe(panel);
+        observed = panel;
+      }
+      const band = sample();
+      if (!band) return "";
       setVisibleViewport((prev) =>
-        prev && prev.width === s.width && prev.height === height
+        prev && prev.width === band.width && prev.height === band.height
           ? prev
-          : { x: 0, y: 0, width: s.width, height },
+          : band,
       );
+      return `${band.width}x${band.height}`;
     };
     measure();
-    // The drawer animates into place: re-measure on its size changes and once
-    // after the enter transition, so a 0x0 first frame cannot win.
-    const panel = window.document.querySelector<HTMLElement>(
-      "[data-fp-overlay].bottom-sheet",
-    );
-    const observer = panel ? new ResizeObserver(measure) : null;
-    if (panel) observer?.observe(panel);
-    const timer = window.setTimeout(measure, 300);
+    // Deterministic re-measure instead of a timer tied to the animation
+    // length: sample every animation frame until the band stops changing,
+    // bounded by a frame cap and cancellable. A minimum frame budget keeps the
+    // loop alive while the drawer mounts and its transform settles, so an
+    // early "no panel" or "stable" reading cannot freeze the full-stage band.
+    const maxFrames = 90;
+    const minFrames = 45;
+    const stableFrames = 3;
+    let frames = 0;
+    let stable = 0;
+    let last = "";
+    let raf = 0;
+    const settle = () => {
+      const key = measure();
+      stable = key !== "" && key === last ? stable + 1 : 0;
+      last = key;
+      frames += 1;
+      if (frames < maxFrames && (frames < minFrames || stable < stableFrames))
+        raf = window.requestAnimationFrame(settle);
+    };
+    raf = window.requestAnimationFrame(settle);
+    // transitionend / animationend on the document are deterministic cues for
+    // the drawer's slide: the transform lives on an ancestor of the measured
+    // panel, so a listener on the panel alone would miss it. Reduced motion
+    // settles immediately in the rAF loop.
+    const onMotionEnd = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".bottom-sheet"))
+        measure();
+    };
+    const onResize = () => measure();
+    window.document.addEventListener("transitionend", onMotionEnd);
+    window.document.addEventListener("animationend", onMotionEnd);
     const vv = window.visualViewport;
-    vv?.addEventListener("resize", measure);
-    window.addEventListener("resize", measure);
+    vv?.addEventListener("resize", onResize);
+    window.addEventListener("resize", onResize);
     return () => {
-      window.clearTimeout(timer);
+      window.cancelAnimationFrame(raf);
+      window.document.removeEventListener("transitionend", onMotionEnd);
+      window.document.removeEventListener("animationend", onMotionEnd);
+      vv?.removeEventListener("resize", onResize);
+      window.removeEventListener("resize", onResize);
       observer?.disconnect();
-      vv?.removeEventListener("resize", measure);
-      window.removeEventListener("resize", measure);
     };
   }, [layout, sheet]);
   useEffect(() => {

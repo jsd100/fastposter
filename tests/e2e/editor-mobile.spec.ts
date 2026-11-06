@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { openPoster, selectScenery, selectValue, setColor } from "./helpers";
 test.use({
   viewport: { width: 360, height: 800 },
@@ -385,50 +385,160 @@ test("phone inspector keeps lower selection visible and restores the view", asyn
   test.setTimeout(240_000);
   await page.setViewportSize({ width: 390, height: 800 });
   await openPoster(page, "a02lower");
+  // Two blocks: the lower one is the selection under test; the other one is
+  // the "other selection content" FP-07 must not clear on a block switch.
   await seedDocument(page, (doc) => {
-    const block = doc.textBlocks[0];
-    block.y = Math.max(1, doc.canvas.height - 160);
-    block.defaultStyle.fontSize = 72;
+    const base = doc.textBlocks[0];
+    const setText = (block: Record<string, any>, value: string) => {
+      const paragraph = block.content.content[0];
+      if (paragraph.content?.[0]) paragraph.content[0].text = value;
+      else paragraph.content = [{ type: "text", text: value }];
+    };
+    const lower = {
+      ...structuredClone(base),
+      id: "lower",
+      y: Math.max(1, doc.canvas.height - 160),
+    };
+    lower.defaultStyle.fontSize = 72;
+    setText(lower, "底部文字");
+    const other = {
+      ...structuredClone(base),
+      id: "other",
+      y: Math.max(1, Math.min(100, doc.canvas.height - 200)),
+      zIndex: 1,
+    };
+    setText(other, "其他文字块");
+    doc.textBlocks = [lower, other];
   });
   const canvas = page.locator(".poster-canvas");
   const stage = page.locator("[data-editor-stage]");
-  const block = page.locator("[data-text-block]");
-  // Select the lower block through the layers sheet (it starts off-screen).
+  const block = page.locator('[data-text-block="lower"]');
+  const other = page.locator('[data-text-block="other"]');
+  const overlap = (
+    top: number,
+    bottom: number,
+    box: { y: number; height: number },
+  ) => Math.min(box.y + box.height, bottom) - Math.max(box.y, top);
+  // Read a rect only once the drawer's CSS transform slide has settled. A
+  // mid-animation rect makes the reduced band look wider than it really is,
+  // which would turn the acceptance assertion into a vacuous one.
+  const settledBox = async (drawer: Locator) => {
+    let prevY = Number.NaN;
+    let prevHeight = Number.NaN;
+    let stable = 0;
+    for (let i = 0; i < 120; i += 1) {
+      const box = await drawer.boundingBox();
+      if (
+        box &&
+        Math.abs(box.y - prevY) < 0.5 &&
+        Math.abs(box.height - prevHeight) < 0.5
+      )
+        stable += 1;
+      else stable = 0;
+      if (box) {
+        prevY = box.y;
+        prevHeight = box.height;
+      }
+      if (stable >= 5 && box) return box;
+      await page.waitForTimeout(16);
+    }
+    throw new Error("drawer did not reach a resting position");
+  };
+
+  // Select the lower block through the layers sheet.
   await page.getByRole("button", { name: "图层", exact: true }).click();
   const layers = page.getByRole("dialog", { name: "图层" });
   await expect(layers).toBeVisible();
-  await layers.locator(".layer-item").first().click();
+  await layers.locator(".layer-item").filter({ hasText: "底部文字" }).click();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(layers).toHaveCount(0);
-  // An explicit manual pan pushes the lower block below the drawer's resting
-  // line. Without a view adjustment the drawer would hide it completely.
-  const stageBox = (await stage.boundingBox())!;
-  await page.mouse.move(stageBox.x + stageBox.width / 2, stageBox.y + 40);
-  const fitted = await canvas.getAttribute("style");
-  await page.mouse.wheel(0, -400);
-  await expect(canvas).not.toHaveAttribute("style", fitted!);
-  const before = await canvas.getAttribute("style");
-  const beforeY = await block.first().getAttribute("data-y");
 
-  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  // Pan the still-selected lower block (a pure view change) down to the very
+  // bottom of the stage. With no drawer it is still on the stage; a bottom
+  // drawer will cover it. The wheel sign is derived from a real measurement
+  // so the fixture never hard-codes the browser's convention.
+  const stageBox = (await stage.boundingBox())!;
+  await page.mouse.move(stageBox.x + stageBox.width / 2, stageBox.y + 60);
+  const firstY = (await block.boundingBox())!.y;
+  await page.mouse.wheel(0, -100);
+  await expect
+    .poll(async () => (await block.boundingBox())!.y)
+    .not.toBe(firstY);
+  const downSign = (await block.boundingBox())!.y > firstY ? -1 : 1;
+  const target = stageBox.y + stageBox.height - 40;
+  for (let i = 0; i < 40; i += 1) {
+    const b = (await block.boundingBox())!;
+    if (Math.abs(b.y - target) <= 20) break;
+    const y = b.y;
+    const need = Math.max(-80, Math.min(80, target - y));
+    await page.mouse.wheel(0, downSign * need);
+    await expect.poll(async () => (await block.boundingBox())!.y).not.toBe(y);
+  }
+  const placed = (await block.boundingBox())!;
+  // Ruling 18.4 (no occlusion): the selection is still visible on the stage
+  // before the drawer opens.
+  expect(
+    overlap(stageBox.y, stageBox.y + stageBox.height, placed),
+  ).toBeGreaterThan(0);
+  const before = await canvas.getAttribute("style");
+  const beforeY = await block.getAttribute("data-y");
+
+  const openSheet = page.getByRole("button", { name: "文字设置", exact: true });
+  await openSheet.click();
   const sheet = page.getByRole("dialog", { name: "文字设置" });
   await expect(sheet).toBeVisible();
-  // The lower selection must intersect the visible band above the drawer.
-  const sheetBox = (await sheet.boundingBox())!;
-  const openStageBox = (await stage.boundingBox())!;
-  const blockBox = (await block.first().boundingBox())!;
-  const visible =
-    Math.min(blockBox.y + blockBox.height, sheetBox.y) -
-    Math.max(blockBox.y, openStageBox.y);
-  expect(visible).toBeGreaterThan(0);
-  // The adjustment is a pure setView: the canvas transform changes, but the
-  // document geometry does not.
-  await expect(canvas).not.toHaveAttribute("style", before!);
-  await expect(block.first()).toHaveAttribute("data-y", beforeY!);
+  // The band is measured from the same overlay the product measures, after
+  // its transform slide has settled, so the assertion is about the real
+  // reduced band and not a mid-animation rect.
+  const panel = page.locator("[data-fp-overlay].bottom-sheet").first();
+  const panelBox = await settledBox(panel);
+  const bandTop = stageBox.y;
+  const bandBottom = panelBox.y;
+  // Fixture proof: the unadjusted selection really sat behind the drawer.
+  // Without a view adjustment the product cannot show it at all.
+  expect(
+    overlap(panelBox.y, panelBox.y + panelBox.height, placed),
+  ).toBeGreaterThan(0);
 
-  // A property change shows up on that same, still-visible selection.
+  // === Acceptance result (A02.1 / FP-07) ===
+  // The transformed selection must intersect the reduced visible band. On the
+  // baseline product code no adjustment happens and this poll times out.
+  await expect
+    .poll(
+      async () => {
+        const b = await block.boundingBox();
+        return b ? overlap(bandTop, bandBottom, b) : 0;
+      },
+      {
+        message: "the lower selection must stay visible above the open drawer",
+        timeout: 10_000,
+      },
+    )
+    .toBeGreaterThan(0);
+  // A property change must be visible on that same, now-visible selection:
+  // bind the value change and the geometric intersection into one assertion,
+  // so "font-size changed" alone can never be a vacuous proof.
   await sheet.getByLabel("文字字号", { exact: true }).fill("80");
-  await expect(block.first()).toHaveCSS("font-size", "80px");
+  await expect
+    .poll(
+      async () => {
+        const b = await block.boundingBox();
+        if (!b) return "pending";
+        const font = await block.evaluate(
+          (el) => getComputedStyle(el).fontSize,
+        );
+        return overlap(bandTop, bandBottom, b) > 0 && font === "80px"
+          ? "visible-and-styled"
+          : "pending";
+      },
+      { timeout: 10_000 },
+    )
+    .toBe("visible-and-styled");
+
+  // === Mechanism assertions (not the acceptance result) ===
+  // The adjustment is a pure setView: transform changes, document does not.
+  await expect(canvas).not.toHaveAttribute("style", before!);
+  await expect(block).toHaveAttribute("data-y", beforeY!);
   // Switching a property group keeps the local effective change.
   await sheet.getByRole("button", { name: "段落", exact: true }).click();
   await sheet.getByRole("button", { name: "文字", exact: true }).click();
@@ -437,6 +547,20 @@ test("phone inspector keeps lower selection visible and restores the view", asyn
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(sheet).toHaveCount(0);
   await expect(canvas).toHaveAttribute("style", before!);
+
+  // Ruling 21 / FP-07: switching text blocks keeps the other block's content
+  // and the local effective change (the group-switch assertion stays above).
+  await page.getByRole("button", { name: "图层", exact: true }).click();
+  const switchLayers = page.getByRole("dialog", { name: "图层" });
+  await expect(switchLayers).toBeVisible();
+  await switchLayers
+    .locator(".layer-item")
+    .filter({ hasText: "其他文字块" })
+    .click();
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(switchLayers).toHaveCount(0);
+  await expect(block).toHaveCSS("font-size", "80px");
+  await expect(other).toContainText("其他文字块");
 });
 
 test("add text capacity is the same on mobile and desktop", async ({
