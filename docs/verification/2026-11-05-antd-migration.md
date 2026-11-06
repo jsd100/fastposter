@@ -321,3 +321,69 @@ blockers: []
 - `copy.spec.ts` 第一次跑红在 `chooseOption(admin, "文案分类", …)` 的 strict mode violation：`getByLabel` 会命中任何有可访问名的元素，我给侧栏 `<aside aria-label="文案分类">` 起名时撞上了弹窗里那个同名 `Select`。侧栏改名为「文案分类树」——landmark 仍具名，控件名不再重复。这也是「给区域起名」这类 a11y 改动的真实代价：名字在页内必须唯一。
 - `antd lint packages/ui/src` 新增一条 usage 警告（受控 `fileList` 建议提供 `onChange`）。裁量保留不接：列表由页面的单个 `File` 派生，接了 antd 的 `onChange` 会让同一次选择到达页面两条路径；已在 `Upload.tsx` 的注释里写明理由。
 - 未处理但已登记：`Metadata.tsx` 仍有一个原生 `select`（筛选作品状态）和已成为死代码的 `Pager` 导出，两者不在 T08 文件清单内，交给 T11.1 清理并复跑 `project-permanent-deletion.spec.ts`（其 381 行的 `selectOption` 需要跟着换成共享选择器的定位写法）。
+
+## T09 重做作品集和素材选择
+
+- 开工 HEAD `ac8a952`，本任务一个提交：`52c599e`。覆盖 UI-04（作品集、回收站与账户隔离）与 UI-05（素材、模板和文案选择），并继续使用 T07 的 `RecordPager` 与 T08 的素材入口。
+- 作品集（UI-04）：顶部导航 + 图库改为 4/3/2 列，断点 ≥881px、681–880px、≤680px，缩略图使用原始比例；主要动作是「新建海报」与并列的「模板库」。`Dropdown`、`Input`、`Pagination` 承接原有菜单、搜索和分页，列表仍由同一个 `useQuery` 返回的 DTO 渲染。卡片动作收敛为纯数据 `CARD_MENU`（`project-menu.ts`），因此「普通作品只有重命名/复制/移到回收站」能由 Vitest 锁定。
+- 会话内位置（`collection-position.ts`）：`CollectionPosition` 记录 `{ userId, trash, search, keyword, page, deletionPage, scrollTop }`，由 App 的 ref 持有、渲染期间按当前 `user.id` 校验。从编辑器返回时输入值与已提交关键词一起恢复，只有用户改动筛选才启动重置页码的防抖；有效结果落地后再恢复滚动。换账号、退出和会话过期都因键不匹配而回到空白上下文；服务端结果证明末页超界时用 `lastValidPage` 回退（4 个单测）。
+- 回收站与删除：两组结果（待清理 / 已删除）各有分页、请求键和地标名；软删除、恢复、彻底删除确认、重试和按任务 ID 更新保持原行为。软删除后两组页码各自回退，同账号返回仍恢复原页。
+- 素材选择（UI-05）：`TemplatePicker`、`BackgroundPicker`、`CopyPicker` 改用共享 `Dialog` 与输入控件；模板从现有素材或 ZIP 新建，背景保留尺寸确认，文案保留五级分类、搜索、插入与替换。加载/空/失败/取消各有落点，失败不再冒充「暂无」。
+- 样式分层：`apps/web/src/styles.css` 重写图库网格、筛选行、卡片菜单与窄屏摘要；`.pagination` 等旧规则开始退出。作品集与弹层截图以同一条件采集，作为 T01 基线的迁移后对照。
+
+### 验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --filter @fastposter/web test` | 29/29 PASS |
+| `pnpm test` | 186/186 PASS |
+| `pnpm exec playwright test tests/e2e/ui-baseline.spec.ts` | 2/2 PASS（22 张迁移后基线截图，桌面与手机同栈） |
+| `pnpm exec playwright test tests/e2e/projects.spec.ts` | 3/3 PASS（新临时栈；筛选返回恢复页码/滚动、换账号清空） |
+| `pnpm exec playwright test tests/e2e/project-permanent-deletion.spec.ts` | 13/13 PASS（新临时栈；含末页回退与清理队列重试） |
+| `pnpm exec playwright test tests/e2e/notifications.spec.ts` / `session-sync.spec.ts` | 6/6 / 2/2 PASS |
+| `pnpm exec playwright test tests/e2e/{copy,image-upload,templates}.spec.ts` | 5/5 PASS（各新临时栈） |
+| `pnpm typecheck` / `pnpm build` | exit 0 / 8/8 |
+| `pnpm exec antd lint apps/web/src --version 6.7.0` | 0 issues |
+
+### 中途红灯与处理
+
+- 打开卡片下拉后立即断言菜单消失时 strict mode 抛错：antd 的离场约 200ms，期间弹层仍是 `display:block`、`opacity≈0.99`，role 引擎仍把它当作可见。`chooseCardAction()` 改为「先断言只有一个菜单，点完再等菜单数为 0」，五个 spec 共用；同时给卡片 `Dropdown` 加 `destroyOnHidden`（`destroyPopupOnHide` 在 6.7.0 已弃用），减少关闭后的第二份 `menuitem`。离场窗口仍需等待，故两件事都保留。
+- 换账号用例读到播种前的旧缓存：播种走 `page.request`，不经过当前 App 的 react-query（`staleTime: 15_000`）。用例在播种后 `page.goto("/projects")` 重新取列表；「搜索为空」仍先在会话内断言，隔离语义不变。
+- 手机后台基线找不到 `admin-sidebar` 链接：390px 下侧栏是 `display:none`，导航只在 T07 的抽屉里。手机基线先点「导航菜单」再取链接，桌面仍直点侧栏。
+- 分页文案：rc-pagination 1.7.0 的页码可访问名是 `页 N`（zh_CN），不是旧的「第 N 页」；用例改为 `aria-current="page"` + `页 N`，并把五个分页地标分别命名，避免回收站同时挂两组结果时的定位歧义。
+- 搜索框没有退回页面边框色：直接换裸 antd `Input` 会丢掉 T06 锁定的 `[data-fp-input]` 焦点墨色契约；保留共享 `TextInput variant="bare"`（内部是 antd `Input variant="borderless"`）。
+- `pnpm exec antd lint apps/web/src` 另报 `Dropdown` 的 `destroyPopupOnHide` 弃用；按 6.7.0 公开 API 换成 `destroyOnHidden` 后复跑 0 issues。
+- 登记：`packages/ui/src/styles.css` 的 `.pagination` 已无调用方，待 T11 统一清理。
+
+## T10 实施共享工作台和导出交互
+
+- 开工 HEAD `52c599e`，本任务一个提交：`d79ded1`。覆盖 UI-06（桌面与手机工作台布局）、UI-07（属性分组、选区和事务）、UI-09（保存、冲突与导出）以及 UI-10 在编辑器内的延续。
+- 四档布局（UI-06）：编辑器自己有 `useEditorLayout()`，按 1200/881/681 三个 `matchMedia` 分界得到 wide / medium / narrow / phone。wide 是三栏 178px / 1fr / 292px，图层与文字设置各自独立收起；medium 是画布 + 278px 设置，图层作为 182px 覆盖抽屉；narrow 画布全宽，图层与设置任一单侧展开；phone 只保留画布、当前块操作行和底部四入口。断点变化会关闭 sheet 与两侧抽屉，避免浮层留在不再属于它的容器里；`visualViewport` 高度写入 `--editor-viewport-height`，底部导航吃 `env(safe-area-inset-bottom)`。
+- 创建入口：宽/中/窄的工具栏保留「切换图层 + 添加文字 + 背景 + 文案 + 背景库」，右侧是撤销/重做和设置开关；phone 不渲染工具栏，创建入口只出现在文字设置 sheet 顶部。因此任一宽度下「添加文字」都只有一个入口，图层行仍是 `aria-pressed` 按钮，选中块的操作（复制/前移/后移/删除）位于设置面板的作用域行下方。
+- 检查器（UI-07 / T10.4）：新增受控 `EditorInspector`，四个 `aria-pressed` 分组「文字 / 段落 / 效果 / 位置」；`TextPanel` 继续拥有文档值、字体选择与事务回调，`ParagraphPanel` / `StylePanel` 只在对应分组挂载。分组切换会卸载 `NumberField`，所以未完成的原始值改由 `Editor` 按 `会话:块:字段` 持有：输入时写回，提交、离开、Escape 与断开（null）时清掉；换作品、`fontCheckScope` 变化、删除块和完成编辑会话都会让会话号自增并整体清空。1440→390 的切换因此不写文档、不产生撤销项，回填仍是 `12.` 这样的未完成原文，继续输入后只作用于原选区。
+- `NumberField` 为实现上述契约增加可选 `NumberDraftBinding`（`initialDraft` / `onDraftChange`），提交、步进与按键语义不变；T04 的 41 个单测复用同一实现（这正是 T04 预检里登记的 GAP，按当时的裁量选择「先在属性所有者捕获草稿，再加可选绑定」）。
+- 导出与保存（UI-09）：`ExportControls` 继续 `flush()` 后取 `saved.revision` 建任务，队列与结果来自真实的 `GetExport` 查询，预览和下载是同一份 PNG。导出按钮从 `disabled={overflow || blocked}` 改为 `disabled={!running && (overflow || blocked)}`：运行中的任务在最新稿件溢出或保存错误时仍可「查看导出」，只有新任务被挡住。冲突弹窗的「加载云端版本」改为「加载已保存版本」，与实际读取的对象一致。
+- 320px：顶栏在 320 时比视口多 12px（返回、标题、保存/模板包/导出三组动作）。`apps/web/src/styles.css` 在 ≤360px 收窄 header 间距与按钮内边距，五个宽度都不再横向滚动。
+
+### 验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `fp_antd_e2e T10 tests/e2e/{editor-mobile,editor-geometry,editor-richtext,editor-settings,autosave,export,templates}.spec.ts` | 23/23 PASS（每个文件独立新临时栈：4 + 1 + 4 + 5 + 4 + 2 + 3） |
+| `pnpm exec playwright test tests/e2e/ui-controls.spec.ts` | 17/17 PASS（新临时栈；共享控件的布局/菜单/触摸回归） |
+| `pnpm exec playwright test tests/e2e/editor-fonts.spec.ts` | 12/12 PASS（新临时栈；分组标签替换旧 `summary` 后仍覆盖字体校验、保存、重载与导出） |
+| `pnpm exec playwright test tests/e2e/full-flow.spec.ts` | 3/3 PASS（新临时栈；混合排版、后台下架与离线草稿） |
+| `pnpm exec vitest run packages/poster-editor` | 41/41 PASS |
+| `pnpm test` / `pnpm typecheck` | 186/186 PASS / exit 0 |
+| `pnpm build` | 8/8（保留既有的 >500kB chunk 警告，包体记录留给 T11） |
+| 手动宽度核验（临时脚本，不入库） | 1440×1000、1024×768、768×1024、390×844、320×700 五档 `scrollWidth ≤ 视口`；截图在 `.cache/fastposter-antd-migration/T10/visual/`，含 390/320 的文字设置 sheet |
+
+### 中途红灯与处理
+
+- T10.1 的草稿用例先红在 `press("End")`：`End` 在 `NumberField` 是「跳到上界」的既有快捷键，草稿变成 `40965`（值 4096），不是把光标放到末尾。改为 `focus()` + `setSelectionRange(value.length, value.length)` 后再按 `5`，既保留用户的键位契约，又测到「继续输入未完成草稿」的原意。
+- 手机字体菜单贴边断言红在 1.14px：弹层顶 `278.859`，sheet 内容顶 `280`，差值来自 sheet 的 1px 边框与菜单圆角。轮询容差从 0.5 调到 2px 并写明理由；断言仍是「菜单在 sheet 的滚动盒内」，没有放宽到任意溢出。
+- `ui-controls` 的右边缘点击红在「字重仍为 400」：坐标本身是菜单矩形右缘 -15，但菜单还在 `ant-slide-up-appear` 的入场里，rc-trigger 挂载后还会重新对齐；记录的矩形是旧位置，裸 `page.mouse.click` 落到了后面的 `.text-panel`。用例改为先等可见下拉的 `opacity` 落定到 `1` 再取矩形点击，原意（短选项整行、右缘可点）不变。这不是产品回归：菜单稳定后同一点击正常选中。
+- `ui-controls` 的触屏步进测试在 844 高度下点不到加号：新增的分组标签与作用域行把字号步进推到首屏之外，sheet 本身可滚动。用例先 `scrollIntoViewIfNeeded()` 再等按钮进入视口，保留「触摸按住/取消」的断言。
+- 320px 顶栏横向溢出 12px（`scrollWidth 332`）：在 ≤360px 收窄间距后回到 320，四档布局的横向溢出检查全部通过。
+- 位置/段落/效果的旧 `summary` 与堆叠面板改为受控分组：相关 e2e 在操作字段前先点「文字 / 段落 / 效果 / 位置」。这是 T10.4 的界面契约，不是放宽断言；每个分组仍验证原来的数值、边界与撤销行为。
+- 手机 `openPoster` 拿不到工具栏的「添加文字」：phone 的创建入口在 sheet 顶部，helper 先点「文字设置」再点 sheet 内的「添加文字」，关闭 sheet 后返回首个文字块；桌面与平板仍走工具栏。
