@@ -425,7 +425,7 @@ test("an effect color keeps its alpha, one undo step and the transparent sentine
 }) => {
   await openPoster(page, "coloralpha");
   const block = page.locator("[data-text-block]").first();
-  await page.locator("summary", { hasText: "文字效果" }).click();
+  await page.getByRole("button", { name: "效果", exact: true }).click();
   await setColor(page, "文字背景色", "ff000080");
   await expect(block).toHaveCSS("background-color", "rgba(255, 0, 0, 0.5)");
   await page.getByRole("button", { name: "撤销", exact: true }).click();

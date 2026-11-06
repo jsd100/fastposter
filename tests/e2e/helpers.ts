@@ -15,10 +15,26 @@ export async function openPoster(page: Page, prefix = "rich") {
     .getByLabel("导入背景图文件")
     .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
   await expect(page).toHaveURL(/\/edit$/);
-  await expect(
-    page.getByRole("button", { name: "添加文字", exact: true }),
-  ).toBeEnabled();
-  await page.getByRole("button", { name: "添加文字", exact: true }).click();
+  const toolbarAdd = page.getByRole("button", {
+    name: "添加文字",
+    exact: true,
+  });
+  const phoneEntry = page.getByRole("button", {
+    name: "文字设置",
+    exact: true,
+  });
+  await expect(toolbarAdd.or(phoneEntry).first()).toBeVisible();
+  if ((await toolbarAdd.count()) > 0) {
+    await expect(toolbarAdd.first()).toBeEnabled();
+    await toolbarAdd.first().click();
+    return;
+  }
+  /* Phones keep the four creation entries at the bottom, so the first block
+     comes from the panel headline rather than a toolbar row. */
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await sheet.getByRole("button", { name: "添加文字", exact: true }).click();
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
 }
 export async function selectScenery(page: Page) {
   const input = page.getByRole("textbox", { name: "海报文字编辑" });

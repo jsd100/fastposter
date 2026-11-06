@@ -14,7 +14,17 @@ import styles from "./NumberField.module.css";
 const HOLD_DELAY = 500;
 const HOLD_INTERVAL = 50;
 
-export type NumberFieldProps = {
+/**
+ * The editable string outlives a field that a layout change unmounts. Owners
+ * keep it per session, block and property; null means the edit session is over
+ * and the field may go back to showing the document value.
+ */
+export type NumberDraftBinding = {
+  initialDraft?: string;
+  onDraftChange?: (draft: string | null) => void;
+};
+
+export type NumberFieldProps = NumberDraftBinding & {
   value: number | null;
   onValueChange: (value: number) => void;
   min?: number;
@@ -50,8 +60,12 @@ export function NumberField({
   stepBase,
   onInteractionStart,
   onInteractionEnd,
+  initialDraft,
+  onDraftChange,
 }: NumberFieldProps): ReactElement {
-  const [draft, setDraft] = useState(value == null ? "" : String(value));
+  const [draft, setDraft] = useState(
+    initialDraft ?? (value == null ? "" : String(value)),
+  );
   const settled = useRef(value);
   const prior = useRef(value);
   const interacting = useRef(false);
@@ -74,8 +88,9 @@ export function NumberField({
       settled.current = value;
       prior.current = value;
       setDraft(value == null ? "" : String(value));
+      onDraftChange?.(null);
     }
-  }, [value]);
+  }, [value, onDraftChange]);
 
   useEffect(
     () => () => {
@@ -123,6 +138,7 @@ export function NumberField({
     if (parsed.kind === "valid") commit(parsed.value);
     setDraft(settled.current == null ? "" : String(settled.current));
     prior.current = settled.current;
+    onDraftChange?.(null);
   }
 
   function stepBy(delta: number) {
@@ -130,6 +146,7 @@ export function NumberField({
     const base = settled.current ?? bounds.stepBase ?? 0;
     commit(stepNumber(base, delta, bounds.lower, bounds.upper));
     refreshDraft();
+    onDraftChange?.(null);
   }
 
   /** One step-button press uses the declared step, not a raw ±1. */
@@ -141,6 +158,7 @@ export function NumberField({
     const bounds = params.current;
     commit(stepNumber(bound, 0, bounds.lower, bounds.upper));
     refreshDraft();
+    onDraftChange?.(null);
   }
 
   function clearHold() {
@@ -209,6 +227,7 @@ export function NumberField({
       event.stopPropagation();
       commit(prior.current);
       refreshDraft();
+      onDraftChange?.(null);
       return;
     }
     if (event.ctrlKey || event.metaKey) return;
@@ -265,6 +284,7 @@ export function NumberField({
       onChange={(event) => {
         const raw = event.currentTarget.value;
         setDraft(raw);
+        onDraftChange?.(raw);
         const bounds = params.current;
         const parsed = classifyNumberDraft(raw, bounds.lower, bounds.upper);
         if (parsed.kind === "valid") commit(parsed.value);

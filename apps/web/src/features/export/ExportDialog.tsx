@@ -66,7 +66,7 @@ export function ExportControls({
     <>
       <Button
         variant="primary"
-        disabled={overflow || blocked}
+        disabled={!running && (overflow || blocked)}
         onClick={() => {
           if (running) setOpen(true);
           else void start();

@@ -197,6 +197,7 @@ test("editor number fields keep drafts, bounds and Escape without touching the d
 }) => {
   await openPoster(page, "ui_numbers");
   const block = page.locator("[data-text-block]").first();
+  await page.getByRole("button", { name: "段落", exact: true }).click();
   const spacing = page.getByLabel("文字字距", { exact: true });
 
   await spacing.fill("12");
@@ -217,6 +218,7 @@ test("editor number fields keep drafts, bounds and Escape without touching the d
   await expect(spacing).toHaveValue("-2.5");
   await expect(block).toHaveCSS("letter-spacing", "-2.5px");
 
+  await page.getByRole("button", { name: "文字", exact: true }).click();
   const size = page.getByLabel("文字字号", { exact: true });
   await size.fill("4097");
   await expect(size).toHaveValue("4097");
@@ -237,6 +239,7 @@ test("editor number fields keep drafts, bounds and Escape without touching the d
   await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await page.getByRole("button", { name: "段落", exact: true }).click();
   const shown = await spacing.inputValue();
   await expect(block).toHaveCSS("letter-spacing", `${shown}px`);
 
@@ -255,6 +258,12 @@ test("short select options can be selected at the right edge of their menu row",
   await selectTrigger(page, "文字字重").click();
   const popup = page.locator("[data-fp-popup]");
   const row = page.getByRole("option", { name: "700", exact: true });
+  // The menu fades and scales into place; its rect is only final once the
+  // appear motion ends, so measure after the opacity settles rather than
+  // clicking at a position the menu is about to leave.
+  await expect(
+    page.locator(".ant-select-dropdown").filter({ visible: true }),
+  ).toHaveCSS("opacity", "1");
   const menuBox = (await popup.boundingBox())!;
   const rowBox = (await row.boundingBox())!;
   await page.mouse.click(
@@ -269,6 +278,7 @@ test("Escape restores the number from before sequential typing", async ({
   page,
 }) => {
   await openPoster(page, "ui_cancel_typing");
+  await page.getByRole("button", { name: "段落", exact: true }).click();
   const spacing = page.getByLabel("文字字距", { exact: true });
   const block = page.locator("[data-text-block]").first();
   await spacing.fill("8");
@@ -285,6 +295,7 @@ test("unfinished decimals stay drafts until a valid number is entered", async ({
   page,
 }) => {
   await openPoster(page, "ui_pending_decimal");
+  await page.getByRole("button", { name: "段落", exact: true }).click();
   const spacing = page.getByLabel("文字字距", { exact: true });
   const block = page.locator("[data-text-block]").first();
   await spacing.fill("12");
@@ -642,6 +653,9 @@ test.describe("touch number stepping", () => {
       exact: true,
     });
     const size = dialog.getByLabel("文字字号", { exact: true });
+    // The tabs and scope row push the size field below the sheet's first
+    // screenful; the sheet scrolls, so bring the control into view first.
+    await plus.scrollIntoViewIfNeeded();
     // The sheet slides in; touch the step button only once it has settled
     // inside the viewport, otherwise the press lands outside it.
     await expect
@@ -672,10 +686,11 @@ test("fractional bounds stay reachable from the step button and End", async ({
   page,
 }) => {
   await openPoster(page, "ui_fraction_bound");
+  await page.getByRole("button", { name: "位置", exact: true }).click();
   const width = page.getByLabel("文本框宽度", { exact: true });
   await width.fill("200.2");
   await width.blur();
-  await page.locator("summary", { hasText: "文字效果" }).click();
+  await page.getByRole("button", { name: "效果", exact: true }).click();
   const padding = page.getByLabel("内边距", { exact: true });
   const plus = page.getByRole("button", {
     name: "增加内边距",

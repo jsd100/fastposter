@@ -5,73 +5,98 @@
   min-height: 0;
   min-width: 0;
 }
-.editor-commandbar {
-  height: 57px;
+.editor-toolbar {
+  min-height: 49px;
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 18px;
+  border-bottom: 1px solid #e0e6da;
+  background: #fff;
+}
+.toolbar-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.toolbar-divider {
+  width: 1px;
+  height: 21px;
+  margin: 0 3px;
+  flex: none;
+  background: #e2e8da;
+}
+.editor-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: 178px minmax(0, 1fr) 292px;
+  flex: 1;
+  min-height: 0;
+}
+.editor-body.layers-closed {
+  grid-template-columns: minmax(0, 1fr) 292px;
+}
+.editor-body.inspector-closed {
+  grid-template-columns: 178px minmax(0, 1fr);
+}
+.editor-body.layers-closed.inspector-closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.editor-layers {
+  min-width: 0;
+  background: #fff;
+  border-right: 1px solid #e2e8da;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+.panel-head {
+  min-height: 49px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  border-bottom: 1px solid #e0e6da;
-  background: #fff;
-  gap: 8px;
+  gap: 6px;
+  padding: 5px 7px 5px 14px;
+  border-bottom: 1px solid #edf1e7;
 }
-.command-group {
-  display: flex;
-  gap: 8px;
-}
-.command-group .button {
-  padding: 0 11px;
-}
-.editor-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-.editor-layers {
-  width: 190px;
-  flex-shrink: 0;
-  background: #fff;
-  border-right: 1px solid #e2e8da;
-  padding: 22px 13px;
-  display: flex;
-  flex-direction: column;
-}
-.editor-layers h2,
-.editor-properties h2 {
-  font-size: 11px;
-  font-weight: 600;
+.panel-head h2 {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-.editor-layers h2 {
-  padding: 0 7px;
+  gap: 7px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
 }
 .editor-layers h2 > span {
-  margin-left: auto;
+  margin-left: 2px;
   font-size: 9px;
   color: #a1af93;
 }
 .layer-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 3px;
+  padding: 9px 7px;
   overflow: auto;
 }
 .layer-item {
   width: 100%;
   border: 1px solid transparent;
-  padding: 11px 9px;
+  padding: 9px 8px;
   background: #fff;
   text-align: left;
   display: flex;
   align-items: center;
   gap: 8px;
   color: #849377;
-  border-radius: 6px;
-  min-height: 44px;
+  border-radius: 5px;
+  min-height: 38px;
 }
 .layer-item.selected {
   background: #edf3e5;
@@ -79,11 +104,10 @@
   color: #48683a;
 }
 .layer-item > span {
-  font-size: 10px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 118px;
 }
 .background-layer {
   display: flex;
@@ -224,23 +248,79 @@
   padding: 0;
 }
 .editor-properties {
-  width: 250px;
-  flex-shrink: 0;
+  min-width: 0;
   background: #fff;
   border-left: 1px solid #e2e8da;
-  padding: 24px 20px;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.editor-properties h3 {
-  font-size: 10px;
-  font-weight: 550;
-  color: #839473;
-  margin: 25px 0 15px;
+.editor-inspector {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.inspector-add {
+  padding: 11px 14px 0;
+}
+.inspector-tabs {
+  display: flex;
+  gap: 1px;
+  padding: 0 12px;
+  border-bottom: 1px solid #e5ebdd;
+  flex-shrink: 0;
+}
+.inspector-tab {
+  flex: 1;
+  min-height: 42px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 2px 4px 0;
+  background: transparent;
+  color: #849377;
+  white-space: nowrap;
+  font-size: 12px;
+  cursor: pointer;
+}
+.inspector-tab[aria-pressed="true"] {
+  border-color: #5d7f4a;
+  color: #41652e;
+  font-weight: 650;
+}
+.inspector-tab:focus-visible {
+  outline: 2px solid var(--fp-focus-line);
+  outline-offset: -3px;
+}
+.inspector-content {
+  padding: 14px;
+  display: grid;
+  gap: 15px;
+  align-content: start;
+  overflow: auto;
+  min-height: 0;
+}
+.selection-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: #8d9d7f;
+  min-width: 0;
+}
+.selection-scope strong {
+  color: #4f6842;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 62%;
 }
 .selection-actions {
   display: flex;
   gap: 5px;
-  margin-bottom: 18px;
+  margin: 0;
 }
 .selection-actions .button {
   padding: 0 10px;
@@ -299,39 +379,47 @@
   color: #a58254;
   padding: 10px 20px;
 }
-.mobile-block-actions {
+.mobile-block-actions,
+.mobile-nav {
   display: none;
 }
-@media (max-width: 900px) {
-  .editor-layers {
-    width: 150px;
+@media (max-width: 1199px) {
+  .editor-body,
+  .editor-body.layers-closed {
+    grid-template-columns: minmax(0, 1fr) 278px;
   }
-  .editor-properties {
-    width: 220px;
-    padding: 20px 14px;
+  .editor-body.inspector-closed {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .layer-item > span {
-    max-width: 90px;
+  .editor-body.layer-drawer .editor-layers {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 182px;
+    box-shadow: 6px 0 20px #1b302522;
+  }
+}
+@media (max-width: 880px) {
+  .editor-body,
+  .editor-body.layers-closed,
+  .editor-body.inspector-closed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .editor-body.inspector-drawer .editor-properties {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(292px, 95%);
+    box-shadow: -6px 0 20px #1b302522;
   }
 }
 @media (max-width: 680px) {
-  .editor-layers,
-  .editor-properties {
-    display: none;
-  }
-  .editor-commandbar {
-    height: 57px;
-    padding: 0 12px;
-    /* The command groups are wider than a phone; scroll them instead of
-       pushing the document itself sideways. */
-    overflow-x: auto;
-  }
-  .command-group {
-    gap: 5px;
-  }
-  .command-group .button {
-    padding: 0 9px;
-    font-size: 10px;
+  .editor-toolbar {
+    padding: 6px 8px;
   }
   .stage-caption {
     left: 12px;
@@ -353,11 +441,45 @@
     justify-content: center;
     gap: 10px;
     background: white;
-    padding: 8px 12px;
+    padding: 6px 12px;
     min-height: 0;
   }
   .mobile-block-actions:empty {
     display: none;
+  }
+  .mobile-block-actions .button {
+    font-size: 10px;
+    padding: 0 10px;
+    min-height: 44px;
+  }
+  .mobile-nav {
+    display: flex;
+    gap: 2px;
+    padding: 4px 4px max(6px, env(safe-area-inset-bottom));
+    border-top: 1px solid #e0e6da;
+    background: white;
+    flex-shrink: 0;
+  }
+  .mobile-nav-item {
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 3px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #5f7050;
+    font-size: 11px;
+  }
+  .mobile-nav-item:disabled {
+    opacity: 0.45;
+  }
+  .mobile-nav-item:focus-visible {
+    outline: 2px solid var(--fp-focus-line);
+    outline-offset: -2px;
   }
   .width-handle > span {
     width: 8px;
@@ -381,9 +503,7 @@
   outline: none;
 }
 .text-panel {
-  padding-top: 18px;
-  border-top: 1px solid #e5ebdd;
-  margin-top: 18px;
+  min-width: 0;
 }
 .style-target {
   font-size: 9px;
@@ -472,15 +592,8 @@
   color: #41652e;
 }
 .effect-panel {
-  border-top: 1px solid #e6edde;
-  padding-top: 16px;
-  margin-top: 22px;
   font-size: 10px;
   color: #80936b;
-}
-.effect-panel summary {
-  cursor: pointer;
-  min-height: 25px;
 }
 .panel-field .button.clear-effect {
   border: 0;
@@ -496,11 +609,6 @@
   background: none;
 }
 @media (max-width: 680px) {
-  .text-panel {
-    margin-top: 0;
-    padding-top: 0;
-    border-top: 0;
-  }
   .panel-field [data-fp-input],
   .panel-field .select {
     font-size: 16px;
@@ -509,12 +617,11 @@
   .panel-field [data-fp-stepper] {
     height: 46px;
   }
-  .mobile-block-actions .button {
-    font-size: 10px;
-    padding: 0 10px;
-  }
-  .effect-panel summary {
+  .inspector-tab {
     min-height: 44px;
+  }
+  .inspector-content {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
   }
   /* The sheet popup is portalled to the body, so this page rule reaches it
      through the package hook instead of an editor ancestor. */

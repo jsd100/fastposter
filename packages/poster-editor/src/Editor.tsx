@@ -1,7 +1,17 @@
-import { useState as useReactState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import { RichTextEditor } from "./text/RichTextEditor";
-import { TextPanel } from "./panels/TextPanel";
+import { TextPanel, type TextPanelProps } from "./panels/TextPanel";
+import {
+  EditorInspector,
+  type InspectorGroup,
+} from "./panels/EditorInspector";
 import {
   captureSelection,
   restoreSelection,
@@ -13,14 +23,14 @@ import {
 } from "./text/selection";
 import type { PreparedFontChange } from "./fonts/prepare-change";
 import { useFontChoice } from "./fonts/useFontChoice";
-import { BottomSheet } from "@fastposter/ui";
 import {
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+  BottomSheet,
+  Button,
+  Dialog,
+  NumberField,
+  Tooltip,
+  useErrorNotice,
+} from "@fastposter/ui";
 import type {
   InlineStyle,
   PosterDocument,
@@ -28,31 +38,27 @@ import type {
   RichNode,
   TextBlock,
 } from "@fastposter/poster-schema";
-import {
-  Button,
-  Dialog,
-  NumberField,
-  Tooltip,
-  useErrorNotice,
-} from "@fastposter/ui";
 import { shouldIgnoreEditorShortcut } from "./keyboard";
 import {
-  Plus,
-  Undo2,
-  Redo2,
-  Copy,
-  Trash2,
-  ArrowUp,
   ArrowDown,
+  ArrowUp,
+  Copy,
+  FileText,
   Image,
   Layers,
+  PanelLeft,
+  PanelRight,
+  Plus,
+  Redo2,
+  Trash2,
   Type,
-  FileText,
+  Undo2,
+  X,
 } from "lucide-react";
 import { createEditorStore, type EditorStore } from "./store";
 import { Stage } from "./Stage";
 import { replaceBackground, type BackgroundAsset } from "./geometry";
-import { RichText, type FontSource } from "@fastposter/poster-renderer";
+import type { FontSource } from "@fastposter/poster-renderer";
 import "./styles.css";
 export type EditorProps = {
   document: PosterDocument;
@@ -81,20 +87,20 @@ export function Editor({
   renderEditing,
 }: EditorProps) {
   const textSelection = useRef<{ from: number; to: number } | null>(null);
-  const [activeEditor, setActiveEditor] = useReactState<TiptapEditor | null>(
-    null,
-  );
-  const [, selectionChanged] = useReactState(0);
-  const [mobile, setMobile] = useReactState(
-    () => window.matchMedia("(max-width:680px)").matches,
-  );
-  const [sheet, setSheet] = useReactState(false);
+  const [activeEditor, setActiveEditor] = useState<TiptapEditor | null>(null);
+  const [, selectionChanged] = useState(0);
+  const layout = useEditorLayout();
+  const [layersOpen, setLayersOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [layerDrawer, setLayerDrawer] = useState(false);
+  const [inspectorDrawer, setInspectorDrawer] = useState(false);
+  const [group, setGroup] = useState<InspectorGroup>("text");
+  const [sheet, setSheet] = useState<"inspector" | "layers" | null>(null);
   useEffect(() => {
-    const media = window.matchMedia("(max-width:680px)");
-    const change = () => setMobile(media.matches);
-    media.addEventListener("change", change);
-    return () => media.removeEventListener("change", change);
-  }, []);
+    setSheet(null);
+    setLayerDrawer(false);
+    setInspectorDrawer(false);
+  }, [layout]);
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
@@ -130,6 +136,29 @@ export function Editor({
   const selected = state.document.textBlocks.find(
     (b) => b.id === state.selectedId,
   );
+  /**
+   * Raw number strings belong to the editor session, not to a mounted field.
+   * A breakpoint swap or a property-tab change unmounts the inputs, so the
+   * owner keeps each draft per session, block and field until the user
+   * commits or leaves that field.
+   */
+  const drafts = useRef(new Map<string, string>());
+  const draftSession = useRef(0);
+  const priorScope = useRef(fontCheckScope);
+  function clearDrafts() {
+    draftSession.current += 1;
+    drafts.current.clear();
+  }
+  function draft(blockId: string, field: string) {
+    const key = `${draftSession.current}:${blockId}:${field}`;
+    return {
+      initialDraft: drafts.current.get(key),
+      onDraftChange: (value: string | null) => {
+        if (value === null) drafts.current.delete(key);
+        else drafts.current.set(key, value);
+      },
+    };
+  }
   const [pending, setPending] = useState<BackgroundAsset | null>(null),
     [error, setError] = useState(""),
     [uploading, setUploading] = useState(false),
@@ -181,9 +210,15 @@ export function Editor({
   useEffect(() => {
     if (document !== emitted.current) {
       emitted.current = document;
+      clearDrafts();
       store.reset(document);
     }
   }, [document, store]);
+  useEffect(() => {
+    if (priorScope.current === fontCheckScope) return;
+    priorScope.current = fontCheckScope;
+    clearDrafts();
+  }, [fontCheckScope]);
   useEffect(
     () => onInteractionChange?.(state.inTransaction),
     [state.inTransaction, onInteractionChange],
@@ -194,6 +229,8 @@ export function Editor({
   );
   useEffect(() => {
     function key(e: KeyboardEvent) {
+      // A sheet or dialog already handled this Escape for its own layer.
+      if (e.defaultPrevented) return;
       if (shouldIgnoreEditorShortcut(e) || store.getState().mode === "edit")
         return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
@@ -204,7 +241,7 @@ export function Editor({
         store.redo();
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        store.deleteSelected();
+        deleteSelected();
       } else if (e.key === "Escape") {
         store.cancel();
         store.select(null);
@@ -383,138 +420,307 @@ export function Editor({
       }));
     }
   }
-  const panel = selected ? (
-    <TextPanel
-      block={selected}
-      editor={state.mode === "edit" ? activeEditor : null}
-      fonts={availableFonts}
-      apply={apply}
-      chooseFont={(face, intent) => void fontChoice.choose(face, intent)}
-      fontPending={fontChoice.pending}
-      sizeBase={
-        firstTargetStyle(state.document, fontTarget(selected.id)).fontSize
+  function updateSelected(change: (block: TextBlock) => TextBlock) {
+    if (!selected) return;
+    if (numericInteraction.current) {
+      store.updateBlock(selected.id, change);
+      return;
+    }
+    store.commit();
+    store.transact((d) => ({
+      ...d,
+      textBlocks: d.textBlocks.map((b) =>
+        b.id === selected.id ? change(b) : b,
+      ),
+    }));
+  }
+  function deleteSelected() {
+    const id = state.selectedId;
+    if (id)
+      for (const key of Array.from(drafts.current.keys()))
+        if (key.startsWith(`${draftSession.current}:${id}:`))
+          drafts.current.delete(key);
+    store.deleteSelected();
+  }
+  function toggleEdit() {
+    store.setMode(state.mode === "edit" ? "select" : "edit");
+  }
+  function toggleLayers() {
+    if (layout === "wide") setLayersOpen((open) => !open);
+    else {
+      setLayerDrawer((open) => !open);
+      setInspectorDrawer(false);
+    }
+  }
+  function toggleInspector() {
+    if (layout === "wide") setInspectorOpen((open) => !open);
+    else if (layout === "narrow") {
+      setInspectorDrawer((open) => !open);
+      setLayerDrawer(false);
+    }
+  }
+  const textPanel: TextPanelProps | null = selected
+    ? {
+        block: selected,
+        editor: state.mode === "edit" ? activeEditor : null,
+        fonts: availableFonts,
+        apply,
+        chooseFont: (face, intent) => void fontChoice.choose(face, intent),
+        fontPending: fontChoice.pending,
+        sizeBase: firstTargetStyle(state.document, fontTarget(selected.id))
+          .fontSize,
+        onNumericStart: beginNumericInteraction,
+        onNumericEnd: endNumericInteraction,
+        update: updateSelected,
+        draft: (field) => draft(selected.id, field),
+        editing: state.mode === "edit",
+        onToggleEdit: toggleEdit,
       }
-      onNumericStart={beginNumericInteraction}
-      onNumericEnd={endNumericInteraction}
-      update={(change) => {
-        if (numericInteraction.current) {
-          store.updateBlock(selected.id, change);
-          return;
-        }
-        store.commit();
-        store.transact((d) => ({
-          ...d,
-          textBlocks: d.textBlocks.map((b) =>
-            b.id === selected.id ? change(b) : b,
-          ),
-        }));
-      }}
-    />
+    : null;
+  const selectionActions = selected ? (
+    <div className="selection-actions">
+      <Tooltip label="复制文字块">
+        <Button aria-label="复制文字块" onClick={store.duplicateSelected}>
+          <Copy size={15} />
+        </Button>
+      </Tooltip>
+      <Tooltip label="文字块前移一层">
+        <Button
+          aria-label="文字块前移一层"
+          onClick={() => store.reorderSelected(1)}
+        >
+          <ArrowUp size={15} />
+        </Button>
+      </Tooltip>
+      <Tooltip label="文字块后移一层">
+        <Button
+          aria-label="文字块后移一层"
+          onClick={() => store.reorderSelected(-1)}
+        >
+          <ArrowDown size={15} />
+        </Button>
+      </Tooltip>
+      <Tooltip label="删除文字块">
+        <Button aria-label="删除文字块" onClick={deleteSelected}>
+          <Trash2 size={15} />
+        </Button>
+      </Tooltip>
+    </div>
   ) : null;
+  const position = selected ? (
+    <div className="geometry-fields">
+      {(["x", "y", "width"] as const).map((field) => (
+        <label key={field}>
+          {field === "width" ? "宽度" : field.toUpperCase()}
+          <NumberField
+            aria-label={
+              field === "width"
+                ? "文本框宽度"
+                : `文字位置 ${field.toUpperCase()}`
+            }
+            value={Math.round(selected[field] * 100) / 100}
+            min={field === "width" ? selected.effects.padding * 2 + 1 : 0}
+            max={
+              field === "width"
+                ? state.document.canvas.width - selected.x
+                : field === "x"
+                  ? state.document.canvas.width - selected.width
+                  : state.document.canvas.height - 0.001
+            }
+            step={1}
+            {...draft(selected.id, `position-${field}`)}
+            onValueChange={(n) => {
+              store.transact((d) => ({
+                ...d,
+                textBlocks: d.textBlocks.map((b) =>
+                  b.id === selected.id ? { ...b, [field]: n } : b,
+                ),
+              }));
+            }}
+          />
+          <small>px</small>
+        </label>
+      ))}
+      <p className="property-hint">调宽只改变自动换行，字号保持不变。</p>
+    </div>
+  ) : null;
+  const scopeLabel = selected
+    ? plainText(selected.content).replace(/\s+/g, " ").trim().slice(0, 18) ||
+      "文字块"
+    : "";
+  function layerList() {
+    return (
+      <div className="layer-list">
+        {[...state.document.textBlocks]
+          .sort((a, b) => b.zIndex - a.zIndex)
+          .map((b, index) => (
+            <button
+              className={
+                b.id === state.selectedId
+                  ? "layer-item selected"
+                  : "layer-item"
+              }
+              key={b.id}
+              aria-pressed={b.id === state.selectedId}
+              onClick={() => store.select(b.id)}
+            >
+              <Type size={15} />
+              <span>{plainText(b.content) || `文字 ${index + 1}`}</span>
+            </button>
+          ))}
+        <div className="background-layer">
+          <Image size={15} />
+          背景图<span>锁定</span>
+        </div>
+        <p className="layer-tip">
+          拖动文字移动位置
+          <br />
+          拖动两侧把手调整宽度
+        </p>
+      </div>
+    );
+  }
+  const showLayers =
+    layout === "wide"
+      ? layersOpen
+      : layout === "medium" || layout === "narrow"
+        ? layerDrawer
+        : false;
+  const showInspector =
+    layout === "wide"
+      ? inspectorOpen
+      : layout === "medium"
+        ? true
+        : layout === "narrow"
+          ? inspectorDrawer
+          : false;
+  const bodyClass = [
+    "editor-body",
+    layout === "wide" && !layersOpen ? "layers-closed" : "",
+    layout === "wide" && !inspectorOpen ? "inspector-closed" : "",
+    layout !== "wide" && layerDrawer ? "layer-drawer" : "",
+    layout === "narrow" && inspectorDrawer ? "inspector-drawer" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <div className="poster-editor">
-      <div className="editor-commandbar">
-        <div className="command-group">
-          <Button
-            variant="primary"
-            disabled={
-              !availableFonts.length || state.document.textBlocks.length >= 100
-            }
-            onClick={() => store.addText(availableFonts)}
-          >
-            <Plus size={15} />
-            添加文字
-          </Button>
-          {onCopyRequest && (
+      {layout !== "phone" && (
+        <div className="editor-toolbar">
+          <div className="toolbar-tools">
+            <Tooltip label="切换图层">
+              <Button
+                aria-label="切换图层"
+                aria-expanded={showLayers}
+                onClick={toggleLayers}
+              >
+                <PanelLeft size={16} />
+              </Button>
+            </Tooltip>
+            <span className="toolbar-divider" aria-hidden="true" />
             <Button
-              disabled={!availableFonts.length}
-              busy={copyBusy}
-              onClick={() => void insertCopy()}
+              variant="primary"
+              disabled={
+                !availableFonts.length ||
+                state.document.textBlocks.length >= 100
+              }
+              onClick={() => store.addText(availableFonts)}
             >
-              <FileText size={15} />
-              文案
+              <Plus size={15} />
+              添加文字
             </Button>
-          )}
-          <Button
-            aria-label="更换背景"
-            disabled={!onAssetRequest}
-            busy={uploading}
-            onClick={() => void background()}
-          >
-            <Image size={15} />
-            背景
-          </Button>
+            <Button
+              aria-label="更换背景"
+              disabled={!onAssetRequest}
+              busy={uploading}
+              onClick={() => void background()}
+            >
+              <Image size={15} />
+              背景
+            </Button>
+            {onCopyRequest && (
+              <Button
+                disabled={!availableFonts.length}
+                busy={copyBusy}
+                onClick={() => void insertCopy()}
+              >
+                <FileText size={15} />
+                文案
+              </Button>
+            )}
+            {onBackgroundLibraryRequest && (
+              <Button
+                disabled={uploading}
+                onClick={() => void background(onBackgroundLibraryRequest)}
+              >
+                背景库
+              </Button>
+            )}
+          </div>
+          <div className="toolbar-tools">
+            <Tooltip label="撤销 Ctrl/⌘ Z">
+              <Button
+                aria-label="撤销"
+                aria-keyshortcuts="Control+Z Meta+Z"
+                disabled={!state.canUndo}
+                onClick={store.undo}
+              >
+                <Undo2 size={16} />
+              </Button>
+            </Tooltip>
+            <Tooltip label="重做 Ctrl/⌘ Y">
+              <Button
+                aria-label="重做"
+                aria-keyshortcuts="Control+Y Meta+Y"
+                disabled={!state.canRedo}
+                onClick={store.redo}
+              >
+                <Redo2 size={16} />
+              </Button>
+            </Tooltip>
+            {(layout === "wide" || layout === "narrow") && (
+              <Tooltip label="切换文字设置">
+                <Button
+                  aria-label="切换文字设置"
+                  aria-expanded={showInspector}
+                  onClick={toggleInspector}
+                >
+                  <PanelRight size={16} />
+                </Button>
+              </Tooltip>
+            )}
+          </div>
         </div>
-        <div className="command-group">
-          {onBackgroundLibraryRequest && (
-            <Button
-              disabled={uploading}
-              onClick={() => void background(onBackgroundLibraryRequest)}
-            >
-              背景库
-            </Button>
-          )}
-          <Tooltip label="撤销 Ctrl/⌘ Z">
-            <Button
-              aria-label="撤销"
-              aria-keyshortcuts="Control+Z Meta+Z"
-              disabled={!state.canUndo}
-              onClick={store.undo}
-            >
-              <Undo2 size={16} />
-            </Button>
-          </Tooltip>
-          <Tooltip label="重做 Ctrl/⌘ Y">
-            <Button
-              aria-label="重做"
-              aria-keyshortcuts="Control+Y Meta+Y"
-              disabled={!state.canRedo}
-              onClick={store.redo}
-            >
-              <Redo2 size={16} />
-            </Button>
-          </Tooltip>
-        </div>
-      </div>
+      )}
       {state.overflow && (
         <div className="overflow-notice" role="alert">
           文字超出画布，请调宽文本框、减小字号或调整位置后导出。正文已保留。
         </div>
       )}
-      <div className="editor-body">
-        <aside className="editor-layers">
-          <h2>
-            <Layers size={15} />
-            图层<span>{state.document.textBlocks.length}</span>
-          </h2>
-          <div className="layer-list">
-            {[...state.document.textBlocks]
-              .sort((a, b) => b.zIndex - a.zIndex)
-              .map((b, index) => (
-                <button
-                  className={
-                    b.id === state.selectedId
-                      ? "layer-item selected"
-                      : "layer-item"
+      <div className={bodyClass}>
+        {showLayers && (
+          <aside className="editor-layers" aria-label="图层">
+            <div className="panel-head">
+              <h2>
+                <Layers size={15} />
+                图层<span>{state.document.textBlocks.length}</span>
+              </h2>
+              <Tooltip label={layout === "wide" ? "收起图层" : "关闭图层"}>
+                <Button
+                  aria-label={layout === "wide" ? "收起图层" : "关闭图层"}
+                  onClick={() =>
+                    layout === "wide"
+                      ? setLayersOpen(false)
+                      : setLayerDrawer(false)
                   }
-                  key={b.id}
-                  onClick={() => store.select(b.id)}
                 >
-                  <Type size={15} />
-                  <span>{plainText(b.content) || `文字 ${index + 1}`}</span>
-                </button>
-              ))}
-            <div className="background-layer">
-              <Image size={15} />
-              背景图<span>锁定</span>
+                  <PanelLeft size={16} />
+                </Button>
+              </Tooltip>
             </div>
-          </div>
-          <p className="layer-tip">
-            拖动文字移动位置
-            <br />
-            拖动两侧把手调整宽度
-          </p>
-        </aside>
+            {layerList()}
+          </aside>
+        )}
         <Stage
           store={store}
           state={state}
@@ -542,129 +748,120 @@ export function Editor({
                 )
           }
         />
-        <aside className="editor-properties">
-          <h2>文字设置</h2>
-          {selected ? (
-            <>
-              <div className="selection-actions">
-                <Tooltip label="复制文字块">
+        {showInspector && (
+          <aside className="editor-properties" aria-label="文字设置">
+            <div className="panel-head">
+              <h2>文字设置</h2>
+              {layout === "wide" ? (
+                <Tooltip label="收起文字设置">
                   <Button
-                    aria-label="复制文字块"
-                    onClick={store.duplicateSelected}
+                    aria-label="收起文字设置"
+                    onClick={() => setInspectorOpen(false)}
                   >
-                    <Copy size={15} />
+                    <PanelRight size={16} />
                   </Button>
                 </Tooltip>
-                <Tooltip label="文字块前移一层">
+              ) : layout === "narrow" ? (
+                <Tooltip label="关闭文字设置">
                   <Button
-                    aria-label="文字块前移一层"
-                    onClick={() => store.reorderSelected(1)}
+                    aria-label="关闭文字设置"
+                    onClick={() => setInspectorDrawer(false)}
                   >
-                    <ArrowUp size={15} />
+                    <X size={16} />
                   </Button>
                 </Tooltip>
-                <Tooltip label="文字块后移一层">
-                  <Button
-                    aria-label="文字块后移一层"
-                    onClick={() => store.reorderSelected(-1)}
-                  >
-                    <ArrowDown size={15} />
-                  </Button>
-                </Tooltip>
-                <Tooltip label="删除文字块">
-                  <Button
-                    aria-label="删除文字块"
-                    onClick={store.deleteSelected}
-                  >
-                    <Trash2 size={15} />
-                  </Button>
-                </Tooltip>
-              </div>
-              {true && (
-                <Button
-                  onClick={() =>
-                    store.setMode(state.mode === "edit" ? "select" : "edit")
-                  }
-                >
-                  {state.mode === "edit" ? "完成文字编辑" : "编辑文字"}
-                </Button>
-              )}
-              {!mobile && panel}
-              <h3>位置与大小</h3>
-              <div className="geometry-fields">
-                {(["x", "y", "width"] as const).map((field) => (
-                  <label key={field}>
-                    {field === "width" ? "宽度" : field.toUpperCase()}
-                    <NumberField
-                      aria-label={
-                        field === "width"
-                          ? "文本框宽度"
-                          : `文字位置 ${field.toUpperCase()}`
-                      }
-                      value={Math.round(selected[field] * 100) / 100}
-                      min={
-                        field === "width" ? selected.effects.padding * 2 + 1 : 0
-                      }
-                      max={
-                        field === "width"
-                          ? state.document.canvas.width - selected.x
-                          : field === "x"
-                            ? state.document.canvas.width - selected.width
-                            : state.document.canvas.height - 0.001
-                      }
-                      step={1}
-                      onValueChange={(n) => {
-                        store.transact((d) => ({
-                          ...d,
-                          textBlocks: d.textBlocks.map((b) =>
-                            b.id === selected.id ? { ...b, [field]: n } : b,
-                          ),
-                        }));
-                      }}
-                    />
-                    <small>px</small>
-                  </label>
-                ))}
-              </div>
-              <p className="property-hint">
-                调宽只改变自动换行，字号保持不变。
-              </p>
-            </>
-          ) : (
-            <div className="properties-empty">
-              <Type size={28} />
-              <p>
-                选择一个文字块
-                <br />
-                开始调整排版
-              </p>
+              ) : null}
             </div>
-          )}
-        </aside>
-      </div>
-      <div className="mobile-block-actions">
-        {selected && (
-          <>
-            <Button
-              onClick={() =>
-                store.setMode(state.mode === "edit" ? "select" : "edit")
-              }
-            >
-              {state.mode === "edit" ? "完成文字编辑" : "编辑文字"}
-            </Button>
-            <Button onClick={() => setSheet(true)}>文字设置</Button>
-            <Button aria-label="复制文字块" onClick={store.duplicateSelected}>
-              <Copy size={16} />
-            </Button>
-            <Button aria-label="删除文字块" onClick={store.deleteSelected}>
-              <Trash2 size={16} />
-            </Button>
-          </>
+            <EditorInspector
+              group={group}
+              onGroupChange={setGroup}
+              textPanel={textPanel}
+              position={position}
+              onAddText={() => store.addText(availableFonts)}
+              scopeLabel={scopeLabel}
+              actions={selectionActions}
+            />
+          </aside>
         )}
       </div>
-      {mobile && sheet && selected && (
-        <BottomSheet title="文字设置" onClose={() => setSheet(false)}>
-          {panel}
+      {layout === "phone" && (
+        <div className="mobile-block-actions">
+          {selected && (
+            <>
+              <Button onClick={toggleEdit}>
+                {state.mode === "edit" ? "完成文字编辑" : "编辑文字"}
+              </Button>
+              <Button aria-label="复制文字块" onClick={store.duplicateSelected}>
+                <Copy size={16} />
+              </Button>
+              <Button aria-label="删除文字块" onClick={deleteSelected}>
+                <Trash2 size={16} />
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      {layout === "phone" && (
+        <nav className="mobile-nav" aria-label="编辑工具">
+          <button
+            type="button"
+            className="mobile-nav-item"
+            aria-label="文字设置"
+            onClick={() => setSheet("inspector")}
+          >
+            <Type size={18} />
+            <span>文字</span>
+          </button>
+          <button
+            type="button"
+            className="mobile-nav-item"
+            aria-label="更换背景"
+            disabled={!onAssetRequest}
+            onClick={() => void background()}
+          >
+            <Image size={18} />
+            <span>背景</span>
+          </button>
+          {onCopyRequest && (
+            <button
+              type="button"
+              className="mobile-nav-item"
+              aria-label="文案"
+              disabled={!availableFonts.length}
+              onClick={() => void insertCopy()}
+            >
+              <FileText size={18} />
+              <span>文案</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="mobile-nav-item"
+            aria-label="图层"
+            onClick={() => setSheet("layers")}
+          >
+            <Layers size={18} />
+            <span>图层</span>
+          </button>
+        </nav>
+      )}
+      {layout === "phone" && sheet === "inspector" && (
+        <BottomSheet title="文字设置" onClose={() => setSheet(null)}>
+          <EditorInspector
+            group={group}
+            onGroupChange={setGroup}
+            textPanel={textPanel}
+            position={position}
+            onAddText={() => store.addText(availableFonts)}
+            showAdd
+            scopeLabel={scopeLabel}
+            actions={selectionActions}
+          />
+        </BottomSheet>
+      )}
+      {layout === "phone" && sheet === "layers" && (
+        <BottomSheet title="图层" onClose={() => setSheet(null)}>
+          {layerList()}
         </BottomSheet>
       )}
       {pending && (
@@ -689,6 +886,34 @@ export function Editor({
       )}
     </div>
   );
+}
+type EditorLayout = "wide" | "medium" | "narrow" | "phone";
+/**
+ * Three docked columns need 1200px before the canvas drops under 600px. Two
+ * columns fit a 278px inspector down to 881px; below that the side panels
+ * become temporary overlays, and at phone width the canvas owns the screen.
+ */
+function readLayout(width: number): EditorLayout {
+  if (width >= 1200) return "wide";
+  if (width >= 881) return "medium";
+  if (width >= 681) return "narrow";
+  return "phone";
+}
+function useEditorLayout(): EditorLayout {
+  const [layout, setLayout] = useState<EditorLayout>(() =>
+    readLayout(window.innerWidth),
+  );
+  useEffect(() => {
+    const query = (min: number) =>
+      window.matchMedia(`(min-width: ${min}px)`);
+    const queries = [query(1200), query(881), query(681)];
+    const update = () => setLayout(readLayout(window.innerWidth));
+    for (const q of queries) q.addEventListener("change", update);
+    return () => {
+      for (const q of queries) q.removeEventListener("change", update);
+    };
+  }, []);
+  return layout;
 }
 function plainText(node: TextBlock["content"]): string {
   return node.text ?? node.content?.map(plainText).join("") ?? "";

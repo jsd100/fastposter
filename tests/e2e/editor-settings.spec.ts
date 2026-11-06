@@ -44,7 +44,9 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   await sizeDown.click();
   await expect(size).toHaveValue("64");
   await expect(block).toHaveCSS("font-size", "64px");
+  const sizeBox = (await size.boundingBox())!;
 
+  await page.getByRole("button", { name: "段落", exact: true }).click();
   const lineHeight = page.getByLabel("文字行高", { exact: true });
   const lineUp = page.getByRole("button", {
     name: "增加文字行高",
@@ -69,9 +71,9 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   const lineBox = (await lineHeight.boundingBox())!;
   const spacingBox = (await spacing.boundingBox())!;
   expect(spacingBox.y).toBeGreaterThan(lineBox.y + lineBox.height);
-  expect((await size.boundingBox())!.width).toBeGreaterThan(80);
+  expect(sizeBox.width).toBeGreaterThan(80);
 
-  await page.locator("summary", { hasText: "文字效果" }).click();
+  await page.getByRole("button", { name: "效果", exact: true }).click();
   const opacity = page.getByLabel("透明度", { exact: true });
   await expect(opacity).toHaveValue("100");
   await opacity.fill("50");
@@ -87,6 +89,7 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   const saved = await savedDocument(page);
   expect(saved.textBlocks[0].effects.opacity).toBe(0.55);
 
+  await page.getByRole("button", { name: "文字", exact: true }).click();
   await size.fill("4096");
   await size.blur();
   await expect(sizeUp).toBeDisabled();
@@ -94,12 +97,14 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   await size.blur();
   await expect(sizeDown).toBeDisabled();
 
+  await page.getByRole("button", { name: "位置", exact: true }).click();
+  const width = Number(await page.getByLabel("文本框宽度").inputValue());
+  await page.getByRole("button", { name: "效果", exact: true }).click();
   const padding = page.getByLabel("内边距", { exact: true });
   const paddingUp = page.getByRole("button", {
     name: "增加内边距",
     exact: true,
   });
-  const width = Number(await page.getByLabel("文本框宽度").inputValue());
   const max = Math.max(0, width / 2 - 0.001);
   await padding.fill(String(Math.floor(max) - 1));
   await padding.blur();
@@ -113,6 +118,62 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
     Number.parseFloat(getComputedStyle(el).paddingTop),
   );
   expect(Math.abs(rendered - finalPadding)).toBeLessThan(0.01);
+});
+
+test("resize keeps the active selection and raw field draft", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openPoster(page, "resizedraft");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  const size = page.getByLabel("文字字号", { exact: true });
+  await expect(size).toHaveValue("64");
+  await size.fill("12.");
+  await expect(size).toHaveValue("12.");
+  // A trailing decimal point is a draft: neither the document nor the save
+  // state may move until the value becomes a number.
+  expect(await textFontSize(input, "风")).toBe("64px");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await expect(sheet).toBeVisible();
+  // The sheet opens on the same group, whose draft the resize must keep.
+  const mobileSize = sheet.getByLabel("文字字号", { exact: true });
+  await expect(mobileSize).toHaveValue("12.");
+  await expect(
+    sheet.getByRole("button", { name: "文字", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  // Focusing a field puts the caret at its start; a person continuing to type
+  // into the same draft would first land at the end of it. End is a jump to the
+  // bound in this control, so place the caret explicitly.
+  await mobileSize.focus();
+  await mobileSize.evaluate((el) => {
+    const input = el as HTMLInputElement;
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
+  await mobileSize.press("5");
+  await expect(mobileSize).toHaveValue("12.5");
+  expect(await textFontSize(input, "风")).toBe("12.5px");
+  expect(await textFontSize(input, "世")).toBe("64px");
+  await mobileSize.blur();
+
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  const block = page.locator("[data-text-block]").first();
+  expect(await textFontSize(block, "你")).toBe("64px");
+  expect(await textFontSize(block, "风")).toBe("12.5px");
+  expect(await textFontSize(block, "世")).toBe("64px");
+
+  // The breakpoint switch and the sheet open/close are view state, so one
+  // undo unwinds the size change itself rather than a layout step.
+  await page.keyboard.press("Control+z");
+  expect(await textFontSize(block, "你")).toBe("64px");
+  expect(await textFontSize(block, "风")).toBe("64px");
+  expect(await textFontSize(block, "世")).toBe("64px");
 });
 
 test("a mixed font-size selection steps from its first character and undoes once", async ({

@@ -912,6 +912,17 @@
     width: 20px;
   }
 }
+@media (max-width: 360px) {
+  /* The narrowest phone still has to fit the save, package and export actions
+     beside the title; trim the chrome rather than letting the header scroll. */
+  .editor-header {
+    gap: 6px;
+    padding: 0 10px;
+  }
+  .editor-header .button {
+    padding: 0 7px;
+  }
+}
 .background-picker {
   --fp-dialog-width: min(750px, calc(100vw - 28px));
 }

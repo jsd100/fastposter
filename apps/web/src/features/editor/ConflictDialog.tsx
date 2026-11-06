@@ -13,7 +13,7 @@ export function ConflictDialog({
       <p>这张作品已在其他窗口或设备更新。本地修改已保留，请选择如何继续。</p>
       <div className="conflict-actions">
         <Button disabled={busy} onClick={onCloud}>
-          加载云端版本
+          加载已保存版本
         </Button>
         <Button variant="primary" busy={busy} onClick={onCopy}>
           将本地另存为作品

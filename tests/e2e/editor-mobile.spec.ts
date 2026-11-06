@@ -142,6 +142,45 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
   ).toBeLessThanOrEqual(360);
 });
 
+test("mobile text panel adds a second text block", async ({ page }) => {
+  await openPoster(page, "mobileadd");
+  const blocks = page.locator("[data-text-block]");
+  await expect(blocks).toHaveCount(1);
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "海报文字编辑" })
+    .fill("第一块");
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  await expect(blocks.first()).toHaveText("第一块");
+
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "添加文字", exact: true }).click();
+  await expect(blocks).toHaveCount(2);
+  // The panel keeps working on the new block while the old one stays as it
+  // was, and the new block is the selected layer.
+  await expect(sheet.getByText("当前文字块")).toBeVisible();
+  await expect(blocks.first()).toHaveText("第一块");
+  await expect(blocks.nth(1)).toContainText("把喜欢的风景");
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+
+  await page.getByRole("button", { name: "图层", exact: true }).click();
+  const layers = page.getByRole("dialog", { name: "图层" });
+  const rows = layers.locator(".layer-item");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+
+  // With no selection the panel still offers its headline add entry.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  await expect(sheet.getByText("选择一个文字块")).toBeVisible();
+  await sheet.getByRole("button", { name: "添加文字", exact: true }).click();
+  await expect(blocks).toHaveCount(3);
+  await expect(sheet.getByText("当前文字块")).toBeVisible();
+});
+
 test("font menu rows keep a thumb-sized target on a touch screen", async ({
   page,
 }) => {
@@ -176,7 +215,10 @@ test("font menu rows keep a thumb-sized target on a touch screen", async ({
         const r = el.getBoundingClientRect();
         return { top: r.top, bottom: r.bottom };
       });
-      return box.y >= clip.top - 0.5 && box.y + box.height <= clip.bottom + 0.5;
+      // The menu now anchors below the property tabs and clamps at the panel's
+      // top edge; antd places that clamped popup on the section border, a hair
+      // above the panel box. Allow that border, not visible clipping.
+      return box.y >= clip.top - 2 && box.y + box.height <= clip.bottom + 0.5;
     })
     .toBe(true);
   await expect(popup.locator(".ant-select-dropdown-list-holder")).toHaveCSS(

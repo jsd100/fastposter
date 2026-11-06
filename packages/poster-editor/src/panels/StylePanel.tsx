@@ -1,16 +1,22 @@
 import type { TextBlock } from "@fastposter/poster-schema";
-import { Button, NumberField } from "@fastposter/ui";
+import {
+  Button,
+  NumberField,
+  type NumberDraftBinding,
+} from "@fastposter/ui";
 import { ColorField } from "./ColorField";
 export function StylePanel({
   block,
   update,
   onNumericStart,
   onNumericEnd,
+  draft,
 }: {
   block: TextBlock;
   update: (change: (b: TextBlock) => TextBlock) => void;
   onNumericStart: () => void;
   onNumericEnd: () => void;
+  draft: (field: string) => NumberDraftBinding;
 }) {
   const fields = [
     ["padding", "内边距", 0, Math.max(0, block.width / 2 - 0.001), 1],
@@ -20,8 +26,7 @@ export function StylePanel({
     ["shadowY", "阴影 Y", -500, 500, 1],
   ] as const;
   return (
-    <details className="effect-panel">
-      <summary>文字效果</summary>
+    <div className="effect-panel">
       <div className="panel-row">
         <label className="panel-field">
           透明度
@@ -33,6 +38,7 @@ export function StylePanel({
             min={0}
             max={100}
             step={5}
+            {...draft("opacity")}
             onInteractionStart={onNumericStart}
             onInteractionEnd={onNumericEnd}
             onValueChange={(value) =>
@@ -54,6 +60,7 @@ export function StylePanel({
               min={min}
               max={max}
               step={step}
+              {...draft(key)}
               onInteractionStart={onNumericStart}
               onInteractionEnd={onNumericEnd}
               onValueChange={(value) =>
@@ -99,6 +106,6 @@ export function StylePanel({
           </label>
         ),
       )}
-    </details>
+    </div>
   );
 }
