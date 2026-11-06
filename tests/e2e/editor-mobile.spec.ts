@@ -107,6 +107,14 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
   await expect(sheet).toBeVisible();
   await expect(selectValue(page, "文字字体")).toHaveText("思源黑体");
 
+  // The menu consumed the first Escape. With no inner layer left, the next
+  // one closes the sheet and hands focus back to the trigger that opened it.
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(openSheet).toBeFocused();
+  await openSheet.click();
+  await expect(sheet).toBeVisible();
+
   await font.click();
   await expect(listbox).toBeVisible();
   await page.getByRole("option", { name: "思源宋体", exact: true }).click();

@@ -467,6 +467,14 @@ blockers: []
 - UI-13 临时矩阵的短暂 410px 溢出与半程截图：用 `expect.poll` 等布局稳定，320/390 的 sheet 截图按视口底边轮询，截图前留 300ms 沉降。
 - T11.1 的状态筛选改为共享 `Select` 后，`project-permanent-deletion` 的原生 `selectOption` 失效：按新契约改 `chooseOption`/`selectValue`，13/13 复跑；这是测试适配，不是放宽断言。
 
+### 最终评审
+
+- 全分支只读评审（`d6c3d45..068e3e4`，独立上下文）：Critical 0，Important 2，Minor 6，未发现数据丢失、越权或账号隔离缺陷。
+- Important 1（已修）：手机抽屉「第二次 Escape 关闭并归还焦点」缺少断言。补进 `editor-mobile.spec.ts`，直接跑现有行为为绿（5/5），没有改产品代码；这条契约此前只被「点关闭按钮」的路径覆盖。
+- Important 2（裁量保留）：入口边界检查仍按计划作为「构建后显式执行」的审计，未接入 `pnpm verify`。触发条件：该检查需要带 `--manifest --sourcemap` 的第二次构建，而计划 T02.2/T11.2 只要求补检查并在 T11 复验。代价：未来的依赖越界只能靠同类审计发现，不会被默认验证拦住。
+- 6 项 Minor 记入账本留待后续（草稿恢复后的焦点/光标、`[data-fp-overlay]` 兼容回退、草稿表按块清理、手机背景 sheet 取消后的停留、截图 `settle()` 超时策略、`emptyPosition()` 死代码）。
+- 评审后复跑：`pnpm verify` exit 0（契约一致、typecheck、186/186、build 8/8），`editor-mobile` 5/5。
+
 ### 覆盖对照（T01–T10 → UI-13）
 
 | UI-13 行 | 证据 |
