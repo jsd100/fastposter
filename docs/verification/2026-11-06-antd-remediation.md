@@ -20,15 +20,15 @@ workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
 branch: feat/fastposter
 review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
 execution_baseline: "71257c3"
-last_verified_commit: "71257c3"
-task: A02
-next_step: A02.1
-spec_ids: [FP-07]
-actual_paths: []
-red: []
-green: []
-decisions: []
-artifacts: []
+last_verified_commit: "8bda815"
+task: A03
+next_step: A03.1
+spec_ids: [FP-08]
+actual_paths: ["packages/poster-editor/src/Editor.tsx", "packages/poster-editor/src/Stage.tsx", "packages/poster-editor/src/geometry.ts", "packages/poster-editor/src/geometry.test.ts", "packages/poster-editor/src/panels/EditorInspector.tsx", "packages/poster-editor/src/styles.css", "tests/e2e/editor-mobile.spec.ts"]
+red: ["A02 RED: 手机无撤销/重做按钮", "A02 RED: 打开属性面板时 canvas transform 不变", "A02 RED: 100 块时手机面板添加文字仍 enabled", "A02 fix RED: 选区与缩小可见带交集 = -351.33px（基线产品代码）"]
+green: ["191/191 单测", "pnpm typecheck exit 0", "3 个新增 E2E 通过", "geometry 11/11", "editor-geometry 1 passed", "模板工作台 1 passed", "A01 焦点回归 1 passed"]
+decisions: ["Ruling 9 移除 matchMedia 运行时订阅", "Ruling 17-21 A02 修复轮裁定"]
+artifacts: [".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A02-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-7d783e1..57ecf6d.diff", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-57ecf6d..8bda815.diff"]
 blockers: []
 ```
 
@@ -64,12 +64,24 @@ B 批状态：`NOT_AUTHORIZED`（FP-11 涉及 IDL、生成代码与服务端事�
   - 实现者另跑 4 个 spec 共 32 个 E2E 全通过（逐文件独立临时栈），无 429 / 环境阻塞
 - 遗留：11 项 Minor 推迟到全分支评审；A01.1 要求的本执行记录在 A01 阶段未建立（见「遗留与裁定」）。
 
-### A02 恢复手机撤销并让属性面板下的选区可见 — IN_PROGRESS
+### A02 恢复手机撤销并让属性面板下的选区可见 — DONE
 
+- 提交：`57ecf6d fix(editor): restore phone history and selection visibility`、`8bda815 fix(editor): prove phone selection visibility and stabilize viewport measurement`
 - 需求：FP-07、FP-13（FP-07 行）；依赖 A01 的浮层与焦点机制。
-- 计划接口：`fitSelectionIntoViewport(view, bounds, viewport)` 落在 `geometry.ts`；`Rect = Point & Size`；Stage 接收纯视图输入 `visibleViewport?: Rect`；手机工具条复用 `store.undo/redo` 与 `state.canUndo/canRedo`。
-- 开工前预检：`geometry.ts` 有 `Point`/`Size`/`ViewTransform`，尚无 `Rect`；桌面历史按钮在 `Editor.tsx:662/672`；手机底栏从 `Editor.tsx:801` 开始；`geometry.test.ts`、`tests/e2e/editor-geometry.spec.ts`、`tests/e2e/editor-mobile.spec.ts` 均存在。
-- 结果：待 A02 完成后填写（命令、退出码、用例数、证据路径）。
+- 计划接口：`geometry.ts` 新增 `Rect = Point & Size` 与纯函数 `fitSelectionIntoViewport(view, bounds, viewport)`（文档坐标投影到 Stage 局部像素、平移优先、必要时缩放、过高块保留前缘、幂等）；Stage 接收纯视图输入 `visibleViewport?: Rect`；手机工具条复用 `store.undo/redo` 与 `state.canUndo/canRedo`。
+- 实现要点：`Editor.tsx` 新增单一 `operations` 可用性模型，桌面工具栏、手机工具条、选区动作、桌面/手机 `EditorInspector` 共用回调与禁用原因（字体就绪、100 块上限、选区、文案忙碌、历史状态）；手机底栏新增具名「撤销」「重做」，两轴命中区 ≥44px；抽屉打开时的可见带取 stage、抽屉顶边、`visualViewport` 的交集，视图调整只经 `store.setView`（纯视图，不写文档/历史），关闭时恢复打开前的手动视图。
+- 独立评审（任务级门禁）：Spec ❌ 3 项、2 Important（含 1 plan-mandated）、0 Critical、11 Minor，Task quality Needs fixes。核心质疑是测试夹具在红灯基线没有把选区推到抽屉后面，使「可见交集 + 属性值变化」验收断言退化为恒真，真正红灯只证明「视图被调整」这一机制动作。
+- 修复轮（Ruling 17–21）：重写夹具让选区确实落在抽屉之后；在**真实基线产品代码**上（临时 `git apply -R`，HEAD/索引未变）观察到真实产品红灯 `Received: -351.33`（选区与缩小可见带交集为负，消息 `the lower selection must stay visible above the open drawer`）；把属性变化锚定到修复后才可见的选区；补切换文字块断言；`measure()` 加宽高守卫、无效帧保留上一有效 band、panel 缺失不静默退化、用有上限的连续 rAF + `transitionend`/`animationend` 取代固定 300ms 定时器。复评审：5 条发现全部 ADDRESSED，无新增 Critical/Important 破坏。
+- 验证（控制器独立复跑，本会话）：
+  - `pnpm typecheck` → exit 0
+  - `pnpm test` → 30 文件 / 191 用例 exit 0（基线 186 + 本任务 5 个 geometry 用例）
+  - `pnpm test:e2e tests/e2e/editor-mobile.spec.ts -g 'phone can undo|phone inspector keeps|add text capacity'` → 3 passed, exit 0
+  - `pnpm test:e2e tests/e2e/templates.spec.ts -g 'workbench contains tab focus and keeps editor shortcuts'` → 1 passed, exit 0
+  - `pnpm test:e2e tests/e2e/editor-mobile.spec.ts -g 'mobile background picker returns focus'` → 1 passed, exit 0（A01 回归）
+  - `pnpm exec vitest run packages/poster-editor/src/geometry.test.ts` → 11/11；`editor-geometry.spec.ts` → 1 passed（实现者侧）
+  - E2E 统一带 `GOPROXY=off GOSUMDB=off`：实现者修复了 `/tmp` 下遗留的不完整 Go 模块缓存（代理 502），未改仓库文件
+- 遗留：11 项 Minor 推迟到全分支评审；reduced-motion + 键盘 + 安全区组合交 A10 五档矩阵；`onMotionEnd` 祖先过滤为 Minor 观察，rAF/resize/ResizeObserver 兜底。
+- 证据：`.superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A02-report.md`（含 §11 fix report）、`review-7d783e1..57ecf6d.diff`、`review-57ecf6d..8bda815.diff`。
 
 ### A03 … A10
 
