@@ -3,40 +3,31 @@
 > 计划：`docs/superpowers/plans/2026-11-05-antd-frontend-migration.md`。执行账本：`.superpowers/sdd/2026-11-05-antd-frontend-migration-plans/progress.md`（本文件只汇总可复核证据）。
 
 ```yaml
-status: IN_PROGRESS
+status: DONE
 authorization: "2026-11-05 用户：请你深度分析该需求和相关文档裁量，然后继续该任务"
 execution_mode: native
 workspace: "/Users/aaa/acode/FastPoster"
 branch: "feat/fastposter"
 base_commit: "d6c3d45"
-last_verified_commit: "3d3bdc5"
-current_task: T08
-next_step: T09.1
-requirements: [UI-05, UI-06, UI-10]
+last_verified_commit: "e73aca3"
+current_task: T11
+next_step: "无（迁移完成，等待人工合并）"
+requirements: [UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07, UI-08, UI-09, UI-10, UI-11, UI-12, UI-13, UI-14]
 changed_paths:
-  - "apps/admin/src/features/Resources.tsx"
-  - "apps/admin/src/features/catalog-state.ts"
-  - "apps/admin/src/features/catalog-state.test.ts"
-  - "apps/admin/src/features/copy/CategoryTree.tsx"
-  - "apps/admin/src/features/copy/CopyForm.tsx"
-  - "apps/admin/src/features/copy/CopyList.tsx"
-  - "apps/admin/src/features/copy/CopyPage.tsx"
-  - "apps/admin/src/features/templates/TemplateList.tsx"
-  - "apps/admin/src/features/templates/TemplateEditor.tsx"
-  - "apps/admin/src/styles.css"
-  - "packages/ui/src/Checkbox.tsx"
-  - "packages/ui/src/Upload.tsx"
-  - "packages/ui/src/Workbench.tsx"
-  - "packages/ui/src/catalog-control-contract.test.ts"
-  - "packages/ui/src/index.ts"
-  - "packages/ui/src/modal-layer.ts"
-  - "packages/ui/src/modal-layer.test.ts"
+  - "apps/admin/src/features/Metadata.tsx"
+  - "apps/web/src/styles.css"
+  - "packages/poster-editor/src/Editor.tsx"
+  - "packages/poster-editor/src/styles.css"
+  - "packages/ui/package.json"
+  - "packages/ui/src/Dialog.module.css（删除）"
+  - "packages/ui/src/Select.module.css"
   - "packages/ui/src/styles.css"
-  - "packages/ui/src/theme.ts"
-  - "packages/poster-editor/src/keyboard.ts"
-  - "packages/poster-editor/src/keyboard.test.ts"
-  - "tests/e2e/admin-catalog.spec.ts"
-  - "tests/e2e/templates.spec.ts"
+  - "pnpm-lock.yaml"
+  - "tests/e2e/editor-fonts.spec.ts"
+  - "tests/e2e/editor-mobile.spec.ts"
+  - "tests/e2e/project-permanent-deletion.spec.ts"
+  - "tests/e2e/ui-baseline.spec.ts"
+  - "tests/e2e/ui-controls.spec.ts"
 decisions:
   - "全程以执行账本记录任务级证据；计划复选框不勾选，避免与账本双写。"
   - "T03：antd 6 的模态滚动锁是注入的 html body 规则而非内联样式，断言改读 computed overflow-y。"
@@ -78,6 +69,14 @@ decisions:
   - "T08：`Workbench` 不绑 Escape、不做焦点陷阱。触发条件：关闭进行中的模板编辑必须是显式动作（与 T07「危险确认的取消优先」相反的破坏性方向），焦点圈定需要 `@rc-component/util` 的 `getFocusableList`，那是计划外依赖。代价：读屏用户在容器内的 Tab 顺序不受限，靠自身语义（顶栏→画布→属性）收敛。"
   - "T08：模板背景选择保留一个隐藏原生 `input[type=file]`。触发条件：`Editor` 的 `onAssetRequest` 返回 promise，取消系统对话框时也必须 settle，antd `Upload` 没有「用户取消」这个出口。代价：全站只剩这一处原生文件输入，已有注释说明边界。"
   - "T08：`Metadata.tsx` 里的原生 `select`（筛选作品状态）与已成死代码的 `Pager` 导出留给 T11.1 清理。触发条件：两者都不在 T08 的文件清单里，且 `project-permanent-deletion.spec.ts:381` 的 `selectOption` 属 T07 已验收断言，改它要连带重跑该 spec。代价：后台暂留一处未迁移控件，T11 必须处理并复跑该用例。"
+  - "T11：移除 `@base-ui/react`，`packages/ui` 只保留 antd；删除无引用的 `Dialog.module.css` 与 `.pagination`。触发条件：T03–T10 已把所有调用方迁到 antd 或共享控件，旧浮层依赖只剩 lockfile 与死样式。代价：无（`pnpm verify` 与全量 E2E 复跑）。"
+  - "T11：后台状态筛选改共享 `Select`，`project-permanent-deletion.spec.ts` 从原生 `selectOption` 改为 `chooseOption`/`selectValue`。原因：T11.1 要求清掉最后一处原生 `select`；断言仍锁定「筛选→回收站」的同一行为。代价：该 spec 的定位方式随控件契约变化。"
+  - "T11：手机「背景」改为选择 sheet（上传图片 / 从背景库选择），保持四入口与顺序。触发条件：spec 第 85 行要求编辑器背景同时保留上传与可用背景库入口，phone 原先只有上传。代价：手机上传多一次点击。"
+  - "T11：体积按两种口径记录：入口 chunk（与 T02 同口径）与入口静态闭包（manifest 的静态 `imports`）。触发条件：后台入口 chunk 只有 67,275 B，但首屏还静态加载共享 `api` chunk 786,232 B；只报前者会低估首屏。代价：两个数字需要并列解释。"
+  - "T11：`ui-baseline` 的冻结样式只在截图期间挂载，`settle()` 先等 antd motion 类清空与有限动画结束。触发条件：`animation:none!important` 常驻会让 rc-motion 等不到 `animationend`，弹窗停在 `opacity:0`。代价：单次截图最多多等 10s（超时上限）。"
+  - "T11：删除 `.ant-select-input` 的 `color: inherit`，并在 `editor-fonts` 增加输入文字计算色断言。触发条件：antd 搜索态把触发器文字设为透明，`inherit` 让输入框也透明。代价：无。"
+  - "T11：`ui-controls` 触屏按住用例先等 sheet 静止底边等于视口高度再派发触摸事件。触发条件：Drawer 入场期间派发会点空，导致字号未变化。代价：用例多一次 `expect.poll`。"
+  - "T11：按 T07–T10 先例拆分提交：`e73aca3` 收尾代码，本文件随后以 docs 提交记录；执行账本留在 `.superpowers/`（已忽略，不入库）。触发条件：计划 T11.6 只写了一个提交名，但前三个任务的 feature/docs 拆分已成历史惯例。代价：提交数为 2 而非 1。"
 red_check: "见各任务「中途红灯」"
 checks:
   - "T03 pnpm exec vitest run packages/ui/src/modal-layer.test.ts packages/ui/src/notifications.test.ts packages/poster-editor/src/keyboard.test.ts → 20/20 PASS"
@@ -128,6 +127,9 @@ checks:
   - "T08 pnpm typecheck（/Users/aaa/acode/FastPoster）→ exit 0"
   - "T08 pnpm build → 8/8"
   - "T08 antd lint apps/admin/src → 0 issues；antd lint packages/ui/src → 0 deprecated / 2 warning（T05 virtual=false、T08 受控 fileList 无 onChange，均已裁量并注释）"
+  - "T09 playwright ui-baseline 2/2 + projects 3/3 + project-permanent-deletion 13/13 + notifications 6/6 + session-sync 2/2 + copy/image-upload/templates 5/5（各新临时栈）；root vitest 186/186；pnpm typecheck exit 0；pnpm build 8/8；antd lint apps/web/src 0 issues"
+  - "T10 playwright 7 个计划内 spec 23/23 + ui-controls 17/17 + editor-fonts 12/12 + full-flow 3/3；packages/poster-editor vitest 41/41；root vitest 186/186；typecheck exit 0；build 8/8；五档宽度截图与 scrollWidth≤viewport"
+  - "T11 pnpm install --frozen-lockfile exit 0；pnpm verify exit 0（契约/typecheck/186/186/build 8/8）；turbo build --force 8/8；entry boundary 三站 PASS；Playwright 89/89 in 19 files（各新临时栈）；UI-13 matrix 1/1；PNG AE=0 且 SHA-256 一致；antd lint 0 deprecated / 2 documented warnings"
 artifacts: []
 blockers: []
 ```
@@ -387,3 +389,93 @@ blockers: []
 - 320px 顶栏横向溢出 12px（`scrollWidth 332`）：在 ≤360px 收窄间距后回到 320，四档布局的横向溢出检查全部通过。
 - 位置/段落/效果的旧 `summary` 与堆叠面板改为受控分组：相关 e2e 在操作字段前先点「文字 / 段落 / 效果 / 位置」。这是 T10.4 的界面契约，不是放宽断言；每个分组仍验证原来的数值、边界与撤销行为。
 - 手机 `openPoster` 拿不到工具栏的「添加文字」：phone 的创建入口在 sheet 顶部，helper 先点「文字设置」再点 sheet 内的「添加文字」，关闭 sheet 后返回首个文字块；桌面与平板仍走工具栏。
+
+## T11 收尾、清理和完整验收
+
+- 开工 HEAD `ceec4ec`；收尾代码提交 `e73aca3`，本文件随后以 docs 提交记录（执行账本留在已忽略的 `.superpowers/`，不入库）。覆盖 UI-01～UI-14 的收口，重点是 UI-05、UI-06、UI-10、UI-12、UI-13。
+- 清理（T11.1）：`packages/ui` 移除 `@base-ui/react`（`pnpm-lock.yaml` −71/+4 行，全仓不再有 base-ui/floating-ui 旧浮层依赖）；删除无引用的 `packages/ui/src/Dialog.module.css` 与 `styles.css` 中已无调用方的 `.pagination`；`apps/web/src/styles.css` 删除迁移后无引用的 `.canvas-placeholder`、`.editor-footer`、`.editor-commandbar` 与 `.command-group` 规则；`apps/admin/src/features/Metadata.tsx` 的原生 `select` 改为共享 `Select`（`aria-label="筛选作品状态"`，三个选项与行为不变），删除死代码 `Pager`。
+- 手机背景入口（spec 第 85 行）：phone 底部「背景」不再直接打开文件选择，而是打开 `更换背景` sheet，提供「上传图片」与「从背景库选择」；四个底部入口与顺序（文字/背景/文案/图层）不变。`editor-mobile.spec.ts` 新增第 5 例（先红后绿），`ui-baseline` 手机分支改走该路径。
+- 字体搜索可读性：删除 `Select.module.css` 中对 `.ant-select-input` 的 `color: inherit`（antd 搜索态会把触发器文字设为透明，`inherit` 让输入的字也透明）；`editor-fonts.spec.ts` 增加输入文字计算色断言，先红后绿。
+- 截图稳定性：`ui-baseline.spec.ts` 的 `settle()` 等到 antd motion 类清空、`document.getAnimations()` 的有限动画结束后再截图；冻结样式只在截图期间挂载，拍完移除。此前入场中的弹窗会被拍成 `opacity:0` 或 `0×0`。
+- 触屏步进稳定性：`ui-controls.spec.ts` 的按住取消用例先等 sheet 静止底边等于视口高度，再派发 `touchStart`，消除入场动画期点空的偶发失败。
+
+### 验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | exit 0 |
+| `pnpm verify` | exit 0：契约与生成物一致、typecheck、Vitest 186/186、build 8/8 |
+| `pnpm exec turbo run build --force` | 8/8（0 cached） |
+| `node tools/check-entry-boundary.mjs …/entry-audit-after/{web,admin,renderer}` | web PASS（2 入口 chunk / 753 source）、admin PASS（4 / 740）、renderer PASS（1 / 35） |
+| `pnpm exec playwright test --list` | 89 tests / 19 files（T01 基线 79 / 18；新增 `admin-layout.spec.ts`） |
+| `pnpm test` | 186/186 PASS |
+| `go test ./internal/...` | PASS |
+| `pnpm exec antd lint packages/ui/src --version 6.7.0` | 0 deprecated / 2 已裁量 warning（T05 `virtual={false}`、T08 受控 `fileList` 无 `onChange`） |
+| `pnpm exec antd lint apps/admin/src apps/web/src --version 6.7.0` | 0 issues |
+| 固定样本导出对比 | `magick compare -metric AE` = `0 (0)`；前后 SHA-256 均 `f36c78f99c2d354c6dd2c4ee8f02cc645ee4988c9b03701c6af227d674c19e85`；1200×1600 PNG 8-bit |
+
+逐文件 E2E（每个文件独立新临时栈，合计 89/89）：
+
+| spec | 结果 | spec | 结果 |
+| --- | --- | --- | --- |
+| `admin-catalog` | 2/2 | `admin-layout` | 3/3 |
+| `autosave` | 4/4 | `copy` | 1/1 |
+| `editor-fonts` | 12/12 | `editor-geometry` | 1/1 |
+| `editor-mobile` | 5/5 | `editor-richtext` | 4/4 |
+| `editor-settings` | 5/5 | `export` | 2/2 |
+| `full-flow` | 3/3 | `image-upload` | 1/1 |
+| `notifications` | 6/6 | `project-permanent-deletion` | 13/13 |
+| `projects` | 3/3 | `session-sync` | 2/2 |
+| `templates` | 3/3 | `ui-baseline` | 2/2（22 张截图） |
+| `ui-controls` | 17/17 | | |
+
+- 截图证据：迁移后 22 张在 `.cache/fastposter-antd-migration/after/`；UI-13 宽度矩阵 17 张在 `.cache/fastposter-antd-migration/after-ui13/`（1440/1024/768/390/320 五档，含 1024 图层、768 文字设置与错误态、390/320 三张 sheet、1440 加载/焦点/空态）。
+- UI-13 临时矩阵（不入库）：1/1 PASS；五档 `scrollWidth ≤ innerWidth`，1440 延迟响应截图、聚焦态与空搜索、768 断网错误态均符合预期。
+
+体积变化（raw 字节精确；gzip 为 `gzip -9`，入口为单文件、总计为拼接后的单流）：
+
+| 应用 | 口径 | 迁移前 raw / gzip | 迁移后 raw / gzip | 变化 |
+| --- | --- | --- | --- | --- |
+| web | 入口 chunk | 1,107,130 / 346,677 | 965,501 / 303,062 | −141,629 / −43,615 |
+| web | 入口静态闭包 | 1,107,130 / 346,677 | 966,100 / 303,330 | −141,030 / −43,347 |
+| web | 全部 JS | 1,107,130 / 346,677 | 1,543,210 / 483,666 | +436,080 / +136,989 |
+| web | 全部 CSS | 40,762 / 8,983 | 39,169 / 8,656 | −1,593 / −327 |
+| admin | 入口 chunk | 1,102,739 / 342,519 | 67,275 / 21,657 | −1,035,464 / −320,862 |
+| admin | 入口静态闭包 | 1,102,739 / 342,519 | 857,285 / 274,365 | −245,454 / −68,154 |
+| admin | 全部 JS | 1,102,739 / 342,519 | 1,776,129 / 557,596 | +673,390 / +215,077 |
+| admin | 全部 CSS | 53,472 / 11,151 | 37,517 / 8,273 | −15,955 / −2,878 |
+| renderer | 入口 = 全部 JS | 311,836 / 93,935 | 311,836 / 93,935 | 0 / 0 |
+
+- 迁移前数值来自 `d6c3d45` 工作树的构建（单 chunk）；迁移后来自最终 `entry-audit-after`（`vite build --manifest --sourcemap`，映射文件不计）。web 首屏变小是因为 `ProjectWorkspace` 懒加载移出入口；总量变大是 antd 与共享控件的成本。
+- admin 入口 chunk 67,275 B 需要与静态闭包一起读：首屏还会静态加载共享 `api-C0-2Y-Eh.js` 786,232 B（另有 3,179 B 的图标 chunk），所以首屏 JS 是 857,285 B，仍低于迁移前的 1,102,739 B。
+- renderer 的 JS 与 gzip 字节完全一致，说明导出入口没有混入 antd 或 `@fastposter/ui`；入口边界检查同时锁住 web/admin 登录入口不含 Tiptap/ProseMirror。
+
+### 已知限制
+
+- 真机输入法与硬件触摸未覆盖：触摸用 Chrome DevTools Protocol `Input.dispatchTouchEvent` 合成，中文输入法/软键盘遮挡需在真机补测；本记录不把模拟结果当作真机结论。
+- antd 6 的组件样式是运行期 CSS-in-JS，样式成本部分在 JS 里；本文件用计算样式与截图验证，不以 CSS 文件体积作为全部样式成本。
+- `Workbench` 不做焦点陷阱、Escape 不关闭（T08）；读屏用户在模板工作区内的 Tab 顺序不受限，关闭必须是显式动作。
+- 后台首屏 857,285 B 仍可继续优化：把 antd/共享依赖拆成独立缓存 chunk 属计划外工作。
+- `project-permanent-deletion` 的手机上传 helper 已按 T10 的 sheet 创建入口适配；桌面路径未变。
+
+### 中途红灯与处理
+
+- `ui-baseline` 手机先在工具栏「背景库」超时：phone 没有该按钮，属产品缺口（spec 第 85 行）。新增 `更换背景` sheet 后，`editor-mobile` 5/5、`ui-baseline` 2/2。
+- 基线截图里的弹窗不可见或为 `0×0`：`settle()` 改为等 antd motion 类与有限动画结束后再冻结；冻结样式只在截图期间存在，拍完移除。
+- 字体搜索输入的文字透明：`color: inherit` 继承了 antd 搜索态的透明色；删除后计算色断言通过。
+- `ui-controls` 触屏按住偶发读回 64：sheet 还在入场，触摸点落空；改为轮询静止底边后整文件 17/17。
+- UI-13 临时矩阵的短暂 410px 溢出与半程截图：用 `expect.poll` 等布局稳定，320/390 的 sheet 截图按视口底边轮询，截图前留 300ms 沉降。
+- T11.1 的状态筛选改为共享 `Select` 后，`project-permanent-deletion` 的原生 `selectOption` 失效：按新契约改 `chooseOption`/`selectValue`，13/13 复跑；这是测试适配，不是放宽断言。
+
+### 覆盖对照（T01–T10 → UI-13）
+
+| UI-13 行 | 证据 |
+| --- | --- |
+| 登录/权限/重定向 | T02/T06 账号页；`full-flow` 3/3、`session-sync` 2/2 |
+| 搜索/分页/返回恢复 | T09 `projects` 3/3；T07 `admin-layout` 3/3、`project-permanent-deletion` 13/13 |
+| 删除/冲突/草稿 | T09/T10 `project-permanent-deletion`、`autosave` 4/4、`notifications` 6/6 |
+| 图片/背景/模板/文案选择 | T08/T09 `admin-catalog` 2/2、`copy` 1/1、`templates` 3/3、`image-upload` 1/1 |
+| 1440/1024/768/390/320 + 触摸 | T10 + T11 宽度矩阵 1/1、`editor-mobile` 5/5、`ui-controls` 17/17 |
+| 字体/颜色/拖拽/历史 | T04–T06/T10 `editor-fonts` 12/12、`editor-geometry` 1/1、`editor-settings` 5/5、`editor-richtext` 4/4 |
+| 加载/空/失败/导出 | T11 宽度矩阵与 `ui-baseline` 2/2、`export` 2/2 |
+| PNG 像素与入口边界 | `AE=0`、SHA-256 一致；web/admin/renderer 三站 boundary PASS |
