@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
-import { openPoster } from "./helpers";
+import { chooseCardAction, openPoster } from "./helpers";
 
 async function register(request: Page["request"], username: string) {
   const reply = await request.post("/api/v1/auth/register", {
@@ -56,8 +56,7 @@ test("toast from a modal is accessible and retryable", async ({ page }) => {
   await expect(page).toHaveURL(/\/projects$/);
   const card = page.getByTestId("project-card").first();
   await expect(card).toBeVisible();
-  await card.getByLabel(/的操作$/).click();
-  await card.getByRole("button", { name: "重命名" }).click();
+  await chooseCardAction(page, card.getByLabel(/的操作$/), "重命名");
   const dialog = page.getByRole("dialog", { name: "重命名作品" });
   await expect(dialog).toBeVisible();
   const name = page.getByLabel("作品名称", { exact: true });
@@ -133,8 +132,7 @@ test("rename retry submits the title currently shown", async ({ page }) => {
   await page.getByRole("link", { name: "返回作品" }).click();
   await expect(page).toHaveURL(/\/projects$/);
   const card = page.getByTestId("project-card").first();
-  await card.getByLabel(/的操作$/).click();
-  await card.getByRole("button", { name: "重命名" }).click();
+  await chooseCardAction(page, card.getByLabel(/的操作$/), "重命名");
   const dialog = page.getByRole("dialog", { name: "重命名作品" });
   const name = page.getByLabel("作品名称", { exact: true });
   const titles: string[] = [];
@@ -158,8 +156,7 @@ test("rename retry submits the title currently shown", async ({ page }) => {
     page.getByTestId("notice").filter({ hasText: "重命名失败" }),
   ).toHaveCount(0);
 
-  await card.getByLabel(/的操作$/).click();
-  await card.getByRole("button", { name: "重命名" }).click();
+  await chooseCardAction(page, card.getByLabel(/的操作$/), "重命名");
   await name.fill("title A");
   await page.getByRole("button", { name: "保存名称" }).click();
   await expect(page.getByTestId("notice")).toContainText("重命名失败");

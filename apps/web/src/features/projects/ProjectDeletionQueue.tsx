@@ -1,6 +1,6 @@
 import type { ProjectDeletionDTO } from "@fastposter/api-client";
-import { Button, ProjectDeletionStatus } from "@fastposter/ui";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ProjectDeletionStatus } from "@fastposter/ui";
+import { Pagination } from "antd";
 import { DELETION_PAGE_SIZE } from "./useProjectDeletion";
 
 type Props = {
@@ -64,25 +64,15 @@ export function ProjectDeletionQueue({
         ))}
       </div>
       {total > DELETION_PAGE_SIZE && (
-        <div className="pagination">
-          <Button
-            disabled={page === 1}
-            onClick={() => onPage(page - 1)}
-            aria-label="待清理作品上一页"
-          >
-            <ArrowLeft size={16} />
-            上一页
-          </Button>
-          <span>第 {page} 页</span>
-          <Button
-            disabled={page * DELETION_PAGE_SIZE >= total}
-            onClick={() => onPage(page + 1)}
-            aria-label="待清理作品下一页"
-          >
-            下一页
-            <ArrowRight size={16} />
-          </Button>
-        </div>
+        <nav className="gallery-pager" aria-label="待清理作品分页">
+          <Pagination
+            current={page}
+            pageSize={DELETION_PAGE_SIZE}
+            total={total}
+            showSizeChanger={false}
+            onChange={onPage}
+          />
+        </nav>
       )}
     </section>
   );

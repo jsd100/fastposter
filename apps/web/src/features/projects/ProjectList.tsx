@@ -1,5 +1,7 @@
 import type { ProjectDTO } from "@fastposter/api-client";
-import { Button } from "@fastposter/ui";
+import { Button, IconButton } from "@fastposter/ui";
+import { Dropdown, Empty } from "antd";
+import type { ReactNode } from "react";
 import {
   Copy,
   ImagePlus,
@@ -8,25 +10,41 @@ import {
   RotateCcw,
   Trash2,
   ArrowUpRight,
+  LayoutTemplate,
 } from "lucide-react";
 import { Link } from "../../router";
+import { CARD_MENU } from "./project-menu";
 export type ProjectAction =
   "rename" | "clone" | "delete" | "restore" | "permanent-delete";
+/** The card menu is a popup, so its icons are declared with the actions. */
+const ICONS: Record<string, ReactNode> = {
+  rename: <Pencil size={15} />,
+  clone: <Copy size={15} />,
+  delete: <Trash2 size={15} />,
+};
 type Props = {
   projects: ProjectDTO[];
   loading: boolean;
   trash: boolean;
+  filtered?: boolean;
+  searchTerm?: string;
   pendingDeletions?: number;
   onAction: (action: ProjectAction, project: ProjectDTO) => void;
   onUpload: () => void;
+  onBrowseTemplates: () => void;
+  onClearSearch: () => void;
 };
 export function ProjectListView({
   projects,
   loading,
   trash,
+  filtered = false,
+  searchTerm = "",
   pendingDeletions = 0,
   onAction,
   onUpload,
+  onBrowseTemplates,
+  onClearSearch,
 }: Props) {
   if (loading)
     return (
@@ -39,7 +57,18 @@ export function ProjectListView({
         ))}
       </div>
     );
-  if (projects.length === 0)
+  if (projects.length === 0) {
+    if (filtered)
+      return (
+        <div className="empty-workspace">
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={`没有匹配“${searchTerm}”的作品`}
+          >
+            <Button onClick={onClearSearch}>清除搜索</Button>
+          </Empty>
+        </div>
+      );
     return (
       <div className="empty-workspace">
         <div className="empty-symbol">
@@ -64,10 +93,16 @@ export function ProjectListView({
             : "导入喜欢的背景，写下此刻的灵感。"}
         </p>
         {!trash && (
-          <Button onClick={onUpload} variant="primary">
-            <ImagePlus size={17} />
-            导入背景图
-          </Button>
+          <div className="empty-actions">
+            <Button onClick={onUpload} variant="primary">
+              <ImagePlus size={17} />
+              导入背景图
+            </Button>
+            <Button onClick={onBrowseTemplates}>
+              <LayoutTemplate size={17} />
+              从模板开始
+            </Button>
+          </div>
         )}
         <span className="empty-formats">
           {trash
@@ -76,6 +111,7 @@ export function ProjectListView({
         </span>
       </div>
     );
+  }
   return (
     <div className="project-grid">
       {projects.map((project) => (
@@ -136,41 +172,30 @@ export function ProjectListView({
                 </Button>
               </div>
             ) : (
-              <details className="project-menu">
-                <summary aria-label={`${project.title} 的操作`}>
-                  <MoreHorizontal size={20} />
-                </summary>
-                <div className="project-menu-items">
-                  <Button
-                    onClick={(e) => {
-                      e.currentTarget.closest("details")!.open = false;
-                      onAction("rename", project);
-                    }}
-                  >
-                    <Pencil size={15} />
-                    重命名
-                  </Button>
-                  <Button
-                    onClick={(e) => {
-                      e.currentTarget.closest("details")!.open = false;
-                      onAction("clone", project);
-                    }}
-                  >
-                    <Copy size={15} />
-                    复制作品
-                  </Button>
-                  <Button
-                    className="text-danger"
-                    onClick={(e) => {
-                      e.currentTarget.closest("details")!.open = false;
-                      onAction("delete", project);
-                    }}
-                  >
-                    <Trash2 size={15} />
-                    移到回收站
-                  </Button>
-                </div>
-              </details>
+              /* Destroyed on close, so a menu the visitor already dismissed
+                 does not linger in the document as a second copy. */
+              <Dropdown
+                trigger={["click"]}
+                placement="bottomRight"
+                destroyOnHidden
+                menu={{
+                  items: CARD_MENU.map((entry) => ({
+                    key: entry.action,
+                    label: entry.text,
+                    icon: ICONS[entry.action],
+                    danger: entry.danger,
+                  })),
+                  onClick: ({ key }) =>
+                    onAction(key as ProjectAction, project),
+                }}
+              >
+                <IconButton
+                  aria-label={`${project.title} 的操作`}
+                  density="compact"
+                >
+                  <MoreHorizontal size={18} />
+                </IconButton>
+              </Dropdown>
             )}
           </div>
         </article>

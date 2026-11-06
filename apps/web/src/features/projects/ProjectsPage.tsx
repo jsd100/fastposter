@@ -1,5 +1,12 @@
 import { BrandIcon } from "@fastposter/ui";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { Pagination } from "antd";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type RefObject,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiClientError,
@@ -22,36 +29,53 @@ import {
 import {
   FolderOpen,
   ImagePlus,
-  LogOut,
-  Search,
-  Trash2,
-  ArrowLeft,
-  ArrowRight,
-  Settings2,
-  Plus,
   LayoutTemplate,
+  LogOut,
+  Plus,
+  Search,
+  Settings2,
+  Trash2,
 } from "lucide-react";
 import { errorMessage, request } from "../../api";
 import { Link, navigate } from "../../router";
 import { useSession } from "../auth/Session";
 import { ProjectListView, type ProjectAction } from "./ProjectList";
 import { ProjectDeletionQueue } from "./ProjectDeletionQueue";
-import { useProjectDeletion } from "./useProjectDeletion";
+import { DELETION_PAGE_SIZE, useProjectDeletion } from "./useProjectDeletion";
 import { TemplatePicker } from "../templates/TemplatePicker";
-export function ProjectsPage() {
+import {
+  lastValidPage,
+  readPosition,
+  type CollectionPosition,
+} from "./collection-position";
+
+/** UI-04: the gallery always asks the server for 24 works per page. */
+const PAGE_SIZE = 24;
+
+export function ProjectsPage({
+  position,
+}: {
+  position: RefObject<CollectionPosition | null>;
+}) {
   const { user, logout } = useSession();
   const cache = useQueryClient();
-  const [trash, setTrash] = useState(false),
-    [page, setPage] = useState(1),
-    [search, setSearch] = useState(""),
-    [keyword, setKeyword] = useState("");
+  const userId = user!.id;
+  /* A position saved by this account during this App session. Anything else
+     — another account, a new session — starts from the first page. */
+  const saved = readPosition(position.current, userId);
+  const [trash, setTrash] = useState(saved?.trash ?? false);
+  const [page, setPage] = useState(saved?.page ?? 1);
+  const [search, setSearch] = useState(saved?.search ?? "");
+  const [keyword, setKeyword] = useState(saved?.keyword ?? "");
+  const [deletionPage, setDeletionPage] = useState(saved?.deletionPage ?? 1);
+  const editedSearch = useRef(false);
+  const pendingScroll = useRef<number | null>(saved?.scrollTop ?? null);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [uploading, setUploading] = useState(false),
     [uploadError, setUploadError] = useState(""),
     [pendingFile, setPendingFile] = useState<File | null>(null),
     [deletionProject, setDeletionProject] = useState<ProjectDTO | null>(null),
-    [deletionPage, setDeletionPage] = useState(1),
     [deletionError, setDeletionError] = useState(""),
     [dialog, setDialog] = useState<{
       action: "rename" | "delete";
@@ -63,38 +87,94 @@ export function ProjectsPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const retry = useRef<(() => void) | null>(null);
   const confirmRef = useRef<(() => Promise<void>) | null>(null);
+  /* Only a keystroke may reset the page. A restored search value arrives
+     through the same state, and re-running the debounce would throw away the
+     very page that position was saved with. */
   useEffect(() => {
+    if (!editedSearch.current) return;
     const id = setTimeout(() => {
+      editedSearch.current = false;
       setKeyword(search);
       setPage(1);
       setDeletionPage(1);
     }, 300);
     return () => clearTimeout(id);
   }, [search]);
-  const key = ["projects", user!.id, trash, page, keyword];
   const query = useQuery({
-    queryKey: key,
+    queryKey: ["projects", userId, trash, page, keyword],
     queryFn: () =>
-      request(routes.ListProjects, { page, pageSize: 24, trash, keyword }),
+      request(routes.ListProjects, {
+        page,
+        pageSize: PAGE_SIZE,
+        trash,
+        keyword,
+      }),
     retry: false,
     staleTime: 15_000,
   });
+  const total = query.data?.total ?? 0;
   const refresh = () =>
-    cache.invalidateQueries({ queryKey: ["projects", user!.id] });
-  const projectDeletion = useProjectDeletion(user!.id, {
+    cache.invalidateQueries({ queryKey: ["projects", userId] });
+  const projectDeletion = useProjectDeletion(userId, {
     enabled: trash,
     page: deletionPage,
     keyword,
   });
+  /* Save where this session is standing, so that returning from the editor
+     can re-open the same page of the same filtered list at the same scroll. */
+  useEffect(() => {
+    const store = () => {
+      position.current = {
+        userId,
+        trash,
+        search,
+        keyword,
+        page,
+        deletionPage,
+        scrollTop: window.scrollY,
+      };
+    };
+    store();
+    window.addEventListener("scroll", store, { passive: true });
+    return () => window.removeEventListener("scroll", store);
+  }, [position, userId, trash, search, keyword, page, deletionPage]);
+  /* A page the server no longer has — because a filter or a deletion shrank
+     the list — falls back to the last page that really has rows. Loading
+     never counts: while rows are in flight there is nothing to judge by. */
   useEffect(() => {
     if (query.isPending || query.isFetching) return;
-    if (page > 1 && (query.data?.projects.length ?? 0) === 0) setPage(page - 1);
-  }, [page, query.data, query.isFetching, query.isPending]);
+    const next = lastValidPage({
+      page,
+      rows: query.data?.projects.length ?? 0,
+      total,
+      pageSize: PAGE_SIZE,
+    });
+    if (next !== page) setPage(next);
+  }, [page, query.data, query.isFetching, query.isPending, total]);
   useEffect(() => {
     if (projectDeletion.isLoading) return;
-    if (deletionPage > 1 && projectDeletion.pending.length === 0)
-      setDeletionPage(deletionPage - 1);
-  }, [deletionPage, projectDeletion.isLoading, projectDeletion.pending.length]);
+    const next = lastValidPage({
+      page: deletionPage,
+      rows: projectDeletion.pending.length,
+      total: projectDeletion.total,
+      pageSize: DELETION_PAGE_SIZE,
+    });
+    if (next !== deletionPage) setDeletionPage(next);
+  }, [
+    deletionPage,
+    projectDeletion.isLoading,
+    projectDeletion.pending.length,
+    projectDeletion.total,
+  ]);
+  /* The scroll position comes back once the restored page is on screen. */
+  useEffect(() => {
+    if (pendingScroll.current === null) return;
+    if (query.isPending || query.isFetching || query.error) return;
+    const target = pendingScroll.current;
+    pendingScroll.current = null;
+    if ((query.data?.projects.length ?? 0) === 0) return;
+    requestAnimationFrame(() => window.scrollTo(0, target));
+  }, [query.data, query.error, query.isFetching, query.isPending]);
   useErrorNotice("projects:action", error || null, {
     action: { label: "重试", onClick: () => retry.current?.() },
   });
@@ -242,7 +322,9 @@ export function ProjectsPage() {
     setError("");
     retry.current = null;
   }
-  const select = (next: boolean) => {
+  /* The collection and the trash answer different questions, so switching
+     starts a fresh position instead of carrying one across. */
+  function select(next: boolean) {
     setTrash(next);
     setPage(1);
     setDeletionPage(1);
@@ -250,7 +332,15 @@ export function ProjectsPage() {
     setKeyword("");
     setError("");
     setDeletionError("");
-  };
+    editedSearch.current = false;
+    pendingScroll.current = null;
+    position.current = null;
+    window.scrollTo(0, 0);
+  }
+  function searchThrough(next: string) {
+    editedSearch.current = true;
+    setSearch(next);
+  }
   function drop(e: DragEvent) {
     e.preventDefault();
     setDragging(false);
@@ -258,50 +348,47 @@ export function ProjectsPage() {
     if (file) void upload(file);
   }
   return (
-    <div className="workspace-shell">
-      <aside className="workspace-sidebar">
+    <div className="gallery-shell">
+      <header className="gallery-topbar">
         <Link href="/projects" className="brand">
           <BrandIcon />
           FastPoster
         </Link>
-        <div className="sidebar-caption">创作空间</div>
-        <nav aria-label="作品导航">
+        <nav aria-label="作品导航" className="gallery-nav">
           <button
-            aria-label="我的作品"
-            className={!trash ? "nav-item active" : "nav-item"}
+            type="button"
+            aria-pressed={!trash}
+            className="gallery-nav-item"
             onClick={() => select(false)}
           >
-            <FolderOpen size={18} />
-            我的作品<span>{!trash ? query.data?.total : undefined}</span>
+            <FolderOpen size={16} />
+            我的作品
           </button>
           <button
-            className={trash ? "nav-item active" : "nav-item"}
+            type="button"
+            aria-pressed={trash}
+            className="gallery-nav-item"
             onClick={() => select(true)}
           >
-            <Trash2 size={18} />
+            <Trash2 size={16} />
             回收站
           </button>
         </nav>
-        <div className="sidebar-tip">
-          <span className="tip-star">✳</span>
-          <h3>让灵感，有处安放。</h3>
-          <p>
-            原图画布，自由文字。
-            <br />
-            从简单的排版开始创作。
-          </p>
-        </div>
-        <div className="sidebar-account">
-          <span className="avatar">
-            {user!.username.slice(0, 1).toUpperCase()}
-          </span>
+        <div className="gallery-account">
+          <Link className="password-link" href="/password">
+            <Settings2 size={14} />
+            修改密码
+          </Link>
           <span className="account-name">
+            <span className="avatar">
+              {user!.username.slice(0, 1).toUpperCase()}
+            </span>
             {user!.username}
-            <small>个人空间</small>
           </span>
           <Tooltip label="退出登录">
             <IconButton
               aria-label="退出登录"
+              density="compact"
               onClick={() =>
                 void logout().catch((e) => setError(errorMessage(e)))
               }
@@ -310,13 +397,9 @@ export function ProjectsPage() {
             </IconButton>
           </Tooltip>
         </div>
-        <Link className="password-link" href="/password">
-          <Settings2 size={13} />
-          修改密码
-        </Link>
-      </aside>
+      </header>
       <main
-        className={`workspace-main ${dragging ? "drop-active" : ""}`}
+        className={`gallery-main ${dragging ? "drop-active" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -327,29 +410,8 @@ export function ProjectsPage() {
         }}
         onDrop={drop}
       >
-        <header className="workspace-topbar">
-          <div className="breadcrumb">
-            个人空间 <span>/</span>{" "}
-            <strong>{trash ? "回收站" : "我的作品"}</strong>
-          </div>
-          <span className="workspace-badge">
-            <i />
-            云端保存
-          </span>
-          <Tooltip label="退出登录">
-            <IconButton
-              className="mobile-logout"
-              aria-label="退出登录"
-              onClick={() =>
-                void logout().catch((e) => setError(errorMessage(e)))
-              }
-            >
-              <LogOut size={18} />
-            </IconButton>
-          </Tooltip>
-        </header>
-        <div className="workspace-content">
-          <div className="workspace-title-row">
+        <div className="gallery-content">
+          <div className="gallery-title-row">
             <div>
               <span className="eyebrow">
                 {trash ? "A SECOND CHANCE" : "YOUR POSTER COLLECTION"}
@@ -364,7 +426,7 @@ export function ProjectsPage() {
                   : "每一张画面，都从一个想法开始。"}
               </p>
             </div>
-            <div className="workspace-title-actions">
+            <div className="gallery-title-actions">
               <Button onClick={() => setTemplatesOpen(true)}>
                 <LayoutTemplate size={17} />
                 模板库
@@ -390,21 +452,21 @@ export function ProjectsPage() {
               if (file) void upload(file);
             }}
           />
-          <div className="workspace-filter-row">
-            <span>
-              {trash ? "已移入回收站" : "全部海报"}
-              <span className="count-badge">{query.data?.total ?? "—"}</span>
-            </span>
+          <div className="gallery-filter-row">
             <div className="search-input">
               <Search size={16} />
               <TextInput
                 variant="bare"
                 aria-label="搜索作品"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => searchThrough(e.target.value)}
                 placeholder="搜索作品名称"
               />
             </div>
+            <span className="gallery-count">
+              {keyword ? "匹配的作品" : trash ? "已移入回收站" : "全部海报"}
+              <span className="count-badge">{total}</span>
+            </span>
           </div>
           {uploading && (
             <Status>
@@ -421,38 +483,39 @@ export function ProjectsPage() {
               busy={projectDeletion.isBusy}
             />
           )}
-          {query.error ? null : (
+          {query.error ? (
+            <div className="gallery-error">
+              <Status tone="error">作品列表加载失败，当前筛选已保留。</Status>
+              <Button onClick={() => void query.refetch()}>重新加载</Button>
+            </div>
+          ) : (
             <ProjectListView
               projects={query.data?.projects ?? []}
               loading={query.isPending}
               trash={trash}
+              filtered={keyword !== ""}
+              searchTerm={keyword}
               pendingDeletions={projectDeletion.total}
               onAction={(action, p) => void act(action, p)}
               onUpload={() => fileInput.current?.click()}
+              onBrowseTemplates={() => setTemplatesOpen(true)}
+              onClearSearch={() => searchThrough("")}
             />
           )}
-          {(query.data?.total ?? 0) > 24 && (
-            <div className="pagination">
-              <Button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ArrowLeft size={16} />
-                上一页
-              </Button>
-              <span>第 {page} 页</span>
-              <Button
-                disabled={page * 24 >= (query.data?.total ?? 0)}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                下一页
-                <ArrowRight size={16} />
-              </Button>
-            </div>
+          {!query.error && total > PAGE_SIZE && (
+            <nav className="gallery-pager" aria-label="作品分页">
+              <Pagination
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={total}
+                showSizeChanger={false}
+                onChange={setPage}
+              />
+            </nav>
           )}
-          <footer className="workspace-footer">
+          <footer className="gallery-footer">
             <span>为灵感留白，为文字定格。</span>
-            <span>FastPoster</span>
+            <span>云端保存 · FastPoster</span>
           </footer>
         </div>
         {dragging && (

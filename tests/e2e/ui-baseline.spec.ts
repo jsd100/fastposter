@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import { chooseCardAction } from "./helpers";
 
 // Playwright wipes test-results/ before every run, so a before/after comparison
 // needs FP_UI_BASELINE_OUT pointed somewhere outside it.
@@ -184,18 +185,23 @@ describeCapture("desktop 1440x1000", () => {
     await expect(page).toHaveURL(/\/projects\/[^/]+\/edit/);
     await page.getByRole("link", { name: "返回作品", exact: true }).click();
     await expect(page.getByTestId("project-card")).toHaveCount(1);
-    await page.getByLabel("editor 的操作").click();
-    await page.getByRole("button", { name: "重命名", exact: true }).click();
+    await chooseCardAction(page, page.getByLabel("editor 的操作"), "重命名");
     await page.getByLabel("作品名称").fill("旅行日记");
     await page.getByRole("button", { name: "保存名称", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "旅行日记", exact: true }),
     ).toBeVisible();
-    await page.getByLabel("旅行日记 的操作").click();
-    await page.getByRole("button", { name: "复制作品", exact: true }).click();
+    await chooseCardAction(
+      page,
+      page.getByLabel("旅行日记 的操作"),
+      "复制作品",
+    );
     await expect(page.getByTestId("project-card")).toHaveCount(2);
-    await page.getByLabel("旅行日记 副本 的操作").click();
-    await page.getByRole("button", { name: "重命名", exact: true }).click();
+    await chooseCardAction(
+      page,
+      page.getByLabel("旅行日记 副本 的操作"),
+      "重命名",
+    );
     await page.getByLabel("作品名称").fill("春日明信片");
     await page.getByRole("button", { name: "保存名称", exact: true }).click();
     await expect(
@@ -381,6 +387,8 @@ describeCapture("mobile 390x844", () => {
     });
     const admin = await adminContext.newPage();
     await loginAdmin(admin);
+    /* The phone layout hides the sidebar; the same links live in the drawer. */
+    await admin.getByRole("button", { name: "导航菜单", exact: true }).click();
     await admin.getByRole("link", { name: "背景库", exact: true }).click();
     await admin.getByRole("button", { name: "添加背景", exact: true }).click();
     await admin.getByLabel("素材名称", { exact: true }).fill("晨雾山谷");

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Pagination } from "antd";
 import {
   apiClient,
   routes,
@@ -23,6 +24,8 @@ import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
 
+const PAGE_SIZE = 24;
+
 export function TemplatePicker({
   onClose,
   onApplied,
@@ -43,7 +46,7 @@ export function TemplatePicker({
       request(routes.ListCatalog, {
         kind: "template",
         page,
-        pageSize: 24,
+        pageSize: PAGE_SIZE,
         keyword,
         categoryId: category || undefined,
       }),
@@ -170,7 +173,8 @@ export function TemplatePicker({
     <Dialog title="模板库" className="template-picker" onClose={onClose}>
       <p>选择模板会创建一个独立作品，保留画布、背景与文字排版。</p>
       <div className="picker-filters">
-        <TextInput variant="bare"
+        <TextInput
+          variant="bare"
           aria-label="搜索模板"
           placeholder="搜索模板"
           value={keyword}
@@ -246,22 +250,25 @@ export function TemplatePicker({
         })}
       </div>
       {q.isPending && <Status>正在加载模板…</Status>}
+      {q.error && (
+        <div className="picker-failed">
+          <Status tone="error">模板加载失败，当前筛选已保留。</Status>
+          <Button onClick={() => void q.refetch()}>重新加载</Button>
+        </div>
+      )}
       {q.data?.resources.length === 0 && (
         <p className="picker-empty">暂无已发布的模板。</p>
       )}
-      {(q.data?.total ?? 0) > 24 && (
-        <div className="pagination">
-          <Button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-            上一页
-          </Button>
-          <span>{page}</span>
-          <Button
-            disabled={page * 24 >= (q.data?.total ?? 0)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            下一页
-          </Button>
-        </div>
+      {(q.data?.total ?? 0) > PAGE_SIZE && (
+        <nav className="picker-pager" aria-label="模板分页">
+          <Pagination
+            current={page}
+            pageSize={PAGE_SIZE}
+            total={q.data?.total ?? 0}
+            showSizeChanger={false}
+            onChange={setPage}
+          />
+        </nav>
       )}
     </Dialog>
   );

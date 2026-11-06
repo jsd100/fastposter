@@ -63,8 +63,8 @@ describe("ProjectDeletionQueue", () => {
 
   it("paginates the pending queue independently", () => {
     const html = render([task({})], 30, 2);
-    expect(html).toContain("第 2 页");
-    expect(html).toContain("上一页");
-    expect(html).toContain("下一页");
+    expect(html).toContain('aria-label="待清理作品分页"');
+    expect(html).toMatch(/aria-current="page"[^>]*>2</);
+    expect(html).not.toMatch(/aria-current="page"[^>]*>1</);
   });
 });

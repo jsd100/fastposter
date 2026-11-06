@@ -1,5 +1,11 @@
 import { BrandIcon } from "@fastposter/ui";
-import React, { lazy, Suspense, useEffect, type ReactNode } from "react";
+import React, {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NotificationsProvider, Status, UIProvider } from "@fastposter/ui";
@@ -8,6 +14,9 @@ import { SessionProvider, useSession } from "./features/auth/Session";
 import { AuthPage } from "./features/auth/AuthPage";
 import { PasswordPage } from "./features/auth/PasswordPage";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
+import type {
+  CollectionPosition,
+} from "./features/projects/collection-position";
 import "@fastposter/ui/styles.css";
 import "./styles.css";
 
@@ -26,6 +35,17 @@ function Redirect({ to }: { to: string }) {
 function App() {
   const path = usePath();
   const { user } = useSession();
+  /* Where the gallery was standing in this session, kept here so that
+     leaving for the editor and coming back is one continuous visit. Logging
+     out, an expired session or another account drops it during this render,
+     before the gallery can read it back. */
+  const collection = useRef<CollectionPosition | null>(null);
+  const account = user?.id ?? null;
+  const previousAccount = useRef(account);
+  if (previousAccount.current !== account) {
+    previousAccount.current = account;
+    collection.current = null;
+  }
   if (user === undefined)
     return (
       <main className="app-loading">
@@ -59,7 +79,8 @@ function App() {
         <ProjectWorkspace key={user.id + editor[1]} projectId={editor[1]} />
       </Suspense>
     );
-  if (path === "/projects") return <ProjectsPage key={user.id} />;
+  if (path === "/projects")
+    return <ProjectsPage key={user.id} position={collection} />;
   return <Redirect to="/projects" />;
 }
 createRoot(document.getElementById("root")!).render(

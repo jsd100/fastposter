@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Pagination } from "antd";
 import { routes, type ResourceDTO } from "@fastposter/api-client";
 import {
   Button,
@@ -117,7 +118,8 @@ export function CopyPicker({
         选择分类浏览已发布文案。无选区时新建文字块；选中文字时替换选区并沿用当前样式。
       </p>
       <div className="picker-filters">
-        <TextInput variant="bare"
+        <TextInput
+          variant="bare"
           aria-label="搜索文案"
           placeholder="搜索文案标题或内容"
           value={keyword}
@@ -171,24 +173,27 @@ export function CopyPicker({
         ))}
       </div>
       {copies.isPending && <Status>正在加载文案…</Status>}
+      {copies.error && (
+        <div className="picker-failed">
+          <Status tone="error">文案加载失败，当前分类已保留。</Status>
+          <Button onClick={() => void copies.refetch()}>重新加载</Button>
+        </div>
+      )}
       {copies.data?.resources.length === 0 && (
         <p className="picker-empty">
           {selected ? "该分类暂无已发布文案。" : "暂无已发布文案。"}
         </p>
       )}
       {(copies.data?.total ?? 0) > PAGE_SIZE && (
-        <div className="pagination">
-          <Button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-            上一页
-          </Button>
-          <span>{page}</span>
-          <Button
-            disabled={page * PAGE_SIZE >= (copies.data?.total ?? 0)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            下一页
-          </Button>
-        </div>
+        <nav className="picker-pager" aria-label="文案分页">
+          <Pagination
+            current={page}
+            pageSize={PAGE_SIZE}
+            total={copies.data?.total ?? 0}
+            showSizeChanger={false}
+            onChange={setPage}
+          />
+        </nav>
       )}
     </Dialog>
   );

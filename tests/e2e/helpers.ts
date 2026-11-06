@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import path from "node:path";
 export async function openPoster(page: Page, prefix = "rich") {
   const name = prefix + "_" + Date.now().toString(36);
@@ -84,4 +84,20 @@ export async function showOpenOptions(page: Page, label: string) {
   await trigger.click();
   await expect(page.getByRole("listbox")).toBeVisible();
   return page.getByRole("listbox");
+}
+/**
+ * Chooses one item from a poster card menu and waits for the popup to leave.
+ * antd fades the old menu out for a moment, and opening the next menu within
+ * that window puts two matches on screen for every role query.
+ */
+export async function chooseCardAction(
+  page: Page,
+  trigger: Locator,
+  item: string,
+) {
+  await trigger.click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toHaveCount(1);
+  await menu.getByRole("menuitem", { name: item, exact: true }).click();
+  await expect(menu).toHaveCount(0);
 }

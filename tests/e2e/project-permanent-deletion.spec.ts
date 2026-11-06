@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import { chooseCardAction } from "./helpers";
 
 type DeletionDTO = {
   id: string;
@@ -64,8 +65,11 @@ async function backToProjects(page: Page) {
 }
 
 async function renameProject(page: Page, from: string, to: string) {
-  await card(page, from).getByLabel(`${from} 的操作`, { exact: true }).click();
-  await page.getByRole("button", { name: "重命名", exact: true }).click();
+  await chooseCardAction(
+    page,
+    card(page, from).getByLabel(`${from} 的操作`, { exact: true }),
+    "重命名",
+  );
   await page.getByLabel("作品名称").fill(to);
   await page.getByRole("button", { name: "保存名称", exact: true }).click();
   await expect(
@@ -74,10 +78,11 @@ async function renameProject(page: Page, from: string, to: string) {
 }
 
 async function moveToTrash(page: Page, title: string) {
-  await card(page, title)
-    .getByLabel(`${title} 的操作`, { exact: true })
-    .click();
-  await page.getByRole("button", { name: "移到回收站", exact: true }).click();
+  await chooseCardAction(
+    page,
+    card(page, title).getByLabel(`${title} 的操作`, { exact: true }),
+    "移到回收站",
+  );
   await page
     .getByRole("button", { name: "确认移入回收站", exact: true })
     .click();
@@ -323,8 +328,11 @@ test("cloned projects keep the shared background after the original is permanent
   await account(page, "share");
   await upload(page, "rgba.png");
   await backToProjects(page);
-  await card(page, "rgba").getByLabel("rgba 的操作", { exact: true }).click();
-  await page.getByRole("button", { name: "复制作品", exact: true }).click();
+  await chooseCardAction(
+    page,
+    card(page, "rgba").getByLabel("rgba 的操作", { exact: true }),
+    "复制作品",
+  );
   await expect(page.getByTestId("project-card")).toHaveCount(2);
   await expect(
     page.getByRole("heading", { name: "rgba 副本", exact: true }),
@@ -627,10 +635,15 @@ test("deleting the only item on the last trash page returns to the previous page
 
   await page.goto("/projects");
   await openTrash(page);
+  const pager = page.getByRole("navigation", { name: "作品分页" });
+  const currentPage = (index: number) =>
+    expect(
+      pager.getByRole("button", { name: `页 ${index}`, exact: true }),
+    ).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("project-card")).toHaveCount(24);
-  await expect(page.getByText("第 1 页", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "下一页", exact: true }).click();
-  await expect(page.getByText("第 2 页", { exact: true })).toBeVisible();
+  await currentPage(1);
+  await pager.getByRole("button", { name: "下一页", exact: true }).click();
+  await currentPage(2);
   await expect(page.getByTestId("project-card")).toHaveCount(1);
 
   const lastCard = page.getByTestId("project-card");
@@ -643,9 +656,7 @@ test("deleting the only item on the last trash page returns to the previous page
   await expect(dialog).toHaveCount(0);
 
   await expect(page.getByTestId("project-card")).toHaveCount(24);
-  await expect(
-    page.getByRole("button", { name: "下一页", exact: true }),
-  ).toHaveCount(0);
+  await expect(pager).toHaveCount(0);
 });
 
 test("cleanup tasks stay scoped to the account that deleted the project", async ({

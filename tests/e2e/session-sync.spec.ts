@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
+import { chooseCardAction } from "./helpers";
 
 async function register(request: Page["request"], username: string) {
   const reply = await request.post("/api/v1/auth/register", {
@@ -37,8 +38,7 @@ test("switching accounts does not resurrect the previous account's error", async
   await expect(pageA).toHaveURL(/\/projects$/);
   const card = pageA.getByTestId("project-card").first();
   await expect(card).toBeVisible();
-  await card.getByLabel(/的操作$/).click();
-  await card.getByRole("button", { name: "重命名" }).click();
+  await chooseCardAction(pageA, card.getByLabel(/的操作$/), "重命名");
   const dialog = pageA.getByRole("dialog", { name: "重命名作品" });
   await expect(dialog).toBeVisible();
   await pageA.route("**/api/v1/projects/*", async (route) => {
