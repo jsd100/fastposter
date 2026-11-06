@@ -1,6 +1,6 @@
 # FastPoster antd 迁移验证记录
 
-> 计划：`docs/superpowers/plans/2026-11-05-antd-frontend-migration.md`。执行账本：`.superpowers/sdd/2026-11-05-antd-frontend-migration/progress.md`（本文件只汇总可复核证据）。
+> 计划：`docs/superpowers/plans/2026-11-05-antd-frontend-migration.md`。执行账本：`.superpowers/sdd/2026-11-05-antd-frontend-migration-plans/progress.md`（本文件只汇总可复核证据）。
 
 ```yaml
 status: IN_PROGRESS
@@ -9,23 +9,34 @@ execution_mode: native
 workspace: "/Users/aaa/acode/FastPoster"
 branch: "feat/fastposter"
 base_commit: "d6c3d45"
-last_verified_commit: "ea37d8a"
-current_task: T07
-next_step: T08.1
-requirements: [UI-03, UI-11, UI-12]
+last_verified_commit: "3d3bdc5"
+current_task: T08
+next_step: T09.1
+requirements: [UI-05, UI-06, UI-10]
 changed_paths:
-  - "apps/admin/package.json"
-  - "apps/admin/src/main.tsx"
-  - "apps/admin/src/AdminLayout.tsx"
-  - "apps/admin/src/useNarrowScreen.ts"
+  - "apps/admin/src/features/Resources.tsx"
+  - "apps/admin/src/features/catalog-state.ts"
+  - "apps/admin/src/features/catalog-state.test.ts"
+  - "apps/admin/src/features/copy/CategoryTree.tsx"
+  - "apps/admin/src/features/copy/CopyForm.tsx"
+  - "apps/admin/src/features/copy/CopyList.tsx"
+  - "apps/admin/src/features/copy/CopyPage.tsx"
+  - "apps/admin/src/features/templates/TemplateList.tsx"
+  - "apps/admin/src/features/templates/TemplateEditor.tsx"
   - "apps/admin/src/styles.css"
-  - "apps/admin/src/features/records.tsx"
-  - "apps/admin/src/features/ExportJobs.tsx"
-  - "apps/admin/src/features/Metadata.tsx"
-  - "apps/admin/src/features/projects/ProjectDeletionQueue.tsx"
-  - "packages/ui/src/Dialog.tsx"
-  - "tests/e2e/admin-layout.spec.ts"
-  - "pnpm-lock.yaml"
+  - "packages/ui/src/Checkbox.tsx"
+  - "packages/ui/src/Upload.tsx"
+  - "packages/ui/src/Workbench.tsx"
+  - "packages/ui/src/catalog-control-contract.test.ts"
+  - "packages/ui/src/index.ts"
+  - "packages/ui/src/modal-layer.ts"
+  - "packages/ui/src/modal-layer.test.ts"
+  - "packages/ui/src/styles.css"
+  - "packages/ui/src/theme.ts"
+  - "packages/poster-editor/src/keyboard.ts"
+  - "packages/poster-editor/src/keyboard.test.ts"
+  - "tests/e2e/admin-catalog.spec.ts"
+  - "tests/e2e/templates.spec.ts"
 decisions:
   - "全程以执行账本记录任务级证据；计划复选框不勾选，避免与账本双写。"
   - "T03：antd 6 的模态滚动锁是注入的 html body 规则而非内联样式，断言改读 computed overflow-y。"
@@ -56,6 +67,17 @@ decisions:
   - "T07：共享 `Dialog` 新增 `closable`（默认 true），失败详情设 false。触发条件：antd 右上角 X 的可访问名就是「关闭」，与页脚按钮同名，一个弹窗里出现两个「关闭」既是 strict mode 歧义也是真实的可读性问题；全站 16 处既有断言把 X 当作「关闭」控件，故只保留页脚那一个具名控件，遮罩与 Escape 仍可关闭。代价：该弹窗右上角没有 X。"
   - "T07：抽屉关闭后的焦点回归由页面保证（`drawer` 迁移的 effect + `focusable={{focusTriggerAfterClose:false}}`）。触发条件：rc-drawer 恢复的是「打开那一刻被聚焦的元素」，手机点按不聚焦按钮，那次记录是 `body`；在 `onClose` 里立即 focus 会被尚未释放的焦点锁拽回面板，在动效回调里 focus 又会被库随后写回 `body`。代价：焦点回归多一条页面自己的规则，antd 焦点锁语义变化时该断言会红。"
   - "T07：`antd lint` 的两处弃用改用公开 API — Drawer `width`→`size`、Tag `bordered={false}`→默认 filled 变体，视觉不变。"
+  - "T08：文件选择用 antd `Upload` + `beforeUpload` 返回 false，命名为共享控件 `FileField`，不直接用原生 `input[type=file]`。触发条件：需求要把「选取、取消、提交」当成三个阶段可测可点，原生 input 既没有「清除待传文件」的控件，也不显示已选文件名。代价：上传请求仍由页面 `apiClient.upload` 发起，`Upload` 只负责选取；受控 `fileList` 不接 antd 的 `onChange`（`antd lint` 的 usage 警告即此项），因为列表由页面的单个 `File` 值派生，接了反而会让一次选择到达页面两次。"
+  - "T08：素材表单去掉原生 `required`。触发条件：文件是否已选由提交路径判定（缺 assetId 即抛「请选择需要上传的文件」）并进通知，浏览器校验气泡不可样式化、也不进无障碍通知，且 `Upload` 的触发器是 button，`required` 无处可挂。代价：缺文件的提示从即时气泡改为提交后的通知。"
+  - "T08：`Checkbox` 的可访问名取自可见文案，不再单独写 `aria-label`。触发条件：antd 的 `Checkbox` 根元素是 `<label>`，子节点文字即控件名称；再写 aria-label 会让「发布」与「发布模板」两个名字同时存在。代价：模板工作区标题行显示「发布模板」而不是「发布」。"
+  - "T08：文案分类树改用 antd `Tree`（`blockNode` + `defaultExpandAll` + `selectedKeys`）。触发条件：五级结构、键盘树导航与选中态由框架承担；`defaultExpandAll` 只在数据到达后挂载才有效，所以树只在 `listState()` 判定为 ready 时渲染。代价：树非受控展开，新建深层子分类后父节点若被手工收起需再展开一次。"
+  - "T08：`Tree` 组件 token `indentSize: 14`（默认 24）。触发条件：侧栏 250px、内边距 12px，五级最深行的缩进 + 展开箭头若按默认值会吃掉标题文字。代价：行首比 antd 默认更紧。"
+  - "T08：加载/空/失败判定收敛到 `apps/admin/src/features/catalog-state.ts` 的 `listState()`（纯函数，先写 4 条单测）。触发条件：T07 已确立「请求失败不能被说成暂无记录」，本任务在文案树与文案列表两处需要同一优先级（pending > failed > rows）。代价：多一个小模块，换来两处状态语义一致且可单测。"
+  - "T08：模板工作区用新增的共享 `Workbench`（`div[role=dialog][aria-label][tabindex=-1]`）而不是 antd `Modal`。触发条件：`Modal` 没有 `aria-label` 入口（只有 title，会再画一个与页面重复的标题行），且模态语义会声明键盘所有权。代价：没有遮罩与现成滚动锁；页面自身的全屏容器（`.template-editor-overlay`）已经占满视口。"
+  - "T08：`hasActiveOverlay` 拆为 `topModalLayer()`（通知去向）与 `hasBlockingOverlay()`（键盘所有权），`registerModalLayer` 新增 `blocksShortcuts`。触发条件：UI-05 要求后台全屏打开共享 `Editor`，而 UI-10 要求弹层存在时屏蔽画布 Delete/撤销/重做——同一个容器不能既接收通知又抢走它里面编辑器的快捷键。代价：注册方需要判断自己属于哪一类；已有 modal-layer 7 例与 keyboard 13 例覆盖。"
+  - "T08：`Workbench` 不绑 Escape、不做焦点陷阱。触发条件：关闭进行中的模板编辑必须是显式动作（与 T07「危险确认的取消优先」相反的破坏性方向），焦点圈定需要 `@rc-component/util` 的 `getFocusableList`，那是计划外依赖。代价：读屏用户在容器内的 Tab 顺序不受限，靠自身语义（顶栏→画布→属性）收敛。"
+  - "T08：模板背景选择保留一个隐藏原生 `input[type=file]`。触发条件：`Editor` 的 `onAssetRequest` 返回 promise，取消系统对话框时也必须 settle，antd `Upload` 没有「用户取消」这个出口。代价：全站只剩这一处原生文件输入，已有注释说明边界。"
+  - "T08：`Metadata.tsx` 里的原生 `select`（筛选作品状态）与已成死代码的 `Pager` 导出留给 T11.1 清理。触发条件：两者都不在 T08 的文件清单里，且 `project-permanent-deletion.spec.ts:381` 的 `selectOption` 属 T07 已验收断言，改它要连带重跑该 spec。代价：后台暂留一处未迁移控件，T11 必须处理并复跑该用例。"
 red_check: "见各任务「中途红灯」"
 checks:
   - "T03 pnpm exec vitest run packages/ui/src/modal-layer.test.ts packages/ui/src/notifications.test.ts packages/poster-editor/src/keyboard.test.ts → 20/20 PASS"
@@ -98,6 +120,14 @@ checks:
   - "T07 pnpm typecheck（/Users/aaa/acode/FastPoster）→ exit 0"
   - "T07 pnpm build → 8/8"
   - "T07 pnpm exec antd lint apps/admin/src --version 6.7.0 → 0 issues（两处弃用先修为 size 与 filled 变体）"
+  - "T08 pnpm exec vitest run packages/ui/src/catalog-control-contract.test.ts apps/admin/src/features/catalog-state.test.ts packages/ui/src/modal-layer.test.ts packages/poster-editor/src/keyboard.test.ts → 33/33 PASS（新增契约 9 例 + listState 4 例；契约用例是静态标记断言，键盘所有权与焦点回归的红/绿见下方两条）"
+  - "T08 pnpm exec playwright test tests/e2e/admin-catalog.spec.ts → 2/2 PASS（新临时栈，run 20261106-110022；上传计数 1→2）"
+  - "T08 pnpm exec playwright test tests/e2e/copy.spec.ts → 1/1 PASS（新临时栈，run 20261106-110206；五级 antd Tree + 发布/搜索）"
+  - "T08 pnpm exec playwright test tests/e2e/templates.spec.ts → 3/3 PASS（新临时栈，run 20261106-110231；含新用例 closing template editor returns to the filtered list）"
+  - "T08 pnpm test → 179/179 PASS"
+  - "T08 pnpm typecheck（/Users/aaa/acode/FastPoster）→ exit 0"
+  - "T08 pnpm build → 8/8"
+  - "T08 antd lint apps/admin/src → 0 issues；antd lint packages/ui/src → 0 deprecated / 2 warning（T05 virtual=false、T08 受控 fileList 无 onChange，均已裁量并注释）"
 artifacts: []
 blockers: []
 ```
@@ -258,3 +288,36 @@ blockers: []
 - 单页列表仍渲染分页按钮：antd 的上一页/下一页禁用后不离开 DOM，既有 `toHaveCount(0)` 断言失败。裁量为 `RecordPager` 在 `total <= 24` 时整体返回 `null`，与迁移前的可见行为一致。
 - 请求失败被说成「暂无记录」：react-query 出错时 `isPending` 为 false，`Table` 的空槽会显示空态。改由 `emptyText(q.isSuccess)` 决定——只有真的拿到数据才声称「暂无」，加载与失败各自交给 spinner 与错误通知；用例断言失败态下页面既无行也无「暂无记录」。
 - `antd lint` 报两处弃用：Drawer 的 `width` 在 6.x 由 `size` 取代、`Tag` 的 `bordered={false}` 由默认 `variant="filled"` 取代。按公开 API 重写后复跑 0 issues，视觉未变。
+
+## T08 迁移后台素材及模板入口
+
+- 开工 HEAD `b4f2b9e`，本任务一个提交：`3d3bdc5`。覆盖 UI-05（后台素材、模板与文案的原有行为）、UI-06（后台模板在全屏工作区顶部的控件）、UI-10（弹层栈、焦点归还与快捷键归属）。
+- 开工前的基线复跑（`t08-baseline-20261106-093443.log`）：`admin-catalog` 1 失败 1 通过、`copy` 1 通过、`templates` 2 通过。那条失败是 T05 遗留的字体下拉断言写法（`toHaveValue` 读的是 antd 关闭后清空的搜索框），不是本任务引入；其余既有回归在迁移前确认是绿的。
+- 上传的三个阶段（UI-05 的第一条）：新增共享 `FileField`（antd `Upload` + `beforeUpload` 返回 false）。选择文件只写页面的 `File` 状态，不发请求；已选文件显示为可删除的一行，点「删除文件」等于取消这次选择（`onChange(null)`）；请求仍由页面走 `apiClient.upload` 的 FormData、Cookie 与错误处理。`admin-catalog` 在登录处装了 `POST /api/v1/assets/images` 计数器，断言「选一次 = 1 次上传」「删除后再选并提交 = 共 2 次」，这比原来「提交时才知道文件有没有带上」更可检验。
+- 素材与模板的其余原生控件：`立即发布`、`发布模板`、`发布分类`、`发布文案` 改为 `CheckboxField`；素材/分类/文案的排序改为 `NumberField`（沿用 T04 的草稿与边界语义）；模板包导入改为 `FileField`，并把 80 MiB 上限、`正在导入…` 文案与结束后清掉待传项集中到 `importPackage()` 一处。
+- 文案页（UI-05 的「分类树、搜索、列表与编辑」）：`CategoryTree` 从手写递归按钮列表换成 antd `Tree`，五级结构、未发布徽标、行内「添加子分类 / 编辑分类」与「全部文案」根节点全部保留；`indentSize: 14` 与 `titleHeight: 30` 是主题里的 `Tree` token，为了 250px 侧栏。加载 / 无分类 / 失败三种状态在树自己的容器里分别呈现，判定来自新纯函数 `listState()`（4 条单测先写）；文案列表同样按 `listState()` 呈现，失败不再冒充空态。分页换成共享 `RecordPager`（`文案分页`），`PAGE_SIZE` 与其余记录页共用。
+- 模板工作区（UI-05 最后一条 + UI-06）：`TemplateEditor` 的根容器改为新增的共享 `Workbench`，`role="dialog"`、可访问名、`tabindex="-1"`、打开取焦、关闭把焦点还给「编辑」；`Editor` 仍在工作区打开后才惰性加载。弹层机制此前只有「有没有东西压在上面」一个答案，现在拆成 `topModalLayer()`（通知去向）与 `hasBlockingOverlay()`（谁占键盘），workbench 注册时带 `blocksShortcuts: false`，因此全屏容器里的撤销/重做/删除仍然活着，通知也仍能落进来（modal-layer 7 例 + keyboard 13 例）。
+- 新增回归 `closing template editor returns to the filtered list`：按分类筛选 + 搜索词过滤后打开某个模板，关闭工作区，断言筛选值与搜索词仍是打开时的那两个，且焦点落回该卡的「编辑」。它同时是 `Workbench` 的红→绿证据（见下方红灯）。
+- 保留的一处原生控件：模板背景选择仍是隐藏 `input[type=file]`，因为 `Editor` 的 `onAssetRequest` 返回一个必须在用户取消系统对话框时 settle 的 promise，antd `Upload` 不提供这个出口；文件里写了注释说明边界。
+- 样式分层：`packages/ui/src/styles.css` 新增 `.checkbox-field.ant-checkbox-wrapper`、`.file-field`、`.file-field-hint`、`.workbench:focus`；`apps/admin/src/styles.css` 删除 `.copy-node*` 的手写行几何、`.button-like`、`.resource-form input[type=file]` 与旧的 `.checkbox-field`，新增 antd Tree 的标题行规则（省略号、徽标、行内动作 hover 显现、`pointer: coarse` 下 44px）与 `.copy-tree-failed`。
+
+### 验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm exec vitest run packages/ui/src/catalog-control-contract.test.ts apps/admin/src/features/catalog-state.test.ts packages/ui/src/modal-layer.test.ts packages/poster-editor/src/keyboard.test.ts` | 33/33 PASS（契约 9 + `listState` 4 + 弹层 7 + 快捷键 13） |
+| `pnpm exec playwright test tests/e2e/admin-catalog.spec.ts` | 2/2 PASS（新临时栈；一次选择=1 次上传、删除后再选再提交=2 次） |
+| `pnpm exec playwright test tests/e2e/copy.spec.ts` | 1/1 PASS（新临时栈；五级 antd Tree、发布、搜索与插入/替换撤销） |
+| `pnpm exec playwright test tests/e2e/templates.spec.ts` | 3/3 PASS（新临时栈；含新用例与工作区打开后的字体/背景可达） |
+| `pnpm test` | 179/179 PASS |
+| `pnpm typecheck` | exit 0 |
+| `pnpm build` | 8/8 |
+| `antd lint apps/admin/src` / `antd lint packages/ui/src` | 0 issues / 0 deprecated，2 条 warning（T05 `virtual=false`、T08 受控 `fileList` 无 `onChange`，均为已记录的取舍） |
+
+### 中途红灯与处理
+
+- 新用例先红在 `await expect(workspace).toBeFocused()`（Expected: focused / Received: inactive）：那时 `TemplateEditor` 的根还是普通 `div[role=dialog]`，谁都不注册、也没人取焦。实现 `Workbench`（注册 + `node.focus()` + 卸载时 `queueMicrotask` 归还 opener）后转绿。这条同时是 UI-10「关闭归还焦点」在后台的第一个可执行断言。
+- `FileField` 的 `density` 契约用变异验证过：把 `density={density}` 写死成 `density="normal"`，`catalog-control-contract` 立即报「expected … to contain 'ant-btn-sm'」，说明这条断言真的在约束入参（模板标题行里的紧凑触发器与表单里的 36px 触发器不是同一个尺寸）。
+- `copy.spec.ts` 第一次跑红在 `chooseOption(admin, "文案分类", …)` 的 strict mode violation：`getByLabel` 会命中任何有可访问名的元素，我给侧栏 `<aside aria-label="文案分类">` 起名时撞上了弹窗里那个同名 `Select`。侧栏改名为「文案分类树」——landmark 仍具名，控件名不再重复。这也是「给区域起名」这类 a11y 改动的真实代价：名字在页内必须唯一。
+- `antd lint packages/ui/src` 新增一条 usage 警告（受控 `fileList` 建议提供 `onChange`）。裁量保留不接：列表由页面的单个 `File` 派生，接了 antd 的 `onChange` 会让同一次选择到达页面两条路径；已在 `Upload.tsx` 的注释里写明理由。
+- 未处理但已登记：`Metadata.tsx` 仍有一个原生 `select`（筛选作品状态）和已成为死代码的 `Pager` 导出，两者不在 T08 文件清单内，交给 T11.1 清理并复跑 `project-permanent-deletion.spec.ts`（其 381 行的 `selectOption` 需要跟着换成共享选择器的定位写法）。
