@@ -9,10 +9,11 @@
     "test": "pnpm -w exec vitest run apps/admin"
   },
   "dependencies": {
-    "@fastposter/poster-schema": "workspace:*",
-    "@fastposter/poster-renderer": "workspace:*",
+    "@fastposter/api-client": "workspace:*",
     "@fastposter/poster-editor": "workspace:*",
+    "@fastposter/poster-renderer": "workspace:*",
+    "@fastposter/poster-schema": "workspace:*",
     "@fastposter/ui": "workspace:*",
-    "@fastposter/api-client": "workspace:*"
+    "antd": "6.7.0"
   }
 }

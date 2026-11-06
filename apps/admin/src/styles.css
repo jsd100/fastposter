@@ -1,10 +1,3 @@
-.sidebar-caption {
-  font-size: 10px;
-  color: #a0aaa0;
-  padding: 0 12px;
-  margin-bottom: 12px;
-  letter-spacing: 1px;
-}
 .admin-shell {
   display: flex;
   min-height: 100dvh;
@@ -21,7 +14,7 @@
 }
 .admin-sidebar > .brand {
   font-size: 17px;
-  margin-bottom: 44px;
+  margin-bottom: 30px;
   gap: 8px;
 }
 .brand small {
@@ -33,31 +26,38 @@
   padding: 3px 5px;
   border-radius: 4px;
 }
-.admin-sidebar nav {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+/* Grouped navigation: the menu owns the rows, the page owns the captions, the
+   highlight and the tap target, so the routes stay plain links. */
+.admin-nav .ant-menu {
+  background: transparent;
+  border-inline-end: 0;
+  font-family: inherit;
 }
-.admin-nav {
-  min-height: 42px;
+.admin-nav .ant-menu-item-group-title {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #a0aaa0;
+  padding: 14px 12px 6px;
+}
+.admin-nav .ant-menu-item-group-list {
+  margin: 0;
+  padding: 0;
+}
+.admin-nav .ant-menu-item {
+  margin-block: 1px;
+  border-radius: 6px;
+}
+.admin-nav a {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px;
-  color: #8b9c7c;
-  border-radius: 6px;
+  color: inherit;
   font-size: 12px;
 }
-.admin-nav.active {
-  background: #edf3e5;
-  color: #456a34;
-  font-weight: 600;
-}
-.admin-nav:hover {
-  background: #f3f6ee;
+.admin-side-foot {
+  margin-top: auto;
 }
 .admin-web-link {
-  margin-top: auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -94,6 +94,15 @@
   padding: 0 38px;
   font-size: 10px;
   color: #8d9f7a;
+}
+.admin-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The drawer trigger only earns its place where the sidebar is hidden. */
+.admin-nav-toggle {
+  display: none;
 }
 .admin-role-badge {
   font-size: 8px;
@@ -243,6 +252,105 @@ td .button {
 .admin-empty p {
   font-size: 11px;
   color: #b0bda1;
+}
+/* Record sections keep the table, the phone summary and the pager in one
+   reading order, so both viewports describe the same page state. */
+.admin-records {
+  margin-bottom: 20px;
+}
+.admin-records .ant-table-placeholder .admin-empty {
+  padding: 34px 20px;
+}
+.admin-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+.admin-summary {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+.admin-summary-item {
+  border: 1px solid #e0e8d7;
+  background: white;
+  border-radius: 8px;
+  padding: 15px 16px;
+}
+.admin-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-summary-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 13px 0 0;
+}
+.admin-summary-meta dt,
+.admin-job-meta dt {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: #a4b193;
+}
+.admin-summary-meta dd,
+.admin-job-meta dd {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: #6d8459;
+  overflow-wrap: anywhere;
+}
+.admin-summary-action {
+  margin-top: 12px;
+}
+/* Monospace IDs the reader has to copy out: never ellipsised, always broken. */
+.admin-code {
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+.admin-job-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 0 24px;
+}
+.admin-job-error-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #7c8f68;
+  margin: 0 0 8px;
+}
+.admin-job-error {
+  background: #fdf4f3;
+  border: 1px solid #f0d9d6;
+  border-radius: 6px;
+  padding: 13px 15px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #a4645c;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+.admin-note-line {
+  font-size: 10px;
+  color: #a4b193;
+  margin: 14px 0 0;
+}
+.admin-nav-drawer .admin-side-foot {
+  margin-top: 24px;
+  padding: 0 22px;
+}
+@media (pointer: coarse) {
+  .admin-nav .ant-menu-item {
+    min-height: var(--fp-tap-target);
+  }
 }
 .admin-deletion-queue {
   margin-bottom: 26px;
@@ -510,32 +618,13 @@ td .button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-@media (max-width: 680px) {
+/* Navigation collapses with the antd md breakpoint, which is also where
+   useNarrowScreen swaps tables for summaries. */
+@media (max-width: 767px) {
   .admin-shell {
     display: block;
   }
   .admin-sidebar {
-    position: static;
-    width: 100%;
-    padding: 20px;
-    border: 0;
-  }
-  .admin-sidebar > .brand {
-    margin-bottom: 20px;
-  }
-  .admin-sidebar nav {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 3px;
-  }
-  .admin-nav {
-    font-size: 10px;
-    padding: 8px;
-    gap: 7px;
-  }
-  .admin-sidebar .sidebar-caption,
-  .admin-web-link,
-  .admin-account {
     display: none;
   }
   .admin-main {
@@ -544,8 +633,13 @@ td .button {
   }
   .admin-topbar {
     padding: 0 20px;
-    height: 44px;
+    height: 56px;
   }
+  .admin-nav-toggle {
+    display: inline-flex;
+  }
+}
+@media (max-width: 680px) {
   .admin-content {
     padding: 25px 20px;
   }

@@ -40,7 +40,7 @@ const ProjectsPage = lazy(() =>
   })),
 );
 const JobsPage = lazy(() =>
-  import("./features/Metadata").then((module) => ({
+  import("./features/ExportJobs").then((module) => ({
     default: module.JobsPage,
   })),
 );

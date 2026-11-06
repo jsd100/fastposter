@@ -15,12 +15,18 @@ export function Dialog({
   onClose,
   className = "",
   align = "center",
+  closable = true,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   className?: string;
   align?: "center" | "bottom";
+  /**
+   * Hide the corner X when the dialog already offers its own labelled close
+   * action. Two controls called 关闭 in one dialog read as one ambiguous button.
+   */
+  closable?: boolean;
 }): ReactElement {
   const [panel, setPanel] = useState<HTMLDivElement | null>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -56,6 +62,7 @@ export function Dialog({
       open
       title={title}
       footer={null}
+      closable={closable}
       centered={align === "center"}
       scrollLock
       width="var(--fp-dialog-width, min(420px, calc(100vw - 32px)))"

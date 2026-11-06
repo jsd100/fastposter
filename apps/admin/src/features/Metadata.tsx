@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Table } from "antd";
+import type { TableProps } from "antd";
 import {
   routes,
+  type AuditDTO,
   type ProjectMetadataDTO,
   type UserDTO,
 } from "@fastposter/api-client";
@@ -19,9 +22,13 @@ import {
   ProjectDeletionQueue,
 } from "./projects/ProjectDeletionQueue";
 import { pageAfterShrink } from "./projects/pagination";
-function Empty() {
-  return <p className="admin-empty">暂无记录</p>;
-}
+import {
+  PAGE_SIZE,
+  RecordPager,
+  RecordSection,
+  emptyText,
+  formatDate,
+} from "./records";
 export function Overview() {
   const q = useQuery({
     queryKey: ["admin", "overview"],
@@ -76,7 +83,8 @@ export function UsersPage() {
   const cache = useQueryClient();
   const q = useQuery({
     queryKey: ["admin", "users", page, keyword],
-    queryFn: () => request(routes.AdminUsers, { page, pageSize: 24, keyword }),
+    queryFn: () =>
+      request(routes.AdminUsers, { page, pageSize: PAGE_SIZE, keyword }),
     retry: false,
   });
   useErrorNotice("admin:users", q.error ? errorMessage(q.error) : null, {
@@ -102,6 +110,66 @@ export function UsersPage() {
       setBusy(false);
     }
   }
+  const columns: TableProps<UserDTO>["columns"] = [
+    {
+      title: "用户名",
+      dataIndex: "username",
+      render: (_value, user) => (
+        <>
+          {user.username}
+          <small>{user.id}</small>
+        </>
+      ),
+    },
+    {
+      title: "角色",
+      dataIndex: "role",
+      render: (role: string) => (role === "admin" ? "管理员" : "用户"),
+    },
+    {
+      title: "状态",
+      dataIndex: "disabled",
+      render: (disabled: boolean) => (
+        <span className={disabled ? "badge muted-badge" : "badge"}>
+          {disabled ? "已禁用" : "正常"}
+        </span>
+      ),
+    },
+    {
+      title: "注册时间",
+      dataIndex: "createdAt",
+      render: (value: string) => formatDate(value),
+    },
+    {
+      title: "操作",
+      key: "action",
+      render: (_value, user) => (
+        <>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setToken("");
+              setTarget({
+                user,
+                action: user.disabled ? "enable" : "disable",
+              });
+            }}
+          >
+            {user.disabled ? "恢复账号" : "禁用账号"}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setToken("");
+              setTarget({ user, action: "reset-password" });
+            }}
+          >
+            重置密码
+          </Button>
+        </>
+      ),
+    },
+  ];
   return (
     <>
       <h1>
@@ -121,61 +189,25 @@ export function UsersPage() {
           setPage(1);
         }}
       />
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>用户名</th>
-              <th>角色</th>
-              <th>状态</th>
-              <th>注册时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.data?.users.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  {u.username}
-                  <small>{u.id}</small>
-                </td>
-                <td>{u.role === "admin" ? "管理员" : "用户"}</td>
-                <td>
-                  <span className={u.disabled ? "badge muted-badge" : "badge"}>
-                    {u.disabled ? "已禁用" : "正常"}
-                  </span>
-                </td>
-                <td>{date(u.createdAt)}</td>
-                <td>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setToken("");
-                      setTarget({
-                        user: u,
-                        action: u.disabled ? "enable" : "disable",
-                      });
-                    }}
-                  >
-                    {u.disabled ? "恢复账号" : "禁用账号"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setToken("");
-                      setTarget({ user: u, action: "reset-password" });
-                    }}
-                  >
-                    重置密码
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {q.data?.users.length === 0 && <Empty />}
-      </div>
-      <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
+      <RecordSection name="用户记录">
+        <div className="table-wrap">
+          <Table<UserDTO>
+            rowKey="id"
+            size="small"
+            columns={columns}
+            dataSource={q.data?.users ?? []}
+            loading={q.isPending}
+            pagination={false}
+            locale={{ emptyText: emptyText(q.isSuccess) }}
+          />
+        </div>
+        <RecordPager
+          page={page}
+          total={q.data?.total ?? 0}
+          onPage={setPage}
+          label="用户分页"
+        />
+      </RecordSection>
       {target && (
         <Dialog
           title={
@@ -238,7 +270,7 @@ export function ProjectsPage() {
     queryFn: () =>
       request(routes.AdminProjects, {
         page,
-        pageSize: 24,
+        pageSize: PAGE_SIZE,
         keyword,
         status: status === "all" ? undefined : status,
       }),
@@ -255,7 +287,7 @@ export function ProjectsPage() {
       page,
       q.data.total,
       q.data.projects.length,
-      24,
+      PAGE_SIZE,
     );
     if (next !== page) setPage(next);
   }, [page, q.data]);
@@ -279,6 +311,59 @@ export function ProjectsPage() {
       setBusy(false);
     }
   }
+  const columns: TableProps<ProjectMetadataDTO>["columns"] = [
+    {
+      title: "作品",
+      dataIndex: "title",
+      render: (_value, project) => (
+        <>
+          {project.title}
+          <small>{project.id}</small>
+        </>
+      ),
+    },
+    {
+      title: "用户 ID",
+      dataIndex: "ownerId",
+      render: (ownerId: string) => <span className="mono">{ownerId}</span>,
+    },
+    {
+      title: "尺寸",
+      key: "size",
+      render: (_value, project) => (
+        <>
+          {project.width} × {project.height}
+        </>
+      ),
+    },
+    { title: "版本", dataIndex: "revision" },
+    {
+      title: "状态",
+      key: "state",
+      render: (_value, project) => (project.deletedAt ? "回收站" : "正常"),
+    },
+    {
+      title: "更新时间",
+      dataIndex: "updatedAt",
+      render: (value: string) => formatDate(value),
+    },
+    {
+      title: "操作",
+      key: "action",
+      render: (_value, project) =>
+        canPermanentlyDelete(project) && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setActionError("");
+              setTarget(project);
+            }}
+          >
+            彻底删除
+          </Button>
+        ),
+    },
+  ];
   return (
     <>
       <h1>
@@ -314,53 +399,25 @@ export function ProjectsPage() {
           <option value="trash">回收站</option>
         </select>
       </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>作品</th>
-              <th>用户 ID</th>
-              <th>尺寸</th>
-              <th>版本</th>
-              <th>状态</th>
-              <th>更新时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.data?.projects.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  {p.title}
-                  <small>{p.id}</small>
-                </td>
-                <td className="mono">{p.ownerId}</td>
-                <td>
-                  {p.width} × {p.height}
-                </td>
-                <td>{p.revision}</td>
-                <td>{p.deletedAt ? "回收站" : "正常"}</td>
-                <td>{date(p.updatedAt)}</td>
-                <td>
-                  {canPermanentlyDelete(p) && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setActionError("");
-                        setTarget(p);
-                      }}
-                    >
-                      彻底删除
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {q.data?.projects.length === 0 && <Empty />}
-      </div>
-      <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
+      <RecordSection name="作品元数据记录">
+        <div className="table-wrap">
+          <Table<ProjectMetadataDTO>
+            rowKey="id"
+            size="small"
+            columns={columns}
+            dataSource={q.data?.projects ?? []}
+            loading={q.isPending}
+            pagination={false}
+            locale={{ emptyText: emptyText(q.isSuccess) }}
+          />
+        </div>
+        <RecordPager
+          page={page}
+          total={q.data?.total ?? 0}
+          onPage={setPage}
+          label="作品元数据分页"
+        />
+      </RecordSection>
       {target && (
         <ProjectDeletionConfirm
           admin
@@ -377,77 +434,35 @@ export function ProjectsPage() {
     </>
   );
 }
-export function JobsPage() {
-  const [page, setPage] = useState(1);
-  const q = useQuery({
-    queryKey: ["admin", "jobs", page],
-    queryFn: () => request(routes.AdminJobs, { page, pageSize: 24 }),
-    retry: false,
-    refetchInterval: 5000,
-  });
-  useErrorNotice("admin:jobs", q.error ? errorMessage(q.error) : null, {
-    persistent: true,
-    action: { label: "重新加载", onClick: () => void q.refetch() },
-  });
-  return (
-    <>
-      <h1>
-        导出任务<span>.</span>
-      </h1>
-      <p className="admin-subtitle">
-        查看队列状态与错误类型。结果图片和正文详情仅作品所有者可读取。
-      </p>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>任务 ID</th>
-              <th>作品 ID</th>
-              <th>版本</th>
-              <th>状态</th>
-              <th>错误类型</th>
-              <th>创建时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.data?.jobs.map((j) => (
-              <tr key={j.id}>
-                <td className="mono">{j.id}</td>
-                <td className="mono">{j.projectId}</td>
-                <td>{j.revision}</td>
-                <td>
-                  {(
-                    {
-                      queued: "排队中",
-                      running: "运行中",
-                      succeeded: "成功",
-                      failed: "失败",
-                    } as Record<string, string>
-                  )[j.status] ?? j.status}
-                </td>
-                <td>{j.errorMessage ?? "—"}</td>
-                <td>{date(j.createdAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {q.data?.jobs.length === 0 && <Empty />}
-      </div>
-      <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
-    </>
-  );
-}
 export function AuditPage() {
   const [page, setPage] = useState(1);
   const q = useQuery({
     queryKey: ["admin", "audit", page],
-    queryFn: () => request(routes.AdminAudit, { page, pageSize: 24 }),
+    queryFn: () => request(routes.AdminAudit, { page, pageSize: PAGE_SIZE }),
     retry: false,
   });
   useErrorNotice("admin:audit", q.error ? errorMessage(q.error) : null, {
     persistent: true,
     action: { label: "重新加载", onClick: () => void q.refetch() },
   });
+  const columns: TableProps<AuditDTO>["columns"] = [
+    { title: "动作", dataIndex: "action" },
+    {
+      title: "操作者",
+      dataIndex: "actorId",
+      render: (actorId: string) => <span className="mono">{actorId}</span>,
+    },
+    {
+      title: "目标 ID",
+      dataIndex: "targetId",
+      render: (targetId: string) => <span className="mono">{targetId}</span>,
+    },
+    {
+      title: "时间",
+      dataIndex: "createdAt",
+      render: (value: string) => formatDate(value),
+    },
+  ];
   return (
     <>
       <h1>
@@ -456,30 +471,25 @@ export function AuditPage() {
       <p className="admin-subtitle">
         记录操作者、动作和目标 ID；不记录密码、会话或私有文案。
       </p>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>动作</th>
-              <th>操作者</th>
-              <th>目标 ID</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.data?.audit.map((a) => (
-              <tr key={a.id}>
-                <td>{a.action}</td>
-                <td className="mono">{a.actorId}</td>
-                <td className="mono">{a.targetId}</td>
-                <td>{date(a.createdAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {q.data?.audit.length === 0 && <Empty />}
-      </div>
-      <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
+      <RecordSection name="操作记录">
+        <div className="table-wrap">
+          <Table<AuditDTO>
+            rowKey="id"
+            size="small"
+            columns={columns}
+            dataSource={q.data?.audit ?? []}
+            loading={q.isPending}
+            pagination={false}
+            locale={{ emptyText: emptyText(q.isSuccess) }}
+          />
+        </div>
+        <RecordPager
+          page={page}
+          total={q.data?.total ?? 0}
+          onPage={setPage}
+          label="操作记录分页"
+        />
+      </RecordSection>
     </>
   );
 }
@@ -505,9 +515,6 @@ export function Pager({
       </Button>
     </div>
   ) : null;
-}
-function date(value: string) {
-  return new Date(value).toLocaleString("zh-CN", { hour12: false });
 }
 function formatBytes(raw: string) {
   const bytes = Number(raw);

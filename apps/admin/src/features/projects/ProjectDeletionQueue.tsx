@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProjectMetadataDTO } from "@fastposter/api-client";
 import { routes } from "@fastposter/api-client";
-import { Button, ProjectDeletionStatus, useErrorNotice } from "@fastposter/ui";
+import { ProjectDeletionStatus, useErrorNotice } from "@fastposter/ui";
 import { errorMessage, request } from "../../api";
+import { PAGE_SIZE, RecordPager } from "../records";
 import { pageAfterShrink } from "./pagination";
 
-const PAGE_SIZE = 24;
 const POLL_INTERVAL = 2000;
 
 export function canPermanentlyDelete(
@@ -105,22 +105,12 @@ export function ProjectDeletionQueue() {
           </article>
         ))}
       </div>
-      {total > PAGE_SIZE && (
-        <div className="pagination">
-          <Button disabled={page === 1} onClick={() => setPage(page - 1)}>
-            上一页
-          </Button>
-          <span>
-            第 {page} 页 · 共 {total} 项
-          </span>
-          <Button
-            disabled={page * PAGE_SIZE >= total}
-            onClick={() => setPage(page + 1)}
-          >
-            下一页
-          </Button>
-        </div>
-      )}
+      <RecordPager
+        page={page}
+        total={total}
+        onPage={setPage}
+        label="待清理作品分页"
+      />
     </section>
   );
 }
