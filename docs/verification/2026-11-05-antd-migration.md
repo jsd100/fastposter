@@ -9,28 +9,23 @@ execution_mode: native
 workspace: "/Users/aaa/acode/FastPoster"
 branch: "feat/fastposter"
 base_commit: "d6c3d45"
-last_verified_commit: "e5a5018"
+last_verified_commit: "ea37d8a"
 current_task: T07
-next_step: T07.1
-requirements: [UI-03, UI-04, UI-11]
+next_step: T08.1
+requirements: [UI-03, UI-11, UI-12]
 changed_paths:
-  - "packages/ui/src/Button.tsx"
-  - "packages/ui/src/button-appearance.ts"
-  - "packages/ui/src/Input.tsx"
-  - "packages/ui/src/Form.tsx"
-  - "packages/ui/src/Status.tsx"
-  - "packages/ui/src/Tooltip.tsx"
-  - "packages/ui/src/ToggleButton.tsx"
-  - "packages/ui/src/NumberField.tsx"
-  - "packages/ui/src/UIProvider.tsx"
-  - "packages/ui/src/theme.ts"
-  - "packages/ui/src/styles.css"
-  - "packages/ui/src/{Button,Input}.module.css"
-  - "packages/ui/src/{Form,Status,Tooltip}.module.css"
-  - "packages/ui/src/{form-contract,styling-hook,toggle-tooltip,status-contract}.test.ts"
-  - "packages/poster-editor/src/Stage.tsx"
-  - "tests/e2e/ui-controls.spec.ts"
-  - "tests/e2e/editor-settings.spec.ts"
+  - "apps/admin/package.json"
+  - "apps/admin/src/main.tsx"
+  - "apps/admin/src/AdminLayout.tsx"
+  - "apps/admin/src/useNarrowScreen.ts"
+  - "apps/admin/src/styles.css"
+  - "apps/admin/src/features/records.tsx"
+  - "apps/admin/src/features/ExportJobs.tsx"
+  - "apps/admin/src/features/Metadata.tsx"
+  - "apps/admin/src/features/projects/ProjectDeletionQueue.tsx"
+  - "packages/ui/src/Dialog.tsx"
+  - "tests/e2e/admin-layout.spec.ts"
+  - "pnpm-lock.yaml"
 decisions:
   - "全程以执行账本记录任务级证据；计划复选框不勾选，避免与账本双写。"
   - "T03：antd 6 的模态滚动锁是注入的 html body 规则而非内联样式，断言改读 computed overflow-y。"
@@ -53,6 +48,14 @@ decisions:
   - "T06：画布「点空白取消选中」改按 `data-fp-control`/`data-fp-input` 判断（`isControlPress`）。触发条件：antd 的 Select 触发器是 div+input，不是 `button`/`select`，点预览缩放会把选中的文字块丢掉（full-flow、editor-geometry 复现，属 T05 遗留）。代价：共享控件必须继续带这两个钩子，已有 styling-hook 用例锁住。"
   - "T06：账号页无需页面级改动，`/login`、`/register`、`/password`、`/password?reset=1`、`/admin/login` 只消费共享控件。代价：页面 CSS 里 `.auth-form > .button` 的 45px CTA 等几何仍由页面负责，属预期分层。"
   - "T06：`editor-settings` 混合字号用例在 `input.focus()` 后补一次选区复位轮询，不改产品代码。原因：与 T05 同一 `prosemirror-view@1.42.8` 的 20ms 延迟写回，合成按键快过真人。"
+  - "T07：记录页行身份钩子改名 `data-fp-record`→`data-admin-record`。原因：`data-fp-*` 是 packages/ui 共享控件的命名空间（styling-hook 用例锁 `data-fp-input`），页面行归属后台应用。代价：只有用例选择器跟着改。"
+  - "T07：窄屏判断改用同步的 `matchMedia` 查询（767px），不用 `Grid.useBreakpoint()`。触发条件：断点首帧未就绪，表格与手机摘要会在加载瞬间互换一次。代价：无 SSR，后台本就是纯客户端 SPA。"
+  - "T07：`RecordPager` 仅在 `total > 24` 时挂载。触发条件：antd 的上一页/下一页按钮禁用后仍留在 DOM，既有「单页列表没有分页」的 `toHaveCount(0)` 断言会失败。代价：单页时看不到分页控件，与迁移前一致。"
+  - "T07：空态以 `q.isSuccess` 为准（`emptyText(arrived)`）。触发条件：react-query 出错时 `isPending` 为 false，否则请求失败会被界面说成「暂无记录」。"
+  - "T07：`Table` 不设 `scroll`。触发条件：@rc-component/table 只在 `scroll` 下渲染 measure row，`tbody tr` 计数会多一行，而 project-permanent-deletion 的两处断言按行数取最后一条。横向滚动仍由 `.table-wrap` 提供。"
+  - "T07：共享 `Dialog` 新增 `closable`（默认 true），失败详情设 false。触发条件：antd 右上角 X 的可访问名就是「关闭」，与页脚按钮同名，一个弹窗里出现两个「关闭」既是 strict mode 歧义也是真实的可读性问题；全站 16 处既有断言把 X 当作「关闭」控件，故只保留页脚那一个具名控件，遮罩与 Escape 仍可关闭。代价：该弹窗右上角没有 X。"
+  - "T07：抽屉关闭后的焦点回归由页面保证（`drawer` 迁移的 effect + `focusable={{focusTriggerAfterClose:false}}`）。触发条件：rc-drawer 恢复的是「打开那一刻被聚焦的元素」，手机点按不聚焦按钮，那次记录是 `body`；在 `onClose` 里立即 focus 会被尚未释放的焦点锁拽回面板，在动效回调里 focus 又会被库随后写回 `body`。代价：焦点回归多一条页面自己的规则，antd 焦点锁语义变化时该断言会红。"
+  - "T07：`antd lint` 的两处弃用改用公开 API — Drawer `width`→`size`、Tag `bordered={false}`→默认 filled 变体，视觉不变。"
 red_check: "见各任务「中途红灯」"
 checks:
   - "T03 pnpm exec vitest run packages/ui/src/modal-layer.test.ts packages/ui/src/notifications.test.ts packages/poster-editor/src/keyboard.test.ts → 20/20 PASS"
@@ -88,6 +91,13 @@ checks:
   - "T06 pnpm typecheck（/Users/aaa/acode/FastPoster）→ exit 0"
   - "T06 pnpm build → 8/8（删除 Input.module.css 后仍可构建）"
   - "T06 pnpm exec antd lint packages/ui/src → 0 deprecated / 1 warning（T05 的 virtual=false 取舍）"
+  - "T07 pnpm exec playwright test tests/e2e/admin-layout.spec.ts → 3/3 PASS（新临时栈；桌面表格与手机摘要同一任务 ID、加载/空/失败三态、分组导航与抽屉焦点）"
+  - "T07 pnpm exec playwright test tests/e2e/project-permanent-deletion.spec.ts → 13/13 PASS（新临时栈；含末页删除后分页回退与清理队列）"
+  - "T07 pnpm --filter @fastposter/admin test → 5/5 PASS"
+  - "T07 pnpm test → 162/162 PASS"
+  - "T07 pnpm typecheck（/Users/aaa/acode/FastPoster）→ exit 0"
+  - "T07 pnpm build → 8/8"
+  - "T07 pnpm exec antd lint apps/admin/src --version 6.7.0 → 0 issues（两处弃用先修为 size 与 filled 变体）"
 artifacts: []
 blockers: []
 ```
@@ -217,3 +227,34 @@ blockers: []
 - 图标提示 Escape 用例两层失败：其一，antd Tooltip 离场动画让上一个气泡多停留约 360ms，`[data-fp-tooltip]` 计数在切换焦点时为 2，改为按气泡自身文本定位当前焦点动作的提示；其二，冒泡阶段的 document 监听不阻止传播，编辑器 `Escape→取消选中` 随即卸载那排工具按钮，焦点无处可归。监听移到捕获阶段并 `stopPropagation`，与 `ColorField` 既有「内层吃掉第一次 Escape」一致。
 - `full-flow` 找不到「调整右侧宽度」把手、`editor-geometry` 拖动不生效（`ec8a915` 修复）：T05 换成 antd `Select` 后触发器不再是 `button`/`select` 元素，画布的「点空白取消选中」只认标签名，于是点预览缩放即丢选区，100% 缩放改按画布中心定位，鼠标按下落在画布上变成平移。判断改用共享控件自带的 `data-fp-control`/`data-fp-input` 钩子，触摸捏合的同一处判断一并更新。此为 T05 遗留，`full-flow`/`editor-geometry` 自 T04 后未复跑，本次 T06.5 复跑暴露。
 - 混合字号用例字段显示 `64` 而非空（占位符「混合」）：`input.focus()` 后 Tiptap 在 20ms 才把 state 选区写回 DOM，测试的 `Home` + 4×`Shift+ArrowRight` 恰好被这次写回打断——截图里画布高亮只剩「你好」，面板按 2 字选区算出 64。真人按键远慢于 20ms，产品行为不变，沿用 T05 的处理：先轮询选区复位再键入。
+
+## T07 重做后台导航与记录页面
+
+- 开工 HEAD `88fc56c`，本任务一个提交：`ea37d8a`。覆盖 UI-03（路由与登录不动）、UI-11（后台列表与任务详情）、UI-12（依赖与构建边界）。
+- 侧栏导航（UI-11 的「分组」）：`AdminLayout` 改用 antd `Menu mode="inline"`，三分组「账号与作品 / 内容资源 / 运行记录」共 9 项，按操作者意图分组而不是按路由字母序。每个 item 的 label 仍是既有 `Link`，因此 `/admin/<route>` 路由表与权限判断零改动；当前页由 `selectedKeys` 与 `aria-current="page"` 同时表达。图标继续用 Lucide，`size={17}`。
+- 顶栏与窄屏导航：顶栏加面包屑（当前路由的标签）与 `.admin-nav-toggle` 按钮，后者只在 ≤767px 显示；侧栏在同一断点整体隐藏，断点值与 `useNarrowScreen` 共用 antd 的 `md` 边界，避免表格与摘要在不同宽度互换。抽屉是 antd `Drawer`（`placement="left"`、`size={280}`、`destroyOnHidden`），关闭后焦点回到那个触发按钮——由页面上一个跟随 `drawer` 状态迁移的 `useEffect` 保证，并把 `focusable={{focusTriggerAfterClose:false}}` 交给库（详见下方红灯与账本裁量）。
+- 记录页公共形状：新增 `apps/admin/src/features/records.tsx`，导出 `PAGE_SIZE=24`、`RecordSection`（`section[aria-label]`）、`RecordPager`（antd `Pagination`）、`emptyText`/`NoRecords`/`formatDate`。用户、作品元数据、操作记录、待清理队列与导出任务五处共用它；分页从自绘「上一页 / 第 X 页 · 共 N 项 / 下一页」换成 `Pagination`，zh_CN locale 让前后按钮的可访问名恰好还是「上一页」「下一页」，既有用例无需改选择器。
+- 导出任务页（UI-11 的主体）：`Metadata.tsx` 里的 `JobsPage` 拆到新文件 `features/ExportJobs.tsx`，`main.tsx` 的 lazy 目标随之指向它（沿用既有的按页 lazy 拆分，UI-12）。桌面是六列 `Table`（任务 ID / 作品 ID / 版本 / 状态 / 创建时间 / 操作），窄屏是 `.admin-summary` 列表；两者读同一个 `useQuery`（`refetchInterval=5000`）、渲染同一条记录的同一份字段，所以「同一 DTO 的桌面表格与手机摘要」是可断言的而不只是宣称。行身份用 `data-admin-record={job.id}`，`Table` 走 `onRow`、摘要走 `li` 属性，两种布局共用同一选择器。状态用 `Tag`（排队中/运行中/成功/失败，未知值原样显示），失败行的「查看失败原因」打开只读详情弹窗。
+- 详情弹窗的边界（UI-11 的权限面）：`JobDetails` 只列任务 ID、作品 ID、版本、状态、创建时间与 `errorMessage`，并写明「结果图片、预览和海报正文只属于作品所有者，后台不读取」。`downloadUrl`、`previewUrl` 与作品正文不进后台——用例断言弹窗文本里不含私有主机名，且桌面与手机两侧的详情文本完全相等。共享 `Dialog` 为此新增 `closable`（默认 true），该弹窗设 false。
+- 样式分层：`styles.css` 新增面包屑、抽屉页脚、`.admin-records`、`.admin-pagination`、`.admin-summary*`、`.admin-code`（长 ID 不省略号、允许断词）、`.admin-job-meta`/`.admin-job-error`/`.admin-note-line`，以及 `@media (pointer: coarse)` 下菜单项 44px 触摸目标；原先 680px 的侧栏堆叠规则让位给 767px 断点。
+- 待清理队列沿用 T03 的 `ProjectDeletionStatus`，只把分页换成 `RecordPager`；永久删除流程与「末页删完回退一页」的行为由 `project-permanent-deletion` 全量回归覆盖。
+
+### 验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm exec playwright test tests/e2e/admin-layout.spec.ts` | 3/3 PASS（新临时栈；桌面表格与手机摘要同一任务 ID、加载/空/失败三态、三分组导航与抽屉焦点） |
+| `pnpm exec playwright test tests/e2e/project-permanent-deletion.spec.ts` | 13/13 PASS（新临时栈；含末页删除后分页回退与清理队列重试） |
+| `pnpm --filter @fastposter/admin test` | 5/5 PASS |
+| `pnpm test` | 162/162 PASS |
+| `pnpm typecheck` | exit 0 |
+| `pnpm build` | 8/8 |
+| `pnpm exec antd lint apps/admin/src --version 6.7.0` | 0 issues（两处弃用先修为 `size` 与默认 filled `Tag`） |
+
+### 中途红灯与处理
+
+- 「关闭」控件重名（strict mode violation）：失败详情弹窗里同时有 antd 右上角 X（可访问名就是「关闭」）和页脚的「关闭」按钮，`getByRole("button", {name:"关闭"})` 命中两个。这不只是测试问题——一个弹窗里两个同名控件本身读起来含糊。共享 `Dialog` 加 `closable`（默认 true）、该弹窗设 `closable={false}`，保留页脚那个具名控件，遮罩与 Escape 仍能关；全站 16 处把 X 当「关闭」用的既有用例因此不受影响。
+- 抽屉关闭后焦点回不到触发按钮，连续三次红灯：先在 `afterOpenChange(false)` 里 focus，被 rc-drawer 自己的恢复覆盖（它恢复的是「打开那一刻被聚焦的元素」，手机点按不聚焦按钮，那次记录是 `body`）；改在 `onClose` 里立即 focus，被尚未释放的 `useLockFocus` 拽回面板；最终 `focusable={{focusTriggerAfterClose:false}}` 关掉库的恢复，页面上用 `wasOpen` 守卫的 `useEffect` 在面板卸载后 focus——父组件 passive effect 晚于子组件 cleanup，这是最早能安全 focus 的时机。3/3 通过。
+- 单页列表仍渲染分页按钮：antd 的上一页/下一页禁用后不离开 DOM，既有 `toHaveCount(0)` 断言失败。裁量为 `RecordPager` 在 `total <= 24` 时整体返回 `null`，与迁移前的可见行为一致。
+- 请求失败被说成「暂无记录」：react-query 出错时 `isPending` 为 false，`Table` 的空槽会显示空态。改由 `emptyText(q.isSuccess)` 决定——只有真的拿到数据才声称「暂无」，加载与失败各自交给 spinner 与错误通知；用例断言失败态下页面既无行也无「暂无记录」。
+- `antd lint` 报两处弃用：Drawer 的 `width` 在 6.x 由 `size` 取代、`Tag` 的 `bordered={false}` 由默认 `variant="filled"` 取代。按公开 API 重写后复跑 0 issues，视觉未变。
