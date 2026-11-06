@@ -259,7 +259,10 @@ test("admin navigation groups records and the phone drawer returns focus", async
   const phone = await mobile.newPage();
   try {
     await login(phone);
-    const trigger = phone.getByRole("button", { name: "导航菜单", exact: true });
+    const trigger = phone.getByRole("button", {
+      name: "导航菜单",
+      exact: true,
+    });
     await expect(
       phone.getByRole("navigation", { name: "管理导航" }),
     ).toBeHidden();
@@ -280,5 +283,92 @@ test("admin navigation groups records and the phone drawer returns focus", async
     await expect(trigger).toBeFocused();
   } finally {
     await mobile.close();
+  }
+});
+
+/**
+ * A01 fix round 1 / FP-04. The full-screen template workbench isolates the
+ * app root with `inert`. The admin phone nav is an antd Drawer that portals to
+ * document.body by default, which would sit outside that root and keep its
+ * links focusable behind the workbench. Verify that root-level isolation
+ * covers the drawer's own links, that the drawer is portalled inside the
+ * isolated root, that reverse Tab stays inside the workbench, and that focus
+ * returns to the opener on the explicit close.
+ */
+test("admin workbench isolates side nav and phone drawer from tab focus", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const context = await browser.newContext({ viewport: PHONE, hasTouch: true });
+  const admin = await context.newPage();
+  try {
+    await login(admin);
+    const trigger = admin.getByRole("button", {
+      name: "导航菜单",
+      exact: true,
+    });
+    await trigger.click();
+    const drawer = admin.getByRole("dialog");
+    const drawerNav = drawer.getByRole("navigation", { name: "管理导航" });
+    await expect(drawerNav).toBeVisible();
+
+    // Reproduce the workbench's `#root.inert` isolation and check the phone
+    // drawer's own nav links cannot be focused through it. A body-level portal
+    // escapes the inert root and stays keyboard-reachable behind the workbench.
+    const leaked = await drawer.evaluate((panel) => {
+      const root = document.getElementById("root")!;
+      const link = panel.querySelector<HTMLElement>("a[href]");
+      root.inert = true;
+      link?.focus();
+      const result = !!link && document.activeElement === link;
+      root.inert = false;
+      return result;
+    });
+    expect(
+      leaked,
+      "root-level inert must block focus on the phone drawer's nav links",
+    ).toBe(false);
+    const insideRoot = await drawer.evaluate((panel) => {
+      const root = document.getElementById("root");
+      return !!root && (root === panel || root.contains(panel));
+    });
+    expect(
+      insideRoot,
+      "phone drawer must be portalled inside #root, not document.body",
+    ).toBe(true);
+
+    // Reach the templates list through the drawer (a real navigation tap).
+    await drawerNav.getByRole("link", { name: "模板", exact: true }).click();
+    await expect(drawer).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(admin).toHaveURL(/\/admin\/templates$/);
+
+    const opener = admin.getByRole("button", { name: "新建模板", exact: true });
+    await opener.click();
+    const workbench = admin.getByRole("dialog", { name: "模板编辑器" });
+    await expect(workbench).toBeVisible();
+    expect(
+      await admin.evaluate(() => document.getElementById("root")?.inert),
+      "the workbench must isolate the whole app root",
+    ).toBe(true);
+
+    // Reverse Tab must never leak into the side nav or the drawer behind it.
+    for (let i = 0; i < 12; i++) {
+      await admin.keyboard.press("Shift+Tab");
+      await expect
+        .poll(() =>
+          admin.evaluate(() => {
+            const wb = document.querySelector(".workbench");
+            return !!wb && wb.contains(document.activeElement);
+          }),
+        )
+        .toBe(true);
+    }
+
+    await workbench.getByRole("button", { name: "关闭", exact: true }).click();
+    await expect(workbench).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  } finally {
+    await context.close();
   }
 });

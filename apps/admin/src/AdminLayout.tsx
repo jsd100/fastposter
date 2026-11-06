@@ -55,6 +55,10 @@ const groups: { caption: string; entries: NavEntry[] }[] = [
 
 const items = groups.flatMap((group) => group.entries);
 const routeOf = (path: string) => path.split("/")[2] ?? "";
+/** Keep the phone nav drawer inside #root: the full-screen workbench isolates
+ *  that root with `inert`, and a body-level portal would escape the isolation
+ *  and stay keyboard-reachable behind it. */
+const drawerContainer = () => document.getElementById("root") ?? document.body;
 
 function AdminNav({
   path,
@@ -154,7 +158,8 @@ export function AdminLayout({
    * lock, which is the earliest moment the trigger can keep focus.
    */
   useEffect(() => {
-    if (wasOpen.current && !drawer) toggle.current?.focus({ preventScroll: true });
+    if (wasOpen.current && !drawer)
+      toggle.current?.focus({ preventScroll: true });
     wasOpen.current = drawer;
   }, [drawer]);
   return (
@@ -195,6 +200,7 @@ export function AdminLayout({
         onClose={close}
         destroyOnHidden
         className="admin-nav-drawer"
+        getContainer={drawerContainer}
         focusable={{ focusTriggerAfterClose: false }}
         styles={{ body: { padding: "8px 0 16px" } }}
       >

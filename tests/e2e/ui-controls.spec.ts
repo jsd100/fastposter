@@ -741,9 +741,10 @@ test("reduced motion leaves overlays usable", async ({ browser, page }) => {
       .toBeGreaterThan(0);
   }
 
-  // Set each motion mode before the page loads. Flipping the media feature
-  // while the app is mounted makes antd's MotionWrapper re-wrap the
-  // ConfigProvider subtree, which remounts the editor and drops its selection.
+  // UIProvider reads the motion preference once when the app loads, so each
+  // mode is set on its own context before navigation. Changing the OS setting
+  // mid-session takes effect only after a reload; it no longer remounts the
+  // editor (see the A01 fix report, Ruling 9).
   async function exercise(target: Page, mode: "no-preference" | "reduce") {
     await openPoster(target, `a01_${mode}`);
 
@@ -799,6 +800,20 @@ test("reduced motion leaves overlays usable", async ({ browser, page }) => {
     await target.keyboard.press("Escape");
     await expect(picker).toHaveCount(0);
     await expect(target.locator("body")).not.toHaveCSS("overflow-y", "hidden");
+
+    // Drawer (BottomSheet): the phone editor's 更换背景 sheet is an rc-motion
+    // Drawer. Narrow the viewport to expose its bottom-bar entry, operate it
+    // in this motion mode, then restore the desktop layout for the list page.
+    const desktop = target.viewportSize();
+    await target.setViewportSize({ width: 390, height: 844 });
+    const bg = target.getByRole("button", { name: "更换背景", exact: true });
+    await bg.click();
+    const sheet = target.getByRole("dialog", { name: "更换背景" });
+    await assertUsable(sheet, `${mode} drawer`);
+    await target.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expect(target.locator("body")).not.toHaveCSS("overflow-y", "hidden");
+    await target.setViewportSize(desktop ?? { width: 1280, height: 720 });
 
     // Card Dropdown on the list page.
     await target.goto("/projects");

@@ -1,35 +1,28 @@
 import { App, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { noticeLayer } from "./notice-layer";
 import { fastPosterTheme } from "./theme";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 /**
- * Follow the OS motion preference and keep it live: the setting can be flipped
- * while an editor is open, so the shared theme has to re-render with the new
- * value instead of reading it once at startup.
+ * Read the OS motion preference once, when the app loads. Changing the system
+ * setting mid-session takes effect only after a page reload: we deliberately
+ * do NOT subscribe to `matchMedia` changes. Re-rendering ConfigProvider with a
+ * flipped `motion` seed makes antd's MotionWrapper re-wrap its subtree, which
+ * remounts the editor and drops unsaved drafts. See the A01 fix report (Ruling
+ * 9) for the trade-off against the plan's "subscribe to changes" wording.
  */
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia(REDUCED_MOTION_QUERY).matches,
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(REDUCED_MOTION_QUERY).matches
   );
-  useEffect(() => {
-    const query = window.matchMedia(REDUCED_MOTION_QUERY);
-    const update = () => setReduced(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  return reduced;
 }
 
 export function UIProvider({ children }: { children: ReactNode }) {
-  const reducedMotion = usePrefersReducedMotion();
   const theme = useMemo(
     () => ({
       ...fastPosterTheme,
@@ -39,9 +32,9 @@ export function UIProvider({ children }: { children: ReactNode }) {
          blanket `animation: none !important` used to freeze popups at their
          0x0 enter frame and never fire the end callbacks, so they stayed
          invisible, unclickable and kept the page scroll lock. */
-      token: { ...fastPosterTheme.token, motion: !reducedMotion },
+      token: { ...fastPosterTheme.token, motion: !prefersReducedMotion() },
     }),
-    [reducedMotion],
+    [],
   );
   return (
     <ConfigProvider
