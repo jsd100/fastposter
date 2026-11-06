@@ -1080,3 +1080,14 @@
     flex: 1 1 45%;
   }
 }
+/* Keep the app's own non-essential motion scoped to its own components so it
+   never reaches antd's rc-motion overlays. UIProvider turns antd's motion off
+   for reduced-motion users; these rules cover the page chrome itself. */
+@media (prefers-reduced-motion: reduce) {
+  .project-card {
+    transition: none;
+  }
+  .project-skeleton > div {
+    animation: none;
+  }
+}

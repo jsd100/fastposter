@@ -11,19 +11,25 @@ import {
   hasPopupLayer,
   hasVisiblePopup,
   registerModalLayer,
+  restoreLayerFocus,
 } from "./modal-layer";
 
 export function BottomSheet({
   title,
   children,
   onClose,
+  restoreFocusTo,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  /** Stable entry to focus when a source swap removed the original trigger. */
+  restoreFocusTo?: () => HTMLElement | null;
 }): ReactElement {
   const [panel, setPanel] = useState<HTMLElement | null>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const restoreRef = useRef(restoreFocusTo);
+  restoreRef.current = restoreFocusTo;
   const attachPanel = useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
     const section =
@@ -35,13 +41,7 @@ export function BottomSheet({
   useLayoutEffect(() => {
     const active = document.activeElement;
     opener.current = active instanceof HTMLElement ? active : null;
-    return () => {
-      const target = opener.current;
-      if (!target) return;
-      queueMicrotask(() => {
-        if (target.isConnected) target.focus({ preventScroll: true });
-      });
-    };
+    return () => restoreLayerFocus(opener.current, restoreRef.current);
   }, []);
 
   useLayoutEffect(() => {

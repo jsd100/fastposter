@@ -81,3 +81,29 @@ export function hasVisiblePopup() {
 export function hasBlockingOverlay() {
   return layers.some((layer) => layer.blocksShortcuts) || popupLayers > 0;
 }
+
+function canTakeFocus(node: HTMLElement | null): node is HTMLElement {
+  if (!node || !node.isConnected) return false;
+  if (node === node.ownerDocument?.body) return false;
+  // A full-screen workbench marks the page behind it inert; page chrome is
+  // not a usable focus target until the layer has released it again.
+  if (node.closest("[inert]")) return false;
+  return true;
+}
+
+/**
+ * Hands the keyboard back to the control that opened an overlay. A source
+ * swap ("背景 → 从背景库选择") can unmount the trigger, so `restoreFocusTo`
+ * is consulted only when that trigger is gone or cannot take focus; a live
+ * trigger always wins. The restore is queued so the caller's unmount commit
+ * has finished before focus moves back into the page.
+ */
+export function restoreLayerFocus(
+  opener: HTMLElement | null,
+  restoreFocusTo?: () => HTMLElement | null,
+) {
+  queueMicrotask(() => {
+    const target = canTakeFocus(opener) ? opener : (restoreFocusTo?.() ?? null);
+    if (canTakeFocus(target)) target.focus({ preventScroll: true });
+  });
+}

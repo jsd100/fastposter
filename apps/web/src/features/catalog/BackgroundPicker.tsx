@@ -17,9 +17,12 @@ const PAGE_SIZE = 24;
 export function BackgroundPicker({
   onChoose,
   onClose,
+  restoreFocusTo,
 }: {
   onChoose: (asset: AssetDTO) => void;
   onClose: () => void;
+  /** Stable bottom-bar entry when a source swap removed the opening trigger. */
+  restoreFocusTo?: () => HTMLElement | null;
 }) {
   const { user } = useSession();
   const [page, setPage] = useState(1),
@@ -65,7 +68,12 @@ export function BackgroundPicker({
     },
   );
   return (
-    <Dialog title="背景库" className="background-picker" onClose={onClose}>
+    <Dialog
+      title="背景库"
+      className="background-picker"
+      onClose={onClose}
+      restoreFocusTo={restoreFocusTo}
+    >
       <p>选择预设背景。不同尺寸会调整画布和文字位置，字号保持不变。</p>
       <div className="picker-filters">
         <TextInput

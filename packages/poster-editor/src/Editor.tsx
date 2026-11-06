@@ -8,10 +8,7 @@ import {
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import { RichTextEditor } from "./text/RichTextEditor";
 import { TextPanel, type TextPanelProps } from "./panels/TextPanel";
-import {
-  EditorInspector,
-  type InspectorGroup,
-} from "./panels/EditorInspector";
+import { EditorInspector, type InspectorGroup } from "./panels/EditorInspector";
 import {
   captureSelection,
   restoreSelection,
@@ -558,9 +555,7 @@ export function Editor({
           .map((b, index) => (
             <button
               className={
-                b.id === state.selectedId
-                  ? "layer-item selected"
-                  : "layer-item"
+                b.id === state.selectedId ? "layer-item selected" : "layer-item"
               }
               key={b.id}
               aria-pressed={b.id === state.selectedId}
@@ -818,6 +813,7 @@ export function Editor({
             type="button"
             className="mobile-nav-item"
             aria-label="更换背景"
+            data-fp-background-entry=""
             disabled={!onAssetRequest}
             onClick={() => setSheet("background")}
           >
@@ -930,8 +926,7 @@ function useEditorLayout(): EditorLayout {
     readLayout(window.innerWidth),
   );
   useEffect(() => {
-    const query = (min: number) =>
-      window.matchMedia(`(min-width: ${min}px)`);
+    const query = (min: number) => window.matchMedia(`(min-width: ${min}px)`);
     const queries = [query(1200), query(881), query(681)];
     const update = () => setLayout(readLayout(window.innerWidth));
     for (const q of queries) q.addEventListener("change", update);

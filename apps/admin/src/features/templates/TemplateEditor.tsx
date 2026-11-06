@@ -18,10 +18,7 @@ import {
   useErrorNotice,
 } from "@fastposter/ui";
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
-import {
-  loadFonts,
-  type FontSource,
-} from "@fastposter/poster-renderer";
+import { loadFonts, type FontSource } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { errorMessage, request } from "../../api";
 
@@ -29,10 +26,13 @@ export function TemplateEditor({
   resource,
   close,
   saved,
+  restoreFocusTo,
 }: {
   resource?: ResourceDTO;
   close: () => void;
   saved: () => Promise<void>;
+  /** Stable list entry to focus when the opening card was removed. */
+  restoreFocusTo?: () => HTMLElement | null;
 }) {
   const initial = useMemo<PosterDocument | null>(() => {
     if (!resource?.document) return null;
@@ -165,7 +165,8 @@ export function TemplateEditor({
         "/api/v1/assets/images",
         form,
       );
-      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, "") || "新模板");
+      if (!title.trim())
+        setTitle(file.name.replace(/\.[^.]+$/, "") || "新模板");
       setDraft({
         schemaVersion: 1,
         canvas: { width: asset.width, height: asset.height },
@@ -206,7 +207,11 @@ export function TemplateEditor({
     }
   }
   return (
-    <Workbench label="模板编辑器" className="template-editor-overlay">
+    <Workbench
+      label="模板编辑器"
+      className="template-editor-overlay"
+      restoreFocusTo={restoreFocusTo}
+    >
       <header className="template-editor-header">
         <div className="template-editor-meta">
           <TextInput

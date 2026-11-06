@@ -7,7 +7,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { registerModalLayer } from "./modal-layer";
+import { registerModalLayer, restoreLayerFocus } from "./modal-layer";
 
 export function Dialog({
   title,
@@ -16,6 +16,7 @@ export function Dialog({
   className = "",
   align = "center",
   closable = true,
+  restoreFocusTo,
 }: {
   title: string;
   children: ReactNode;
@@ -27,9 +28,13 @@ export function Dialog({
    * action. Two controls called 关闭 in one dialog read as one ambiguous button.
    */
   closable?: boolean;
+  /** Stable entry to focus when a source swap removed the original trigger. */
+  restoreFocusTo?: () => HTMLElement | null;
 }): ReactElement {
   const [panel, setPanel] = useState<HTMLDivElement | null>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const restoreRef = useRef(restoreFocusTo);
+  restoreRef.current = restoreFocusTo;
   // Set the marker during the commit so portalled children can find their
   // container before their own passive effects run.
   const attachPanel = useCallback((node: HTMLDivElement | null) => {
@@ -41,15 +46,7 @@ export function Dialog({
   useLayoutEffect(() => {
     const active = document.activeElement;
     opener.current = active instanceof HTMLElement ? active : null;
-    return () => {
-      const target = opener.current;
-      if (!target) return;
-      // Callers unmount the dialog as soon as they close it, which skips the
-      // dialog library's own delayed focus restore. Restore after that commit.
-      queueMicrotask(() => {
-        if (target.isConnected) target.focus({ preventScroll: true });
-      });
-    };
+    return () => restoreLayerFocus(opener.current, restoreRef.current);
   }, []);
 
   useLayoutEffect(() => {

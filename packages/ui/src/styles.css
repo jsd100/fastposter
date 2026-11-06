@@ -119,14 +119,11 @@ summary:focus-visible {
     padding: 24px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *:before,
-  *:after {
-    animation: none !important;
-    transition: none !important;
-  }
-}
+/* Reduced motion is handled by antd's public `motion` seed in UIProvider.
+   The blanket `animation: none !important` rule that used to live here is
+   removed: it also hit rc-motion overlays, froze them at their 0x0 enter
+   frame and stopped them from ever finishing their leave transition. The
+   app's own non-essential motion stays scoped to its own components below. */
 /* antd owns the frame, ink and size of every shared button through the tokens in
    theme.ts. What is left here is what the framework cannot express: the label row
    inside the button, the tighter ghost padding and the icon target geometry. They

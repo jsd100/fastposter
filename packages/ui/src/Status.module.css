@@ -1,6 +1,7 @@
 /* antd paints the alert itself; this is the row inside it, which still has to
-   lay a message out next to its retry or undo action. UI-02's global
-   prefers-reduced-motion rule already stops the alert's transition. */
+   lay a message out next to its retry or undo action. Reduced motion is
+   handled by antd's public `motion` token in UIProvider rather than a global
+   stylesheet override. */
 .text {
   display: flex;
   flex-wrap: wrap;

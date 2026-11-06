@@ -155,9 +155,7 @@ test("mobile text panel adds a second text block", async ({ page }) => {
   const blocks = page.locator("[data-text-block]");
   await expect(blocks).toHaveCount(1);
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "海报文字编辑" })
-    .fill("第一块");
+  await page.getByRole("textbox", { name: "海报文字编辑" }).fill("第一块");
   await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
   await expect(blocks.first()).toHaveText("第一块");
 
@@ -251,4 +249,79 @@ test("font menu rows keep a thumb-sized target on a touch screen", async ({
     "overflow-y",
     "auto",
   );
+});
+
+/**
+ * A01 / FP-04 + FP-13. "背景 → 从背景库选择" is a source swap: the sheet
+ * that opened the library is gone when the library closes, so its trigger
+ * can no longer take focus. Focus must land on the still-present bottom-bar
+ * 背景 button, not on BODY, and the page must not keep a stale scroll lock.
+ * The Drawer is exercised in both motion modes (each set before load): reduced
+ * motion used to freeze rc-motion sheets at their 0x0 enter frame.
+ */
+test("mobile background picker returns focus to background tool", async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+
+  async function exercise(
+    target: typeof page,
+    mode: "no-preference" | "reduce",
+  ) {
+    await openPoster(target, `a01_focus_${mode}`);
+    const backgroundTool = target.getByRole("button", {
+      name: "更换背景",
+      exact: true,
+    });
+    await backgroundTool.click();
+    const chooser = target.getByRole("dialog", { name: "更换背景" });
+    await expect(chooser).toBeVisible();
+    // The Drawer must be a real, usable layer in both motion modes, not the
+    // 0x0 first frame a blanket `animation: none` used to freeze it at.
+    await expect
+      .poll(
+        async () => {
+          const box = await chooser.boundingBox();
+          return box ? Math.min(box.width, box.height) : 0;
+        },
+        {
+          message: `${mode} drawer should keep a real size, not 0x0`,
+          timeout: 6000,
+        },
+      )
+      .toBeGreaterThan(20);
+    await chooser
+      .getByRole("button", { name: "从背景库选择", exact: true })
+      .click();
+    const library = target.getByRole("dialog", { name: "背景库" });
+    await expect(library).toBeVisible();
+    await library.getByRole("button", { name: "关闭", exact: true }).click();
+    await expect(library).toHaveCount(0);
+
+    await expect(backgroundTool).toBeFocused();
+    await expect(target.locator("body")).not.toHaveCSS("overflow-y", "hidden");
+  }
+
+  await test.step("no-preference focus return", () =>
+    exercise(page, "no-preference"));
+  // Set reduced motion before load. Flipping the media feature while the app
+  // is mounted makes antd's MotionWrapper re-wrap the ConfigProvider subtree,
+  // which remounts the editor and detaches the bottom bar. A separate context
+  // also keeps the two registration sessions apart: sharing cookies would
+  // redirect the second /register straight past the sign-up form.
+  const reduceContext = await browser.newContext({
+    viewport: { width: 360, height: 800 },
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    reducedMotion: "reduce",
+    baseURL: test.info().project.use.baseURL,
+  });
+  const reducePage = await reduceContext.newPage();
+  try {
+    await test.step("reduce focus return", () =>
+      exercise(reducePage, "reduce"));
+  } finally {
+    await reduceContext.close();
+  }
 });

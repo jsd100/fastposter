@@ -262,3 +262,65 @@ test("administrator publishes a template, user applies and re-imports an indepen
   ).toHaveCount(2);
   await adminContext.close();
 });
+
+/**
+ * A01 / FP-04. The full-screen workbench must take the list and the sidebar
+ * out of the tab order while it is open, keep the editor's own shortcuts, let
+ * a nested popup own the keyboard, and hand focus back to its opener on the
+ * explicit close.
+ */
+test("workbench contains tab focus and keeps editor shortcuts", async ({
+  browser,
+}) => {
+  test.setTimeout(150_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  await admin.getByRole("link", { name: "模板", exact: true }).click();
+  await expect(admin).toHaveURL(/\/admin\/templates$/);
+
+  const opener = admin.getByRole("button", { name: "新建模板", exact: true });
+  await opener.click();
+  const workbench = admin.getByRole("dialog", { name: "模板编辑器" });
+  await expect(workbench).toBeVisible();
+  await expect(workbench).toBeFocused();
+
+  // A blank template has no canvas controls until a background is chosen.
+  await workbench
+    .getByLabel("模板背景图片文件", { exact: true })
+    .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+  await expect(
+    workbench.getByRole("button", { name: "添加文字", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+
+  // Reverse Tab must never leak into the list or the sidebar behind it.
+  for (let i = 0; i < 12; i++) {
+    await admin.keyboard.press("Shift+Tab");
+    await expect
+      .poll(() =>
+        admin.evaluate(() => {
+          const wb = document.querySelector(".workbench");
+          return !!wb && wb.contains(document.activeElement);
+        }),
+      )
+      .toBe(true);
+  }
+
+  // The workbench does not claim the editor's own shortcuts.
+  const blocks = workbench.locator("[data-text-block]");
+  await workbench
+    .getByRole("button", { name: "添加文字", exact: true })
+    .click();
+  await expect(blocks).toHaveCount(1);
+  await admin.keyboard.press("Control+z");
+  await expect(blocks).toHaveCount(0);
+
+  // A nested popup stays usable without the workbench trap pulling focus back.
+  await chooseOption(admin, "模板分类", "未分类");
+
+  // Explicit close hands focus back to the control that opened the workbench.
+  await workbench.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(workbench).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  await adminContext.close();
+});

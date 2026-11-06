@@ -207,7 +207,11 @@ export function TemplatesPage() {
             value={importFile}
             onChange={(file) => void importPackage(file)}
           />
-          <Button variant="primary" onClick={() => setEditing("new")}>
+          <Button
+            variant="primary"
+            data-fp-list-entry=""
+            onClick={() => setEditing("new")}
+          >
             <Plus size={15} />
             新建模板
           </Button>
@@ -331,6 +335,9 @@ export function TemplatesPage() {
         <Suspense fallback={<Status>正在打开模板编辑器…</Status>}>
           <TemplateEditor
             resource={editing === "new" ? undefined : editing}
+            restoreFocusTo={() =>
+              document.querySelector<HTMLElement>("[data-fp-list-entry]")
+            }
             close={() => setEditing(null)}
             saved={async () => {
               setEditing(null);

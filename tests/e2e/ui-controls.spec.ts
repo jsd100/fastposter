@@ -711,3 +711,117 @@ test("fractional bounds stay reachable from the step button and End", async ({
   await expect(plus).toBeDisabled();
   expect(Number(await padding.inputValue())).toBeGreaterThan(99);
 });
+
+/**
+ * A01 / FP-04. Reduced motion must not truncate antd's rc-motion lifecycle:
+ * the global `animation: none !important` rule left popups at 0x0, made their
+ * options unclickable and stopped Escape from finishing the leave transition,
+ * which in turn kept the page scroll lock. Exercise the overlay matrix in both
+ * motion modes, then peel a nested dialog one Escape at a time.
+ */
+test("reduced motion leaves overlays usable", async ({ browser, page }) => {
+  test.setTimeout(240_000);
+
+  // antd opens a popup with an enter motion whose first frame is 0x0; wait for
+  // it to settle so a normal animation is not mistaken for the reduced-motion
+  // defect, which never grows past that first frame.
+  async function assertUsable(target: Locator, name: string) {
+    await expect
+      .poll(
+        async () => {
+          if (!(await target.isVisible())) return 0;
+          const box = await target.boundingBox();
+          return box ? Math.min(box.width, box.height) : 0;
+        },
+        {
+          message: `${name} should stay visible with a real size, not 0x0`,
+          timeout: 6000,
+        },
+      )
+      .toBeGreaterThan(0);
+  }
+
+  // Set each motion mode before the page loads. Flipping the media feature
+  // while the app is mounted makes antd's MotionWrapper re-wrap the
+  // ConfigProvider subtree, which remounts the editor and drops its selection.
+  async function exercise(target: Page, mode: "no-preference" | "reduce") {
+    await openPoster(target, `a01_${mode}`);
+
+    // Select
+    const weight = selectTrigger(target, "文字字重");
+    await weight.click();
+    const weightList = target.getByRole("listbox");
+    await assertUsable(weightList, `${mode} select listbox`);
+    await weightList
+      .getByRole("option", { name: "700", exact: true })
+      .click({ timeout: 8000 });
+    await expect(weightList).toHaveCount(0);
+    await expect(selectValue(target, "文字字重")).toHaveText("700");
+
+    // Combobox (font)
+    const font = selectTrigger(target, "文字字体");
+    await font.click();
+    const fontList = target.getByRole("listbox");
+    await assertUsable(fontList, `${mode} font listbox`);
+    await target.keyboard.press("Escape");
+    await expect(fontList).toHaveCount(0);
+
+    // ColorPicker
+    const color = target.getByLabel("文字颜色", { exact: true });
+    await color.click();
+    const hexInput = target.locator(".ant-color-picker-hex-input input");
+    await assertUsable(hexInput, `${mode} color hex input`);
+    await hexInput.fill("00ff00");
+    await color.click();
+    await expect(target.locator(".ant-color-picker-hex-input")).toHaveCount(0);
+
+    // Tooltip
+    const copy = target.getByRole("button", {
+      name: "复制文字块",
+      exact: true,
+    });
+    await copy.hover();
+    const tip = target.locator("[data-fp-tooltip]");
+    await assertUsable(tip, `${mode} tooltip`);
+    await target.mouse.move(0, 0);
+    await expect(tip).toHaveCount(0);
+
+    // Modal (Dialog) with a nested Select: two Escapes peel one layer each.
+    await target.getByRole("button", { name: "背景库", exact: true }).click();
+    const picker = target.getByRole("dialog", { name: "背景库" });
+    await assertUsable(picker, `${mode} background dialog`);
+    await selectTrigger(target, "预设背景分类").click();
+    const innerList = target.getByRole("listbox");
+    await assertUsable(innerList, `${mode} nested listbox`);
+    await target.keyboard.press("Escape");
+    await expect(innerList).toHaveCount(0);
+    await expect(picker).toBeVisible();
+    await target.keyboard.press("Escape");
+    await expect(picker).toHaveCount(0);
+    await expect(target.locator("body")).not.toHaveCSS("overflow-y", "hidden");
+
+    // Card Dropdown on the list page.
+    await target.goto("/projects");
+    const trigger = target.locator('[aria-label$="的操作"]').first();
+    await trigger.click();
+    const menu = target.getByRole("menu");
+    await assertUsable(menu, `${mode} card menu`);
+    await trigger.click();
+    await expect(menu).toHaveCount(0);
+  }
+
+  await test.step("no-preference overlays", () =>
+    exercise(page, "no-preference"));
+  // A separate context keeps the two sessions apart: sharing cookies would
+  // redirect the second /register visit straight past the sign-up form.
+  const reduceContext = await browser.newContext({
+    reducedMotion: "reduce",
+    baseURL: test.info().project.use.baseURL,
+  });
+  const reducePage = await reduceContext.newPage();
+  try {
+    await test.step("reduce overlays", () => exercise(reducePage, "reduce"));
+  } finally {
+    await reduceContext.close();
+  }
+});
