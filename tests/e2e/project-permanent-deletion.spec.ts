@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { chooseCardAction } from "./helpers";
+import { chooseCardAction, chooseOption, selectValue } from "./helpers";
 
 type DeletionDTO = {
   id: string;
@@ -48,9 +48,19 @@ async function upload(page: Page, fixture = "editor.png") {
     .getByLabel("导入背景图文件")
     .setInputFiles(path.resolve("tests/fixtures/images", fixture));
   await expect(page).toHaveURL(/\/projects\/[^/]+\/edit$/);
-  await expect(
-    page.getByRole("button", { name: "添加文字", exact: true }),
-  ).toBeEnabled();
+  /* Phones keep the creation entry inside the 文字设置 sheet; the toolbar row
+     only exists from the narrow breakpoint up. Either one proves the editor
+     has mounted before the test starts renaming or deleting the project. */
+  const toolbarAdd = page.getByRole("button", {
+    name: "添加文字",
+    exact: true,
+  });
+  const phoneEntry = page.getByRole("button", {
+    name: "文字设置",
+    exact: true,
+  });
+  await expect(toolbarAdd.or(phoneEntry).first()).toBeVisible();
+  if ((await toolbarAdd.count()) > 0) await expect(toolbarAdd).toBeEnabled();
 }
 
 function card(page: Page, title: string) {
@@ -386,7 +396,8 @@ test("administrator can only delete trashed projects after acknowledging ownersh
     await moveToTrash(page, title);
     await admin.reload();
     await admin.getByLabel("搜索作品元数据").fill(title);
-    await admin.getByLabel("筛选作品状态").selectOption("trash");
+    await chooseOption(admin, "筛选作品状态", "回收站");
+    await expect(selectValue(admin, "筛选作品状态")).toHaveText("回收站");
     const trashedRow = admin.getByRole("row").filter({ hasText: title });
     await expect(trashedRow).toHaveCount(1);
     await trashedRow

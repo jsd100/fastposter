@@ -11,12 +11,9 @@ if (capture) fs.mkdirSync(OUT, { recursive: true });
 const describeCapture = capture ? test.describe : test.describe.skip;
 const FIXTURE = path.resolve("tests/fixtures/images/editor.png");
 const FREEZE =
-  "*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}";
+  "*,*::before,*::after{transition:none!important;scroll-behavior:auto!important}";
 
 async function settle(page: Page) {
-  const freeze = await page.addStyleTag({
-    content: FREEZE + "html{cursor:default!important}",
-  });
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(
@@ -30,6 +27,30 @@ async function settle(page: Page) {
         ),
     );
   });
+  // antd marks an entering overlay with a motion class whose base style is
+  // opacity 0 and removes it on animationend. Freezing animation before that
+  // point captures an invisible dialog, so wait for motion to finish instead.
+  await page.waitForFunction(
+    () => {
+      if (
+        document.querySelector(
+          '[class*="ant-zoom-appear"], [class*="ant-zoom-enter"], [class*="ant-fade-appear"], [class*="ant-fade-enter"], [class*="ant-slide-appear"], [class*="ant-slide-enter"], [class*="ant-motion-collapse"]',
+        )
+      )
+        return false;
+      return document.getAnimations().every((animation) => {
+        if (animation.effect?.getTiming().iterations === Infinity) return true;
+        return (
+          animation.playState === "finished" || animation.playState === "idle"
+        );
+      });
+    },
+    undefined,
+    { timeout: 10_000 },
+  );
+  const freeze = await page.addStyleTag({
+    content: FREEZE + "html{cursor:default!important}",
+  });
   await page.waitForTimeout(200);
   return freeze;
 }
@@ -37,9 +58,8 @@ async function settle(page: Page) {
 async function shoot(page: Page, name: string) {
   const freeze = await settle(page);
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: false });
-  // Keep the freeze only for the shot. antd's motion waits for animationend,
-  // which `animation:none` never emits, so a lingering copy leaves every
-  // later menu stuck at opacity 0 with a zero-sized box.
+  // Keep the transition freeze only for the shot; later interactions need
+  // their hover and focus states to animate normally.
   await freeze.evaluate((node) => node.remove());
 }
 
@@ -314,10 +334,17 @@ describeCapture("mobile 390x844", () => {
     await page
       .getByRole("link", { name: "编辑 春日明信片", exact: true })
       .click();
+    /* Phones keep the creation entry inside the 文字设置 sheet. */
+    await page.getByRole("button", { name: "文字设置", exact: true }).click();
+    const creation = page.getByRole("dialog", { name: "文字设置" });
+    await expect(creation).toBeVisible();
+    await creation
+      .getByRole("button", { name: "添加文字", exact: true })
+      .click();
+    await page.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "添加文字", exact: true }),
+      page.getByRole("button", { name: "编辑文字", exact: true }),
     ).toBeEnabled();
-    await page.getByRole("button", { name: "添加文字", exact: true }).click();
     await page.getByRole("button", { name: "编辑文字", exact: true }).click();
     const input = page.getByRole("textbox", { name: "海报文字编辑" });
     await input.fill("你好风景世界");
@@ -370,7 +397,14 @@ describeCapture("mobile 390x844", () => {
       .getByRole("button", { name: "完成文字编辑", exact: true })
       .click();
 
-    await page.getByRole("button", { name: "背景库", exact: true }).click();
+    await page.getByRole("button", { name: "更换背景", exact: true }).click();
+    const backgroundChooser = page.getByRole("dialog", {
+      name: "更换背景",
+    });
+    await expect(backgroundChooser).toBeVisible();
+    await backgroundChooser
+      .getByRole("button", { name: "从背景库选择", exact: true })
+      .click();
     await expect(page.getByRole("dialog", { name: "背景库" })).toBeVisible();
     await shoot(page, "m-06-background-picker");
     await page.getByRole("button", { name: "关闭", exact: true }).click();

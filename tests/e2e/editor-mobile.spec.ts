@@ -181,6 +181,24 @@ test("mobile text panel adds a second text block", async ({ page }) => {
   await expect(sheet.getByText("当前文字块")).toBeVisible();
 });
 
+test("phone background nav offers upload and the background library", async ({
+  page,
+}) => {
+  await openPoster(page, "mobilebackground");
+  await page.getByRole("button", { name: "更换背景", exact: true }).click();
+  const chooser = page.getByRole("dialog", { name: "更换背景" });
+  await expect(chooser).toBeVisible();
+  await expect(
+    chooser.getByRole("button", { name: "上传图片", exact: true }),
+  ).toBeVisible();
+  await chooser
+    .getByRole("button", { name: "从背景库选择", exact: true })
+    .click();
+  await expect(page.getByRole("dialog", { name: "背景库" })).toBeVisible();
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "背景库" })).toHaveCount(0);
+});
+
 test("font menu rows keep a thumb-sized target on a touch screen", async ({
   page,
 }) => {

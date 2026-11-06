@@ -95,7 +95,9 @@ export function Editor({
   const [layerDrawer, setLayerDrawer] = useState(false);
   const [inspectorDrawer, setInspectorDrawer] = useState(false);
   const [group, setGroup] = useState<InspectorGroup>("text");
-  const [sheet, setSheet] = useState<"inspector" | "layers" | null>(null);
+  const [sheet, setSheet] = useState<
+    "inspector" | "layers" | "background" | null
+  >(null);
   useEffect(() => {
     setSheet(null);
     setLayerDrawer(false);
@@ -817,7 +819,7 @@ export function Editor({
             className="mobile-nav-item"
             aria-label="更换背景"
             disabled={!onAssetRequest}
-            onClick={() => void background()}
+            onClick={() => setSheet("background")}
           >
             <Image size={18} />
             <span>背景</span>
@@ -862,6 +864,30 @@ export function Editor({
       {layout === "phone" && sheet === "layers" && (
         <BottomSheet title="图层" onClose={() => setSheet(null)}>
           {layerList()}
+        </BottomSheet>
+      )}
+      {layout === "phone" && sheet === "background" && (
+        <BottomSheet title="更换背景" onClose={() => setSheet(null)}>
+          <div className="background-sheet-choices">
+            <Button
+              onClick={() => {
+                setSheet(null);
+                void background();
+              }}
+            >
+              上传图片
+            </Button>
+            {onBackgroundLibraryRequest && (
+              <Button
+                onClick={() => {
+                  setSheet(null);
+                  void background(onBackgroundLibraryRequest);
+                }}
+              >
+                从背景库选择
+              </Button>
+            )}
+          </div>
         </BottomSheet>
       )}
       {pending && (

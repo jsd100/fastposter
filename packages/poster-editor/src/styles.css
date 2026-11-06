@@ -481,6 +481,14 @@
     outline: 2px solid var(--fp-focus-line);
     outline-offset: -2px;
   }
+  .background-sheet-choices {
+    display: grid;
+    gap: 10px;
+  }
+  .background-sheet-choices .button {
+    min-height: 44px;
+    justify-content: center;
+  }
   .width-handle > span {
     width: 8px;
     height: 22px;

@@ -12,6 +12,7 @@ import {
   Button,
   Dialog,
   ProjectDeletionConfirm,
+  Select,
   TextInput,
   Textarea,
   useErrorNotice,
@@ -385,19 +386,19 @@ export function ProjectsPage() {
             setPage(1);
           }}
         />
-        <select
-          className="select"
+        <Select
           aria-label="筛选作品状态"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value as ProjectStatus);
+          onValueChange={(value) => {
+            setStatus(value);
             setPage(1);
           }}
-        >
-          <option value="all">全部状态</option>
-          <option value="normal">正常</option>
-          <option value="trash">回收站</option>
-        </select>
+          options={[
+            { value: "all", label: "全部状态" },
+            { value: "normal", label: "正常" },
+            { value: "trash", label: "回收站" },
+          ]}
+        />
       </div>
       <RecordSection name="作品元数据记录">
         <div className="table-wrap">
@@ -492,29 +493,6 @@ export function AuditPage() {
       </RecordSection>
     </>
   );
-}
-export function Pager({
-  page,
-  total,
-  onPage,
-}: {
-  page: number;
-  total: number;
-  onPage: (page: number) => void;
-}) {
-  return total > 24 ? (
-    <div className="pagination">
-      <Button disabled={page === 1} onClick={() => onPage(page - 1)}>
-        上一页
-      </Button>
-      <span>
-        第 {page} 页 · 共 {total} 项
-      </span>
-      <Button disabled={page * 24 >= total} onClick={() => onPage(page + 1)}>
-        下一页
-      </Button>
-    </div>
-  ) : null;
 }
 function formatBytes(raw: string) {
   const bytes = Number(raw);

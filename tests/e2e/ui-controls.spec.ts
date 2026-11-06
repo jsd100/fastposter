@@ -656,14 +656,15 @@ test.describe("touch number stepping", () => {
     // The tabs and scope row push the size field below the sheet's first
     // screenful; the sheet scrolls, so bring the control into view first.
     await plus.scrollIntoViewIfNeeded();
-    // The sheet slides in; touch the step button only once it has settled
-    // inside the viewport, otherwise the press lands outside it.
+    // The sheet slides in; touch the step button only once the drawer has
+    // reached its resting position, otherwise the press lands where the
+    // button was a frame earlier.
     await expect
       .poll(async () => {
-        const box = (await plus.boundingBox())!;
-        return box.y >= 0 && box.y + box.height <= 844;
+        const box = (await dialog.boundingBox())!;
+        return Math.round(box.y + box.height);
       })
-      .toBe(true);
+      .toBe(844);
     const box = (await plus.boundingBox())!;
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.dispatchTouchEvent", {

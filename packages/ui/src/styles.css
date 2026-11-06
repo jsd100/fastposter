@@ -111,14 +111,6 @@ summary:focus-visible {
   white-space: nowrap;
   border: 0;
 }
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  margin-top: 25px;
-  font-size: 11px;
-}
 @media (max-width: 680px) {
   .simple-page {
     padding: 20px;

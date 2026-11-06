@@ -19,7 +19,6 @@
 .select:global(.ant-select) :global(.ant-select-input) {
   padding: 0;
   font: inherit;
-  color: inherit;
   cursor: inherit;
 }
 .select:global(.ant-select) :global(.ant-select-suffix) {

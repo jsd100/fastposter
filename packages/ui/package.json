@@ -12,7 +12,6 @@
     "test": "pnpm -w exec vitest run packages/ui"
   },
   "dependencies": {
-    "@base-ui/react": "1.9.0",
     "antd": "6.7.0"
   }
 }

@@ -78,6 +78,11 @@ test("font search locates Chinese families and previews a highlight without touc
   await expect(fontOption(page, "思源宋体")).toBeVisible();
   await expect(listbox.getByRole("option")).toHaveCount(1);
   await font.fill("文楷");
+  // The trigger hides the selected label while searching, so the typed query
+  // itself has to stay legible in the input.
+  await expect
+    .poll(() => font.evaluate((node) => getComputedStyle(node).color))
+    .not.toBe("rgba(0, 0, 0, 0)");
   await expect(fontOption(page, "霞鹜文楷")).toBeVisible();
   await expect(listbox.getByRole("option")).toHaveCount(1);
   await fontOption(page, "霞鹜文楷").hover();
