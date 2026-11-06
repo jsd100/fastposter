@@ -462,7 +462,8 @@
   }
   .mobile-nav-item {
     flex: 1;
-    min-width: 0;
+    /* Named touch targets: both axes stay at least 44px even at 320px. */
+    min-width: 44px;
     min-height: 48px;
     display: grid;
     justify-items: center;

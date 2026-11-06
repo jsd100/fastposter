@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -54,7 +55,13 @@ import {
 } from "lucide-react";
 import { createEditorStore, type EditorStore } from "./store";
 import { Stage } from "./Stage";
-import { replaceBackground, type BackgroundAsset } from "./geometry";
+import {
+  clamp,
+  replaceBackground,
+  type BackgroundAsset,
+  type Rect,
+  type ViewTransform,
+} from "./geometry";
 import type { FontSource } from "@fastposter/poster-renderer";
 import "./styles.css";
 export type EditorProps = {
@@ -95,10 +102,88 @@ export function Editor({
   const [sheet, setSheet] = useState<
     "inspector" | "layers" | "background" | null
   >(null);
+  const [visibleViewport, setVisibleViewport] = useState<Rect | null>(null);
+  const manualView = useRef<{
+    view: ViewTransform;
+    canvas: string;
+  } | null>(null);
+  function canvasSize() {
+    const c = store.getState().document.canvas;
+    return `${c.width}x${c.height}`;
+  }
+  /** The phone inspector owns a temporary, pure view adjustment. */
+  function openInspectorSheet() {
+    manualView.current = {
+      view: store.getState().view,
+      canvas: canvasSize(),
+    };
+    setSheet("inspector");
+  }
+  function closeSheet() {
+    setSheet(null);
+    // Clear the band in the same batch as the view restore, so the stage sees
+    // no visibleViewport on this commit and cannot re-adjust the manual view.
+    setVisibleViewport(null);
+    const saved = manualView.current;
+    manualView.current = null;
+    // A resized canvas already re-fitted to the new size; keep that adaptation
+    // instead of restoring a view measured against the old dimensions.
+    if (saved && saved.canvas === canvasSize()) store.setView(saved.view);
+  }
+  useLayoutEffect(() => {
+    if (layout !== "phone" || sheet !== "inspector") {
+      setVisibleViewport(null);
+      return;
+    }
+    const stage = window.document.querySelector<HTMLElement>(
+      "[data-editor-stage]",
+    );
+    if (!stage) return;
+    const measure = () => {
+      const s = stage.getBoundingClientRect();
+      const panel = window.document.querySelector<HTMLElement>(
+        "[data-fp-overlay].bottom-sheet",
+      );
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      const panelTop = panel ? panel.getBoundingClientRect().top : vh;
+      // The drawer already carries the safe-area inset and the visual viewport
+      // reflects the on-screen keyboard; their intersection with the stage is
+      // the band a phone user can still see and operate on.
+      const bottom = Math.min(panelTop, vh, s.bottom);
+      const height = clamp(bottom - s.top, 0, s.height);
+      setVisibleViewport((prev) =>
+        prev && prev.width === s.width && prev.height === height
+          ? prev
+          : { x: 0, y: 0, width: s.width, height },
+      );
+    };
+    measure();
+    // The drawer animates into place: re-measure on its size changes and once
+    // after the enter transition, so a 0x0 first frame cannot win.
+    const panel = window.document.querySelector<HTMLElement>(
+      "[data-fp-overlay].bottom-sheet",
+    );
+    const observer = panel ? new ResizeObserver(measure) : null;
+    if (panel) observer?.observe(panel);
+    const timer = window.setTimeout(measure, 300);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.clearTimeout(timer);
+      observer?.disconnect();
+      vv?.removeEventListener("resize", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, [layout, sheet]);
   useEffect(() => {
     setSheet(null);
     setLayerDrawer(false);
     setInspectorDrawer(false);
+    // A breakpoint change re-fits the stage to the new size; drop the stale
+    // manual view rather than restoring it on top of that adaptation.
+    manualView.current = null;
+    setVisibleViewport(null);
   }, [layout]);
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -458,6 +543,59 @@ export function Editor({
       setLayerDrawer(false);
     }
   }
+  const fontsReady = availableFonts.length > 0;
+  const atCapacity = state.document.textBlocks.length >= 100;
+  /**
+   * One availability model for every control that can mutate the document.
+   * The desktop toolbar, the phone canvas bar and the phone inspector sheet
+   * all read from here, so font readiness, the 100-block limit, the selection
+   * and the copy-busy state cannot drift apart between breakpoints (FP-07).
+   */
+  const operations = {
+    addText: {
+      disabled: !fontsReady || atCapacity,
+      reason: !fontsReady
+        ? "字体尚未就绪"
+        : atCapacity
+          ? "文字块数量已达上限"
+          : "",
+      run: () => store.addText(availableFonts),
+    },
+    copyText: {
+      disabled: !fontsReady || copyBusy,
+      reason: copyBusy ? "正在插入文案" : !fontsReady ? "字体尚未就绪" : "",
+      busy: copyBusy,
+      run: () => void insertCopy(),
+    },
+    duplicate: {
+      disabled: !selected || atCapacity,
+      reason: !selected
+        ? "请先选择文字块"
+        : atCapacity
+          ? "文字块数量已达上限"
+          : "",
+      run: store.duplicateSelected,
+    },
+    delete: {
+      disabled: !selected,
+      reason: "请先选择文字块",
+      run: deleteSelected,
+    },
+    undo: {
+      disabled: !state.canUndo,
+      reason: state.canUndo ? "" : "没有可撤销的操作",
+      run: store.undo,
+    },
+    redo: {
+      disabled: !state.canRedo,
+      reason: state.canRedo ? "" : "没有可重做的操作",
+      run: store.redo,
+    },
+    background: {
+      disabled: uploading,
+      reason: uploading ? "正在导入背景" : "",
+    },
+  };
   const textPanel: TextPanelProps | null = selected
     ? {
         block: selected,
@@ -478,8 +616,12 @@ export function Editor({
     : null;
   const selectionActions = selected ? (
     <div className="selection-actions">
-      <Tooltip label="复制文字块">
-        <Button aria-label="复制文字块" onClick={store.duplicateSelected}>
+      <Tooltip label={operations.duplicate.reason || "复制文字块"}>
+        <Button
+          aria-label="复制文字块"
+          disabled={operations.duplicate.disabled}
+          onClick={operations.duplicate.run}
+        >
           <Copy size={15} />
         </Button>
       </Tooltip>
@@ -499,8 +641,12 @@ export function Editor({
           <ArrowDown size={15} />
         </Button>
       </Tooltip>
-      <Tooltip label="删除文字块">
-        <Button aria-label="删除文字块" onClick={deleteSelected}>
+      <Tooltip label={operations.delete.reason || "删除文字块"}>
+        <Button
+          aria-label="删除文字块"
+          disabled={operations.delete.disabled}
+          onClick={operations.delete.run}
+        >
           <Trash2 size={15} />
         </Button>
       </Tooltip>
@@ -617,18 +763,16 @@ export function Editor({
             <span className="toolbar-divider" aria-hidden="true" />
             <Button
               variant="primary"
-              disabled={
-                !availableFonts.length ||
-                state.document.textBlocks.length >= 100
-              }
-              onClick={() => store.addText(availableFonts)}
+              disabled={operations.addText.disabled}
+              title={operations.addText.reason || undefined}
+              onClick={operations.addText.run}
             >
               <Plus size={15} />
               添加文字
             </Button>
             <Button
               aria-label="更换背景"
-              disabled={!onAssetRequest}
+              disabled={!onAssetRequest || operations.background.disabled}
               busy={uploading}
               onClick={() => void background()}
             >
@@ -637,9 +781,10 @@ export function Editor({
             </Button>
             {onCopyRequest && (
               <Button
-                disabled={!availableFonts.length}
-                busy={copyBusy}
-                onClick={() => void insertCopy()}
+                disabled={operations.copyText.disabled}
+                title={operations.copyText.reason || undefined}
+                busy={operations.copyText.busy}
+                onClick={operations.copyText.run}
               >
                 <FileText size={15} />
                 文案
@@ -647,7 +792,7 @@ export function Editor({
             )}
             {onBackgroundLibraryRequest && (
               <Button
-                disabled={uploading}
+                disabled={operations.background.disabled}
                 onClick={() => void background(onBackgroundLibraryRequest)}
               >
                 背景库
@@ -655,22 +800,22 @@ export function Editor({
             )}
           </div>
           <div className="toolbar-tools">
-            <Tooltip label="撤销 Ctrl/⌘ Z">
+            <Tooltip label={operations.undo.reason || "撤销 Ctrl/⌘ Z"}>
               <Button
                 aria-label="撤销"
                 aria-keyshortcuts="Control+Z Meta+Z"
-                disabled={!state.canUndo}
-                onClick={store.undo}
+                disabled={operations.undo.disabled}
+                onClick={operations.undo.run}
               >
                 <Undo2 size={16} />
               </Button>
             </Tooltip>
-            <Tooltip label="重做 Ctrl/⌘ Y">
+            <Tooltip label={operations.redo.reason || "重做 Ctrl/⌘ Y"}>
               <Button
                 aria-label="重做"
                 aria-keyshortcuts="Control+Y Meta+Y"
-                disabled={!state.canRedo}
-                onClick={store.redo}
+                disabled={operations.redo.disabled}
+                onClick={operations.redo.run}
               >
                 <Redo2 size={16} />
               </Button>
@@ -721,6 +866,7 @@ export function Editor({
         <Stage
           store={store}
           state={state}
+          visibleViewport={visibleViewport}
           renderEditing={
             renderEditing
               ? (b) => renderEditing(b, store)
@@ -774,7 +920,9 @@ export function Editor({
               onGroupChange={setGroup}
               textPanel={textPanel}
               position={position}
-              onAddText={() => store.addText(availableFonts)}
+              onAddText={operations.addText.run}
+              addDisabled={operations.addText.disabled}
+              addDisabledReason={operations.addText.reason}
               scopeLabel={scopeLabel}
               actions={selectionActions}
             />
@@ -788,10 +936,18 @@ export function Editor({
               <Button onClick={toggleEdit}>
                 {state.mode === "edit" ? "完成文字编辑" : "编辑文字"}
               </Button>
-              <Button aria-label="复制文字块" onClick={store.duplicateSelected}>
+              <Button
+                aria-label="复制文字块"
+                disabled={operations.duplicate.disabled}
+                onClick={operations.duplicate.run}
+              >
                 <Copy size={16} />
               </Button>
-              <Button aria-label="删除文字块" onClick={deleteSelected}>
+              <Button
+                aria-label="删除文字块"
+                disabled={operations.delete.disabled}
+                onClick={operations.delete.run}
+              >
                 <Trash2 size={16} />
               </Button>
             </>
@@ -800,11 +956,35 @@ export function Editor({
       )}
       {layout === "phone" && (
         <nav className="mobile-nav" aria-label="编辑工具">
+          {/* Named, 44px-target history controls share the desktop callbacks
+              and disabled reasons; they stay visible without a selection. */}
+          <button
+            type="button"
+            className="mobile-nav-item"
+            aria-label="撤销"
+            title={operations.undo.reason || "撤销"}
+            disabled={operations.undo.disabled}
+            onClick={operations.undo.run}
+          >
+            <Undo2 size={18} />
+            <span>撤销</span>
+          </button>
+          <button
+            type="button"
+            className="mobile-nav-item"
+            aria-label="重做"
+            title={operations.redo.reason || "重做"}
+            disabled={operations.redo.disabled}
+            onClick={operations.redo.run}
+          >
+            <Redo2 size={18} />
+            <span>重做</span>
+          </button>
           <button
             type="button"
             className="mobile-nav-item"
             aria-label="文字设置"
-            onClick={() => setSheet("inspector")}
+            onClick={openInspectorSheet}
           >
             <Type size={18} />
             <span>文字</span>
@@ -814,7 +994,7 @@ export function Editor({
             className="mobile-nav-item"
             aria-label="更换背景"
             data-fp-background-entry=""
-            disabled={!onAssetRequest}
+            disabled={!onAssetRequest || operations.background.disabled}
             onClick={() => setSheet("background")}
           >
             <Image size={18} />
@@ -825,8 +1005,9 @@ export function Editor({
               type="button"
               className="mobile-nav-item"
               aria-label="文案"
-              disabled={!availableFonts.length}
-              onClick={() => void insertCopy()}
+              title={operations.copyText.reason || undefined}
+              disabled={operations.copyText.disabled}
+              onClick={operations.copyText.run}
             >
               <FileText size={18} />
               <span>文案</span>
@@ -844,13 +1025,15 @@ export function Editor({
         </nav>
       )}
       {layout === "phone" && sheet === "inspector" && (
-        <BottomSheet title="文字设置" onClose={() => setSheet(null)}>
+        <BottomSheet title="文字设置" onClose={closeSheet}>
           <EditorInspector
             group={group}
             onGroupChange={setGroup}
             textPanel={textPanel}
             position={position}
-            onAddText={() => store.addText(availableFonts)}
+            onAddText={operations.addText.run}
+            addDisabled={operations.addText.disabled}
+            addDisabledReason={operations.addText.reason}
             showAdd
             scopeLabel={scopeLabel}
             actions={selectionActions}

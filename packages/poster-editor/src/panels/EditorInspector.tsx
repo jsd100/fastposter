@@ -15,6 +15,9 @@ export type EditorInspectorProps = {
   textPanel: TextPanelProps | null;
   position: ReactNode;
   onAddText: () => void;
+  /** Shared capacity/font-readiness rule, identical on phone and desktop. */
+  addDisabled?: boolean;
+  addDisabledReason?: string;
   /** The phone sheet owns the only creation entry while it is open. */
   showAdd?: boolean;
   scopeLabel?: string;
@@ -26,6 +29,8 @@ export function EditorInspector({
   textPanel,
   position,
   onAddText,
+  addDisabled = false,
+  addDisabledReason = "",
   showAdd = false,
   scopeLabel = "",
   actions,
@@ -34,7 +39,11 @@ export function EditorInspector({
     <div className="editor-inspector">
       {showAdd && (
         <div className="inspector-add">
-          <Button onClick={onAddText}>
+          <Button
+            disabled={addDisabled}
+            title={addDisabledReason || undefined}
+            onClick={onAddText}
+          >
             <Plus size={15} />
             添加文字
           </Button>
