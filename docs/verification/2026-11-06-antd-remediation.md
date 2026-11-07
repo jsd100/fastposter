@@ -20,16 +20,17 @@ workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
 branch: feat/fastposter
 review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
 execution_baseline: "71257c3"
-last_verified_commit: "8bda815"
-task: A03
-next_step: A03.1
-spec_ids: [FP-08]
-actual_paths: ["packages/poster-editor/src/Editor.tsx", "packages/poster-editor/src/Stage.tsx", "packages/poster-editor/src/geometry.ts", "packages/poster-editor/src/geometry.test.ts", "packages/poster-editor/src/panels/EditorInspector.tsx", "packages/poster-editor/src/styles.css", "tests/e2e/editor-mobile.spec.ts"]
-red: ["A02 RED: 手机无撤销/重做按钮", "A02 RED: 打开属性面板时 canvas transform 不变", "A02 RED: 100 块时手机面板添加文字仍 enabled", "A02 fix RED: 选区与缩小可见带交集 = -351.33px（基线产品代码）"]
-green: ["191/191 单测", "pnpm typecheck exit 0", "3 个新增 E2E 通过", "geometry 11/11", "editor-geometry 1 passed", "模板工作台 1 passed", "A01 焦点回归 1 passed"]
-decisions: ["Ruling 9 移除 matchMedia 运行时订阅", "Ruling 17-21 A02 修复轮裁定"]
-artifacts: [".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A02-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-7d783e1..57ecf6d.diff", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-57ecf6d..8bda815.diff"]
+last_verified_commit: "83f5408"
+task: A04
+next_step: A04.1
+spec_ids: [FP-01, FP-03]
+actual_paths: ["packages/poster-editor/src/Editor.tsx", "packages/poster-editor/src/store.ts", "packages/poster-editor/src/history.ts", "packages/poster-editor/src/text/RichTextEditor.tsx", "packages/poster-editor/src/panels/ColorField.tsx", "packages/poster-editor/src/panels/TextPanel.tsx", "packages/poster-editor/src/panels/StylePanel.tsx", "packages/poster-editor/src/panels/ParagraphPanel.tsx", "packages/ui/src/NumberField.tsx", "packages/poster-editor/src/store.test.ts", "tests/e2e/editor-richtext.spec.ts", "tests/e2e/editor-settings.spec.ts", "tests/e2e/export.spec.ts"]
+red: ["A03 RED: 仅打开色板即阻塞导出", "A03 RED: 跨断点 Escape 回 12 而非会话起点 0", "A03 RED: 删除再撤销带回旧块草稿 12.", "A03 RED: 色板关前提前 PUT", "A03 fix RED: tidy 全量清空导致 read(left) 为 undefined", "A03 fix RED: position Escape 产生额外历史 Received 650"]
+green: ["198/198 单测", "pnpm typecheck exit 0", "4 个新增 E2E + position Escape 通过", "autosave 4 passed", "A02 手机回归 3 passed", "导出可用性 1 passed"]
+decisions: ["Ruling 9 移除 matchMedia 运行时订阅", "Ruling 17-21 A02 修复轮裁定", "Ruling 23 PNG 导出 SKIP", "Ruling 24-30 A03 修复轮裁定"]
+artifacts: [".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A03-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-438dfe0..8bf42b0.diff", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-8bf42b0..83f5408.diff"]
 blockers: []
+open_verification_items: ["Chrome 157 vs 锁定 156：export.spec.ts 2 个 + editor-fonts.spec.ts 2 个 PNG 导出用例标 SKIP，A10 须在匹配环境重跑；A03 不因此标为完全 VERIFIED"]
 ```
 
 B 批状态：`NOT_AUTHORIZED`（FP-11 涉及 IDL、生成代码与服务端事务，需用户单独授权；A 批不处理）。
@@ -83,9 +84,20 @@ B 批状态：`NOT_AUTHORIZED`（FP-11 涉及 IDL、生成代码与服务端事�
 - 遗留：11 项 Minor 推迟到全分支评审；reduced-motion + 键盘 + 安全区组合交 A10 五档矩阵；`onMotionEnd` 祖先过滤为 Minor 观察，rAF/resize/ResizeObserver 兜底。
 - 证据：`.superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A02-report.md`（含 §11 fix report）、`review-7d783e1..57ecf6d.diff`、`review-57ecf6d..8bda815.diff`。
 
-### A03 … A10
+### A03 统一编辑手势和数值草稿 — DONE（含未完成验收项）
 
-待执行。A10 负责 `pnpm verify`、逐 spec E2E、五档视觉矩阵、固定导出样本像素对比与三份维护文档。
+- 提交：`8bf42b0 fix(editor): scope gestures and drafts to the edit session`、`83f5408 fix(editor): scope draft tidy and prove color gesture cleanup`
+- 需求：FP-08、FP-13（FP-08 行）。
+- 实现要点：`history.ts` 给事务加 token 与 `matches()`；`store.ts` 新增 `TransactionHandle { session, target, id, owner }`、`acquire()`、`finish(handle, "commit" | "cancel")`（只结束仍匹配的事务）、`activeTransaction()`、`invalidateSession()` 与会话级 `NumberDraftSession`。`ColorField` 首次有效变更才开事务、未改打开/关闭无写入且不阻塞导出；`RichTextEditor` 的 650ms timer 与 blur 只结束自身事务、外部样式更新仍写真实选区与内容、IME 边界复刻基线。`NumberDraftBinding` 升级为 `NumberDraftSnapshot = { raw, baseline, lastValid }`，由会话按「作品/模板、块、属性、目标」作用域持有并关联事务身份；按钮与快捷键删除共用 `deleteSelected()`，先结束手势再清该块草稿。`useProjectAutosave.ts` / `autosave.ts` 未改（`inTransaction` 布尔语义足够，A03 计划允许仅在传递不足时改动）。
+- 独立评审：Spec ❌ 4 项、3 Important（1 plan-mandated）、0 Critical、11 Minor，Needs fixes。修复轮按 Ruling 24–26 处理三项：`tidy(scope)` 改为按作用域把悬挂 raw 折叠回 `lastValid` 并保留其他块/目标；`NumberField` Escape 判据改为「是否有草稿绑定」，position 这类混合调用者改走 `history.rollbackTo(depth)` 事务回滚（保持每次写入立即提交以满足 autosave 的「已保存」时序），不新增历史、文档与显示串都回 baseline；`color gesture owns range changes until close` 补上「选区两次改色 → 关前零写入 → 换目标/删除 → 撤销删除保留最后有效色」链路。复评审 5 条发现全部 ADDRESSED，无新增 Critical/Important 破坏。
+- 验证（控制器独立复跑）：`pnpm typecheck` exit 0；`pnpm test` 30 文件 / **198 用例** exit 0；`editor-settings` 3 个新增用例 3 passed；`editor-richtext -g 'color gesture owns range changes until close'` 1 passed；`export -g 'unmodified picker does not block export'` 1 passed；`autosave.spec.ts` 4 passed；`editor-mobile` A02 回归 3 passed。实现者另跑 `editor-settings` 8 passed、`editor-richtext` 5 passed、`editor-fonts` 10 passed / 2 SKIP、`export` 1 passed / 2 SKIP。
+- **未完成验收项（SKIP，环境不匹配）**：本机 Chrome `157.0.8103.38`，`deploy/toolchain.lock.json` 锁定 `156.0.8078.48`。`export.spec.ts` 的 `flushes latest edits and previews the exact native PNG available for download`、`closing the export dialog mid-flight reopens the same job and unlocks the page`，以及 `editor-fonts.spec.ts` 的 `a new Chinese family renders, saves, reloads and exports at the same version`、`new bundled Chinese families load and the final choice saves, reloads and exports` 共 4 个 PNG 导出用例稳定失败（「文字渲染失败」/「文字超出画布」）。实现者用 `git stash` 做纯 HEAD 基线对照，基线同样失败；`apps/renderer/dist` 为未变的 gitignored 静态产物、`server/` 与导出 worker 未改、`apps/renderer/src/main.tsx` 不导入 A03 模块。按 FP-13 标 SKIP 并记录影响：**已保存 revision 的端到端 PNG 导出证据在本机不完整，A10 必须在匹配 Chrome 156 的环境重跑并重建 `apps/renderer/dist`**。A03 因此**不标记为完全 VERIFIED**。
+- 遗留：11 项 Minor 推迟到全分支评审；两处非阻塞理论边界（`rollbackTo` 清 `future` 的窄 redo 场景、折叠记录保留旧 `sessionDepth`）；Ruling 28/29 已裁定的断言覆盖说明。
+- 证据：`.superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A03-report.md`（780 行，含 §12 fix report）、`review-438dfe0..8bf42b0.diff`、`review-8bf42b0..83f5408.diff`。
+
+### A04 … A10
+
+待执行。A10 负责 `pnpm verify`、逐 spec E2E、五档视觉矩阵、固定导出样本像素对比、三份维护文档，以及上述 4 个 PNG 导出用例在匹配环境下的重跑。
 
 ## 遗留与裁定
 
