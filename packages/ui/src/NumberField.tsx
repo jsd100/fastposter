@@ -34,6 +34,8 @@ export type NumberDraftSnapshot = {
 export type NumberDraftBinding = {
   initialDraft?: NumberDraftSnapshot;
   onDraftChange?: (snapshot: NumberDraftSnapshot | null) => void;
+  /** Cancel the whole input session through the edit session. */
+  onDraftCancel?: () => void;
 };
 
 export type NumberFieldProps = NumberDraftBinding & {
@@ -75,6 +77,7 @@ export function NumberField({
   onInteractionEnd,
   initialDraft,
   onDraftChange,
+  onDraftCancel,
 }: NumberFieldProps): ReactElement {
   const [draft, setDraft] = useState(
     initialDraft ? initialDraft.raw : value == null ? "" : String(value),
@@ -264,20 +267,30 @@ export function NumberField({
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      // Restore the valid value from before this input session. A bound
-      // field cancels its session transaction (endInteraction("cancel")),
-      // which rolls the document back through the store. A caller without a
-      // session transaction has no such rollback, so keep the shared
-      // control's original local behaviour and write the pre-session value
-      // back through onValueChange, exactly as the baseline commit(prior)
-      // did; otherwise the displayed draft and the controlled value diverge.
+      // Restore the valid value from before this input session. The branch is
+      // decided by whether the field has a draft binding, NOT by whether it
+      // has session transaction callbacks: a bound position field has a
+      // binding but no callbacks and must still cancel through the session.
       const restore = baseline.current;
       const changed = restore !== settled.current;
       settled.current = restore;
       setDraft(restore == null ? "" : String(restore));
-      onDraftChange?.(null);
-      if (!endRef.current && restore !== null && changed)
+      const bound = onDraftChange !== undefined || onDraftCancel !== undefined;
+      if (bound) {
+        // Cancel the session BEFORE clearing the record: the owner reads the
+        // session depth from that scope. A field with transaction callbacks
+        // rolls its open gesture back through endInteraction("cancel"); a
+        // bound field without them rolls back its committed input session via
+        // onDraftCancel (a transaction rollback, no extra undo entry).
+        if (!endRef.current) onDraftCancel?.();
+        onDraftChange?.(null);
+      } else if (restore !== null && changed) {
+        // An unbound caller (admin) has no session to cancel: keep the shared
+        // control's original local behaviour and write the pre-session value
+        // back through onValueChange, as the baseline commit(prior) did, so
+        // the displayed draft and the controlled value do not diverge.
         onValueChange(restore);
+      }
       endInteraction("cancel");
       return;
     }
@@ -338,8 +351,11 @@ export function NumberField({
         ensureBaseline();
         const bounds = params.current;
         const parsed = classifyNumberDraft(raw, bounds.lower, bounds.upper);
-        if (parsed.kind === "valid") commit(parsed.value);
+        // Record the suspended draft BEFORE the valid value takes effect, so
+        // the history depth captured by the owner marks the session start and
+        // an Escape can roll the whole session back.
         emitSnapshot(raw);
+        if (parsed.kind === "valid") commit(parsed.value);
       }}
       onBlur={finish}
       onKeyDown={handleKeyDown}

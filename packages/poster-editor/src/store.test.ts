@@ -245,3 +245,50 @@ it("one undo restores the font references and the text style together", () => {
   store.undo();
   expect(store.getState().document).toEqual(before);
 });
+
+it("tidy folds only the left block's suspended draft", () => {
+  const drafts = new NumberDraftSession();
+  const left: DraftScope = {
+    work: "u1:p1",
+    blockId: "b1",
+    field: "padding",
+    target: "select",
+  };
+  const other: DraftScope = { ...left, blockId: "b2" };
+  const otherTarget: DraftScope = {
+    ...left,
+    field: "lineHeight",
+    target: "edit",
+  };
+  const suspended = { raw: "12.", baseline: 0, lastValid: 12 };
+  const otherSuspended = { raw: "7.", baseline: 0, lastValid: 7 };
+  const targetSuspended = { raw: "1.5.", baseline: 1.4, lastValid: 1.5 };
+  drafts.write(left, suspended, null);
+  drafts.write(other, otherSuspended, null);
+  drafts.write(otherTarget, targetSuspended, null);
+
+  // An active switch folds the unfinished string of the block/target being
+  // left, like a deliberate blur, back to its last valid value.
+  drafts.tidy({ work: left.work, blockId: left.blockId, target: left.target });
+  expect(drafts.read(left)).toEqual({ ...suspended, raw: "12" });
+  // Another block's suspended draft stays restorable verbatim.
+  expect(drafts.read(other)).toEqual(otherSuspended);
+  // A different edit target of the same work is out of scope too.
+  expect(drafts.read(otherTarget)).toEqual(targetSuspended);
+});
+
+it("cancelNumberSession rolls a committed input session back to its start", () => {
+  const store = createEditorStore(emptyDoc());
+  const depth = store.historyDepth();
+  // Two committed writes in one input session (like typing 1 -> 12 -> 123).
+  store.transact((doc) => ({ ...doc, canvas: { ...doc.canvas, width: 800 } }));
+  store.transact((doc) => ({ ...doc, canvas: { ...doc.canvas, width: 900 } }));
+  expect(store.getState().canUndo).toBe(true);
+  expect(store.getState().document.canvas.width).toBe(900);
+  store.cancelNumberSession(depth);
+  // The document is back at the session start, with no extra undo entry and
+  // no redo entry, so the cancelled values cannot be undone back into view.
+  expect(store.getState().document.canvas.width).toBe(1200);
+  expect(store.getState().canUndo).toBe(false);
+  expect(store.getState().canRedo).toBe(false);
+});

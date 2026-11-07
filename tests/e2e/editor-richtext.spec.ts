@@ -254,4 +254,36 @@ test("color gesture owns range changes until close", async ({ page }) => {
   await page.getByRole("button", { name: "撤销", exact: true }).click();
   await expect.poll(() => savedRangeColor(page)).toBeNull();
   await expect.poll(() => savedColor(page)).toBe("#284632");
+
+  // A03.1 tail: an active target switch (deleting the block) after a range
+  // gesture. The gesture must close on its ORIGINAL target before the block
+  // goes away: no save before it closes, and undoing the delete restores the
+  // LAST VALID colour of the interrupted gesture, never the original colour
+  // and never a stale draft.
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  await selectScenery(page);
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  writes.length = 0;
+  const deleteTrigger = page.getByLabel("文字颜色", { exact: true });
+  await twoChangesInOnePicker(page, deleteTrigger, "ff0000", "00ff00");
+  expect(writes).toHaveLength(0);
+  // Closing the picker commits the range gesture on its original target.
+  await deleteTrigger.click();
+  await expect.poll(() => savedRangeColor(page)).toBe("#00ff00");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  // Delete is an active target switch: end the old gesture on its target and
+  // discard the block's drafts before the block is removed. The toolbar's
+  // delete button is the same deleteSelected() entry as the shortcut.
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  await page
+    .getByRole("button", { name: "删除文字块", exact: true })
+    .first()
+    .click();
+  await expect(page.locator("[data-text-block]")).toHaveCount(0);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.locator("[data-text-block]")).toHaveCount(1);
+  // The restored range keeps the last valid colour #00ff00; the whole-block
+  // default was never touched by a range gesture, so it stays #284632.
+  await expect.poll(() => savedRangeColor(page)).toBe("#00ff00");
+  await expect.poll(() => savedColor(page)).toBe("#284632");
 });

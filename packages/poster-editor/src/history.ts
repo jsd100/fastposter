@@ -26,8 +26,23 @@ export class DocumentHistory<T> {
   get canRedo() {
     return this.future.length > 0;
   }
+  /** Number of committed transactions, used to mark an input session's start. */
+  get depth() {
+    return this.past.length;
+  }
   get inTransaction() {
     return this.active;
+  }
+  /**
+   * Roll back every transaction committed after `depth`, restoring the
+   * document to the start of an input session. An Escape cancels the session:
+   * nothing is added to the undo stack and no redo entry survives, so the
+   * cancellation cannot be undone back into the value just typed.
+   */
+  rollbackTo(depth: number) {
+    this.commit();
+    while (this.past.length > depth) this.current = this.past.pop() as T;
+    this.future = [];
   }
   begin(token?: unknown) {
     if (!this.active) {

@@ -369,3 +369,41 @@ test("deleting a block discards its suspended number draft", async ({
   // Undo restores only the last valid document value, never the old raw draft.
   await expect(sheet.getByLabel("内边距", { exact: true })).toHaveValue("12");
 });
+
+/** Width of the first block in the cloud document, after autosave settles. */
+async function savedWidth(page: Page): Promise<number | null> {
+  const id = page.url().split("/").at(-2)!;
+  const body = await (await page.request.get(`/api/v1/projects/${id}`)).json();
+  const blocks = JSON.parse(body.project.document).textBlocks as {
+    width: number;
+  }[];
+  return blocks[0]?.width ?? null;
+}
+
+test("position Escape restores the session baseline without an extra undo step", async ({
+  page,
+}) => {
+  await openPoster(page, "a03posescape");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.locator("[data-text-block]").first().click();
+  await page.getByRole("button", { name: "位置", exact: true }).click();
+  const width = page.getByLabel("文本框宽度", { exact: true });
+  const baseline = Number(await width.inputValue());
+  const undo = page.getByRole("button", { name: "撤销", exact: true });
+  // A valid value takes effect and is saved, exactly like the baseline path.
+  await width.fill("650");
+  await expect(width).toHaveValue("650");
+  await expect.poll(() => savedWidth(page)).toBe(650);
+  // Escape cancels the whole input session back to its starting value.
+  await width.press("Escape");
+  await expect(width).toHaveValue(String(baseline));
+  await expect.poll(() => savedWidth(page)).toBe(baseline);
+  // Cancelling must not add a history entry: the undo stack is back to its
+  // pre-session state, so one undo returns to exactly the same state as
+  // undoing before the input session (the work before "添加文字", no block).
+  // A bound position field that instead writes the restore value through a
+  // fresh committed transaction leaves an extra entry, and one undo only
+  // reveals the just-cancelled 650.
+  await undo.click();
+  await expect.poll(() => savedWidth(page)).toBeNull();
+});

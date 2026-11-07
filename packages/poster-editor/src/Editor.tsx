@@ -300,14 +300,34 @@ export function Editor({
       target: state.mode,
     };
   }
-  function draft(blockId: string, field: string): NumberDraftBinding {
+  function draft(
+    blockId: string,
+    field: string,
+    sessionCancelable = false,
+  ): NumberDraftBinding {
     const scope = draftScope(blockId, field);
     return {
       initialDraft: store.drafts.read(scope),
       onDraftChange: (snapshot) => {
         if (snapshot === null) store.drafts.clear(scope);
-        else store.drafts.write(scope, snapshot, store.activeTransaction());
+        else
+          store.drafts.write(
+            scope,
+            snapshot,
+            store.activeTransaction(),
+            store.historyDepth(),
+          );
       },
+      // A bound field without session transaction callbacks (position) has no
+      // open gesture to cancel, so it rolls back the input session it already
+      // committed through the store, instead of writing a fresh restore value
+      // that would add an extra undo entry.
+      onDraftCancel: sessionCancelable
+        ? () => {
+            const depth = store.drafts.depthOf(scope);
+            if (depth !== undefined) store.cancelNumberSession(depth);
+          }
+        : undefined,
     };
   }
   const [pending, setPending] = useState<BackgroundAsset | null>(null),
@@ -372,12 +392,25 @@ export function Editor({
   }, [fontCheckScope]);
   /**
    * An active text-block or edit-target switch ends the gesture on the
-   * previous target and tidies unfinished number strings like a deliberate
-   * blur. Layout, group and sheet swaps never reach here, so they keep drafts.
+   * previous target and tidies that target's unfinished number strings like
+   * a deliberate blur. Only the work/block/target being left is touched;
+   * other blocks and other edit targets keep their suspended drafts. Layout,
+   * group and sheet swaps never reach here, so they keep drafts.
    */
+  const priorTarget = useRef({
+    selectedId: state.selectedId,
+    mode: state.mode,
+  });
   useEffect(() => {
+    const previous = priorTarget.current;
+    priorTarget.current = { selectedId: state.selectedId, mode: state.mode };
     endActiveGesture("commit");
-    store.drafts.tidy();
+    if (previous.selectedId)
+      store.drafts.tidy({
+        work: fontCheckScope,
+        blockId: previous.selectedId,
+        target: previous.mode,
+      });
   }, [state.selectedId, state.mode]);
   useEffect(
     () => onInteractionChange?.(state.inTransaction),
@@ -744,7 +777,7 @@ export function Editor({
                   : state.document.canvas.height - 0.001
             }
             step={1}
-            {...draft(selected.id, `position-${field}`)}
+            {...draft(selected.id, `position-${field}`, true)}
             onValueChange={(n) =>
               withControlGesture(() => {
                 const d = store.getState().document;

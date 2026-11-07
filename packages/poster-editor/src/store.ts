@@ -36,6 +36,8 @@ export type DraftRecord = {
   scope: DraftScope;
   snapshot: NumberDraftSnapshot;
   handle: TransactionHandle | null;
+  /** History depth when this input session began, for a scoped cancel. */
+  sessionDepth: number;
 };
 export class NumberDraftSession {
   private records = new Map<string, DraftRecord>();
@@ -55,12 +57,24 @@ export class NumberDraftSession {
   handleOf(scope: DraftScope): TransactionHandle | null {
     return this.records.get(this.key(scope))?.handle ?? null;
   }
+  depthOf(scope: DraftScope): number | undefined {
+    return this.records.get(this.key(scope))?.sessionDepth;
+  }
   write(
     scope: DraftScope,
     snapshot: NumberDraftSnapshot,
     handle: TransactionHandle | null,
+    sessionDepth = 0,
   ) {
-    this.records.set(this.key(scope), { scope, snapshot, handle });
+    const existing = this.records.get(this.key(scope));
+    this.records.set(this.key(scope), {
+      scope,
+      snapshot,
+      handle,
+      // A suspended draft keeps the depth of the session that opened it
+      // across remounts; a fresh record adopts the caller's current depth.
+      sessionDepth: existing?.sessionDepth ?? sessionDepth,
+    });
   }
   clear(scope: DraftScope) {
     this.records.delete(this.key(scope));
@@ -70,9 +84,29 @@ export class NumberDraftSession {
     for (const [key, record] of Array.from(this.records))
       if (record.scope.blockId === blockId) this.records.delete(key);
   }
-  /** An active target switch tidies unfinished strings like a deliberate blur. */
-  tidy() {
-    this.records.clear();
+  /**
+   * An active target switch folds the unfinished strings of the block/target
+   * being left back to their last valid value, like a deliberate blur. Drafts
+   * of other blocks, other fields on another target or another work keep
+   * their suspended raw string, so switching selection never discards input
+   * the user has not acted on (FP-08 scope contract).
+   */
+  tidy(scope: Pick<DraftScope, "work" | "blockId" | "target">) {
+    for (const [key, record] of Array.from(this.records)) {
+      if (
+        record.scope.work !== scope.work ||
+        record.scope.blockId !== scope.blockId ||
+        record.scope.target !== scope.target
+      )
+        continue;
+      const { raw, baseline, lastValid } = record.snapshot;
+      const settledRaw = lastValid == null ? "" : String(lastValid);
+      if (raw === settledRaw) continue;
+      this.records.set(key, {
+        ...record,
+        snapshot: { raw: settledRaw, baseline, lastValid },
+      });
+    }
   }
   /** Page / edit target / account invalidation ends the old draft session. */
   invalidate() {
@@ -194,6 +228,18 @@ export function createEditorStore(
         return activeHandle.owner;
       if (history.inTransaction) return "external";
       return null;
+    },
+    /** History depth at the start of a bound number input session. */
+    historyDepth: () => history.depth,
+    /**
+     * Cancel a committed bound-number input session. The restore is a
+     * transaction rollback of every commit since `depth`, not a fresh write,
+     * so Escape adds no undo entry and leaves no redo entry; autosave then
+     * persists the restored value through the normal change callback.
+     */
+    cancelNumberSession: (depth: number) => {
+      history.rollbackTo(depth);
+      emit(true);
     },
     /** Page / account / remote-deletion invalidation ends the old session. */
     invalidateSession: () => {
