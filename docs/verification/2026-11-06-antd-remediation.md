@@ -20,17 +20,17 @@ workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
 branch: feat/fastposter
 review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
 execution_baseline: "71257c3"
-last_verified_commit: "83f5408"
-task: A04
-next_step: A04.1
-spec_ids: [FP-01, FP-03]
-actual_paths: ["packages/poster-editor/src/Editor.tsx", "packages/poster-editor/src/store.ts", "packages/poster-editor/src/history.ts", "packages/poster-editor/src/text/RichTextEditor.tsx", "packages/poster-editor/src/panels/ColorField.tsx", "packages/poster-editor/src/panels/TextPanel.tsx", "packages/poster-editor/src/panels/StylePanel.tsx", "packages/poster-editor/src/panels/ParagraphPanel.tsx", "packages/ui/src/NumberField.tsx", "packages/poster-editor/src/store.test.ts", "tests/e2e/editor-richtext.spec.ts", "tests/e2e/editor-settings.spec.ts", "tests/e2e/export.spec.ts"]
-red: ["A03 RED: 仅打开色板即阻塞导出", "A03 RED: 跨断点 Escape 回 12 而非会话起点 0", "A03 RED: 删除再撤销带回旧块草稿 12.", "A03 RED: 色板关前提前 PUT", "A03 fix RED: tidy 全量清空导致 read(left) 为 undefined", "A03 fix RED: position Escape 产生额外历史 Received 650"]
-green: ["198/198 单测", "pnpm typecheck exit 0", "4 个新增 E2E + position Escape 通过", "autosave 4 passed", "A02 手机回归 3 passed", "导出可用性 1 passed"]
-decisions: ["Ruling 9 移除 matchMedia 运行时订阅", "Ruling 17-21 A02 修复轮裁定", "Ruling 23 PNG 导出 SKIP", "Ruling 24-30 A03 修复轮裁定"]
-artifacts: [".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A03-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-438dfe0..8bf42b0.diff", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-8bf42b0..83f5408.diff"]
+last_verified_commit: "ffc9039"
+task: A05
+next_step: A05.1
+spec_ids: [FP-06]
+actual_paths: ["packages/ui/src/theme.ts", "packages/ui/src/tokens.css", "packages/ui/src/styles.css", "packages/ui/src/Select.tsx", "packages/ui/src/Select.module.css", "packages/ui/src/Combobox.tsx", "packages/poster-editor/src/styles.css", "packages/poster-editor/src/panels/ColorField.tsx", "packages/poster-editor/src/panels/ColorField.module.css", "apps/web/src/styles.css", "apps/admin/src/styles.css", "tests/e2e/ui-controls.spec.ts"]
+red: ["A04 RED: 按钮静止态 2px 投影 rgba(0,0,0,0.02) 0px 2px 0px 0px", "A04 RED: Select 闭合态文字中心偏差 7.078125px", "A04 fix RED: 空值/禁用 valueOffset=6px", "A04 fix RED: 320px 返回作品命中区 20px", "A04 fix RED: 390px 位置组输入 14px", "A04 fix RED: tooltip hover display=none"]
+green: ["198/198 单测", "pnpm typecheck exit 0", "2 个新增 E2E 通过", "完整 ui-controls 分栈 20/20", "控制器独立复跑 A01/A02/A03/导出回归共 8 passed"]
+decisions: ["Ruling 9 移除 matchMedia 运行时订阅", "Ruling 17-21 A02 修复轮裁定", "Ruling 23 PNG 导出 SKIP", "Ruling 24-30 A03 修复轮裁定", "Ruling 31 429 中断后按原节奏续跑 A04", "Ruling 34-42 A04 修复轮裁定"]
+artifacts: [".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A04-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-22ccfe9..95b8447.diff", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-95b8447..ffc9039.diff"]
 blockers: []
-open_verification_items: ["Chrome 157 vs 锁定 156：export.spec.ts 2 个 + editor-fonts.spec.ts 2 个 PNG 导出用例标 SKIP，A10 须在匹配环境重跑；A03 不因此标为完全 VERIFIED"]
+open_verification_items: ["Chrome 157 vs 锁定 156：export.spec.ts 2 个 + editor-fonts.spec.ts 2 个 PNG 导出用例标 SKIP，A10 须在匹配环境重跑；A03 不因此标为完全 VERIFIED", "A04 三张视觉证据 PNG 位于 /tmp/fp-a04-evidence/，A10 须落到受控路径或在执行记录中留可追踪引用", "A04 未新增真实具名「更多」DOM 入口（清单外文件限制），按 FP-14 写回规格建议，A10/后续任务评估"]
 ```
 
 B 批状态：`NOT_AUTHORIZED`（FP-11 涉及 IDL、生成代码与服务端事务，需用户单独授权；A 批不处理）。
@@ -95,7 +95,18 @@ B 批状态：`NOT_AUTHORIZED`（FP-11 涉及 IDL、生成代码与服务端事�
 - 遗留：11 项 Minor 推迟到全分支评审；两处非阻塞理论边界（`rollbackTo` 清 `future` 的窄 redo 场景、折叠记录保留旧 `sessionDepth`）；Ruling 28/29 已裁定的断言覆盖说明。
 - 证据：`.superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A03-report.md`（780 行，含 §12 fix report）、`review-438dfe0..8bf42b0.diff`、`review-8bf42b0..83f5408.diff`。
 
-### A04 … A10
+### A04 收敛主题、Select 和属性面板的视觉规则 — DONE
+
+- 提交：`95b8447 fix(ui): align shared controls and inspector typography`、`ffc9039 fix(ui): prove control alignment and scope visual assertions`
+- 需求：FP-01、FP-03、FP-13（FP-01 / FP-03 行）；前置 A01，五档截图人工核对在 A10.1。
+- 实现要点：`theme.ts` 的 `components.Button` 增加 `defaultShadow` / `primaryShadow` / `dangerShadow = "none"`，保留描边、禁用、忙碌、按下与 focus-visible 反馈；`Select.tsx` / `Combobox.tsx` 经 antd 6.7.0 公开语义槽 `classNames.content` 引入共享 `.content`，去掉 `.ant-select-content { height:100% }`（该节点为 `display:block`，`align-items:center` 无效导致文字偏上 ~7.1px），改 `align-self:center`。`ColorField` 色样改两层（`.swatch` 棋盘底 + `.swatchColor` 前景承接 inline `backgroundColor`），六位 hex 完整实色、八位 hex 按 alpha 混合；A03 的 `ColorField.tsx` 手势/事务逻辑逐字未动。属性区收敛为标签 13px / 常规值 14px / 说明单位状态 12px，新增 `--fp-text:#202C25` / `--fp-text-secondary:#526159`，字段 gap 6px、去掉 `.panel-field` 自身 margin 避免与 grid gap 叠加，四组「文字/段落/效果/位置」保留。320px 顶栏以纯 CSS 控制溢出，修复轮去掉过宽 `!important` 与硬编码中文 `aria-label` 字面量、补 44×44 命中区与 CSS-only tooltip。
+- 独立评审：Spec ❌、5 Important（4 plan-mandated）、0 Critical、7 Minor，Needs fixes。核心质疑是验收断言不达标：A04.1 逐字 8 项覆盖缺「空值/禁用」独立断言；阴影用单次 `getComputedStyle` 快照导致 RED 是 `0.0237px` 过渡中间帧且 `dangerShadow` 无实例验证；「样式不作用到海报文档节点」与「Tab 后可见焦点」断言部分恒真；320px `!important` + `font-size:0` 脆弱。控制器另行核实出第 6 项真实缺陷：`.geometry-fields`（位置组）直接挂在 `.inspector-content` 下、不在 `.panel-field` 内，触控 16px 规则未覆盖，390/320px 实际输入仍是 14px（违反 FP-01 / A04.4）。
+- 修复轮（Ruling 34–42）：补空值（后台「编辑素材」未分类）与禁用 Select 的真实 `expectCentered`（真实基线 RED `valueOffset=6`）；阴影改 `toHaveCSS` 稳定读取并在真实基线取得 `rgba(0,0,0,0.02) 0px 2px 0px 0px` 静止 2px 投影，显式断言 `button.button-danger` 及禁用/按下/忙碌/focus-visible 反馈；作用域断言改为读 `[data-text-block]` computed 值比对 A04 规则；焦点断言改为定位具体按钮并校验 `:focus-visible` + 3px outline；320px 去 `!important`、收敛选择器、补 44×44 与 CSS-only tooltip（RED `Received: 20` → GREEN 44）；位置组补 16px 并断言 390/320 两档（RED `Received: "14px"`）。#3 / #4 基线本就正确，如实记为「回归断言，未发现产品缺陷」，未伪造红灯。复评审：6 条发现全部 ADDRESSED，无新增 Critical/Important 破坏。
+- 验证（控制器独立复跑，本会话）：`pnpm typecheck` exit 0；`pnpm test` 30 文件 / **198 用例** exit 0；两个新增 E2E（含全部新增断言）2 passed；`ui-controls -g 'reduced motion leaves overlays usable'` 1 passed（A01）；`editor-mobile` A02 回归 3 passed；`editor-richtext -g 'color gesture owns range changes until close'` 1 passed（A03）；`export -g 'unmodified picker does not block export'` 1 passed —— 合计 8 passed，全部 exit 0。实现者另按互斥 `-g` 组分栈完成完整 `ui-controls` 20/20（单栈 19/20 为注册限流，已如实记录）。
+- 遗留：7 项 Minor 推迟到全分支评审；FP-01「边框」反馈未单独写 `border-color` 断言（Minor，其余四类反馈已覆盖）；三张视觉证据 PNG 位于 `/tmp/fp-a04-evidence/`，A10 须落到受控路径；真实具名「更多」DOM 入口需清单外 `ProjectWorkspace.tsx`，按 FP-14 写回规格建议；真实 `title` 属性同理，本轮以 CSS-only tooltip + 保留 `aria-label` 替代。
+- 证据：`.superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A04-report.md`（442 行，含 §12 fix report）、`review-22ccfe9..95b8447.diff`、`review-95b8447..ffc9039.diff`。
+
+### A05 … A10
 
 待执行。A10 负责 `pnpm verify`、逐 spec E2E、五档视觉矩阵、固定导出样本像素对比、三份维护文档，以及上述 4 个 PNG 导出用例在匹配环境下的重跑。
 
