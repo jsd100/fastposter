@@ -310,3 +310,62 @@ test.describe("touch steppers", () => {
     expect(await textFontSize(block, "世")).toBe("64px");
   });
 });
+
+test("number Escape after resize restores original baseline", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openPoster(page, "a03escape");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.locator("[data-text-block]").first().click();
+  await page.getByRole("button", { name: "效果", exact: true }).click();
+  const padding = page.getByLabel("内边距", { exact: true });
+  await expect(padding).toHaveValue("0");
+  // 0 -> 12 (valid) -> "12." (suspended). The session baseline is 0.
+  await padding.fill("12");
+  await padding.fill("12.");
+  // A breakpoint swap unmounts the field but keeps the suspended draft and
+  // its cancel baseline in the edit session.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await expect(sheet).toBeVisible();
+  const mobile = sheet.getByLabel("内边距", { exact: true });
+  await expect(mobile).toHaveValue("12.");
+  await mobile.press("Escape");
+  // Escape cancels the whole input session back to its starting value.
+  await expect(mobile).toHaveValue("0");
+  await expect(page.locator("[data-text-block]").first()).toHaveCSS(
+    "padding-top",
+    "0px",
+  );
+});
+
+test("deleting a block discards its suspended number draft", async ({
+  page,
+}) => {
+  await openPoster(page, "a03delete");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.locator("[data-text-block]").first().click();
+  await page.getByRole("button", { name: "效果", exact: true }).click();
+  const padding = page.getByLabel("内边距", { exact: true });
+  await expect(padding).toHaveValue("0");
+  await padding.fill("12");
+  await padding.fill("12.");
+  // A breakpoint swap unmounts the field without a blur, so the suspended
+  // draft stays in the session while focus is no longer inside an input.
+  await page.setViewportSize({ width: 390, height: 844 });
+  // A detached input can still own document focus after the unmount; move it
+  // to a neutral heading so the canvas shortcut is delivered to a real target.
+  await page.getByRole("heading", { level: 1 }).click();
+  // The shortcut delete reads the live store selection and discards the draft.
+  await page.keyboard.press("Delete");
+  await expect(page.locator("[data-text-block]")).toHaveCount(0);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.locator("[data-text-block]")).toHaveCount(1);
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await sheet.getByRole("button", { name: "效果", exact: true }).click();
+  // Undo restores only the last valid document value, never the old raw draft.
+  await expect(sheet.getByLabel("内边距", { exact: true })).toHaveValue("12");
+});

@@ -21,43 +21,50 @@ export function ColorField({
   value: string;
   onChange: (value: string) => void;
   onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
+  /** "commit" is used for close, plain Escape and target switches. */
+  onInteractionEnd?: (action: "commit" | "cancel") => void;
   disabled?: boolean;
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const releasePopup = useRef<(() => void) | null>(null);
-  const interacting = useRef(false);
+  // A handle is acquired only by the first *valid* change of this open. An
+  // unedited open/close must not write, add history or block save/export.
+  const changed = useRef(false);
+  const startHandler = useRef(onInteractionStart);
   const endHandler = useRef(onInteractionEnd);
+  const valueRef = useRef(value);
+  startHandler.current = onInteractionStart;
   endHandler.current = onInteractionEnd;
-  const end = () => {
+  valueRef.current = value;
+
+  const end = (action: "commit" | "cancel" = "commit") => {
     releasePopup.current?.();
     releasePopup.current = null;
-    if (!interacting.current) return;
-    interacting.current = false;
-    endHandler.current?.();
+    if (!changed.current) return;
+    changed.current = false;
+    endHandler.current?.(action);
   };
   useEffect(
     () => () => {
       releasePopup.current?.();
       releasePopup.current = null;
-      if (!interacting.current) return;
-      interacting.current = false;
-      endHandler.current?.();
+      // An unmount with produced changes commits them on the original target.
+      if (changed.current) {
+        changed.current = false;
+        endHandler.current?.("commit");
+      }
     },
     [],
   );
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
     if (next) {
-      if (!interacting.current) {
-        interacting.current = true;
-        onInteractionStart?.();
-      }
+      changed.current = false;
       if (!releasePopup.current) releasePopup.current = registerPopupLayer();
       return;
     }
-    end();
+    end("commit");
   };
   return (
     <span
@@ -79,7 +86,15 @@ export function ColorField({
         format="hex"
         destroyOnHidden
         onOpenChange={handleOpenChange}
-        onChange={(color) => onChange(color.toHexString())}
+        onChange={(color) => {
+          const next = color.toHexString();
+          if (next === valueRef.current) return;
+          if (!changed.current) {
+            changed.current = true;
+            startHandler.current?.();
+          }
+          onChange(next);
+        }}
         getPopupContainer={(node) =>
           (node.closest("[data-fp-overlay]") as HTMLElement | null) ??
           document.body

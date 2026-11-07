@@ -7,7 +7,7 @@ import {
 } from "@tiptap/react";
 import type { TextBlock } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
-import type { EditorStore } from "../store";
+import type { EditorStore, TransactionHandle } from "../store";
 import { richTextExtensions } from "./extensions";
 import {
   canonicalRichText,
@@ -32,6 +32,28 @@ export function RichTextEditor({
   const emittedContents = useRef(new WeakSet<object>());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null),
     composing = useRef(false);
+  // The only transaction this rich-text input is allowed to finish. A stale
+  // debounce or blur must never commit a newer, external gesture.
+  const ownHandle = useRef<TransactionHandle | null>(null);
+  function finishOwn(action: "commit" | "cancel" = "commit") {
+    const handle = ownHandle.current;
+    ownHandle.current = null;
+    if (handle) store.finish(handle, action);
+  }
+  /**
+   * An external control gesture (color/property) already owns the open
+   * transaction. The content update is still written, but our debounce must
+   * not finalise that transaction early.
+   */
+  function externalGesture() {
+    const owner = store.transactionOwner();
+    return owner === "control" || owner === "external";
+  }
+  function beginOwn(): TransactionHandle {
+    const active = store.activeTransaction();
+    if (active && active.owner === "richtext") return active;
+    return store.acquire("richtext", refs.current.block.id);
+  }
   const editor = useEditor(
     {
       extensions: [
@@ -54,12 +76,7 @@ export function RichTextEditor({
                       this.editor.state.storedMarks ?? sel.$from.marks(),
                       b.defaultStyle,
                     )
-                  : selectionStyle(
-                      b.content,
-                      sel.from,
-                      sel.to,
-                      b.defaultStyle,
-                    );
+                  : selectionStyle(b.content, sel.from, sel.to, b.defaultStyle);
                 const family = refs.current.fonts.find(
                   (font) => font.assetId === style.fontId,
                 )?.family;
@@ -118,23 +135,49 @@ export function RichTextEditor({
         handleDOMEvents: {
           compositionstart: () => {
             composing.current = true;
-            store.commit();
-            store.begin();
             if (timer.current) clearTimeout(timer.current);
+            if (!externalGesture()) {
+              // Mirror the baseline commit/begin boundary. Any pending typing
+              // whose 650ms debounce has not fired yet must become its own
+              // undo step before the composition starts; otherwise the IME
+              // text merges into that step and one undo removes both.
+              finishOwn("commit");
+              ownHandle.current = beginOwn();
+            }
             return false;
           },
           compositionend: () => {
             composing.current = false;
             if (timer.current) clearTimeout(timer.current);
-            timer.current = setTimeout(() => store.commit(), 50);
+            timer.current = setTimeout(() => finishOwn("commit"), 50);
             return false;
           },
         },
       },
       onUpdate: ({ editor }) => {
+        const content = canonicalRichText(editor.getJSON());
+        const external = externalGesture();
+        if (external) {
+          // An external style/color gesture owns this transaction. Keep the
+          // real content in sync but do not end (or schedule ending) it here.
+          ownHandle.current = null;
+          if (timer.current) clearTimeout(timer.current);
+          store.updateBlock(refs.current.block.id, (b) => ({
+            ...b,
+            content,
+          }));
+          const emitted = store
+            .getState()
+            .document.textBlocks.find(
+              (b) => b.id === refs.current.block.id,
+            )?.content;
+          if (emitted) emittedContents.current.add(emitted);
+          return;
+        }
+        ownHandle.current = beginOwn();
         store.updateBlock(refs.current.block.id, (b) => ({
           ...b,
-          content: canonicalRichText(editor.getJSON()),
+          content,
         }));
         const emitted = store
           .getState()
@@ -145,7 +188,7 @@ export function RichTextEditor({
 
         if (timer.current) clearTimeout(timer.current);
         if (!composing.current)
-          timer.current = setTimeout(() => store.commit(), 650);
+          timer.current = setTimeout(() => finishOwn("commit"), 650);
       },
       onSelectionUpdate: () => refs.current.onSelection(),
       onBlur: ({ editor }) => {
@@ -170,7 +213,11 @@ export function RichTextEditor({
             to: Math.max(a, b),
           });
         }
-        if (!composing.current) store.commit();
+        // Only our own typing transaction may be finished by this blur.
+        if (!composing.current) {
+          if (timer.current) clearTimeout(timer.current);
+          finishOwn("commit");
+        }
       },
     },
     [block.id, store],
@@ -181,7 +228,7 @@ export function RichTextEditor({
     editor.commands.focus("end");
     return () => {
       if (timer.current) clearTimeout(timer.current);
-      store.commit();
+      finishOwn("commit");
       refs.current.onReady(null);
     };
   }, [editor, store]);

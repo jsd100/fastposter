@@ -28,6 +28,7 @@ import {
   NumberField,
   Tooltip,
   useErrorNotice,
+  type NumberDraftBinding,
 } from "@fastposter/ui";
 import type {
   InlineStyle,
@@ -53,7 +54,12 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import { createEditorStore, type EditorStore } from "./store";
+import {
+  createEditorStore,
+  type DraftScope,
+  type EditorStore,
+  type TransactionHandle,
+} from "./store";
 import { Stage } from "./Stage";
 import {
   clamp,
@@ -280,25 +286,27 @@ export function Editor({
     (b) => b.id === state.selectedId,
   );
   /**
-   * Raw number strings belong to the editor session, not to a mounted field.
-   * A breakpoint swap or a property-tab change unmounts the inputs, so the
-   * owner keeps each draft per session, block and field until the user
-   * commits or leaves that field.
+   * Full number snapshots belong to the editor session, not to a mounted
+   * field. The session scopes each by work/template, text block, property and
+   * edit target, and associates it with the gesture's transaction identity,
+   * so a breakpoint swap or a panel remount resumes the exact same input.
    */
-  const drafts = useRef(new Map<string, string>());
-  const draftSession = useRef(0);
   const priorScope = useRef(fontCheckScope);
-  function clearDrafts() {
-    draftSession.current += 1;
-    drafts.current.clear();
-  }
-  function draft(blockId: string, field: string) {
-    const key = `${draftSession.current}:${blockId}:${field}`;
+  function draftScope(blockId: string, field: string): DraftScope {
     return {
-      initialDraft: drafts.current.get(key),
-      onDraftChange: (value: string | null) => {
-        if (value === null) drafts.current.delete(key);
-        else drafts.current.set(key, value);
+      work: fontCheckScope,
+      blockId,
+      field,
+      target: state.mode,
+    };
+  }
+  function draft(blockId: string, field: string): NumberDraftBinding {
+    const scope = draftScope(blockId, field);
+    return {
+      initialDraft: store.drafts.read(scope),
+      onDraftChange: (snapshot) => {
+        if (snapshot === null) store.drafts.clear(scope);
+        else store.drafts.write(scope, snapshot, store.activeTransaction());
       },
     };
   }
@@ -353,15 +361,24 @@ export function Editor({
   useEffect(() => {
     if (document !== emitted.current) {
       emitted.current = document;
-      clearDrafts();
+      store.invalidateSession();
       store.reset(document);
     }
   }, [document, store]);
   useEffect(() => {
     if (priorScope.current === fontCheckScope) return;
     priorScope.current = fontCheckScope;
-    clearDrafts();
+    store.invalidateSession();
   }, [fontCheckScope]);
+  /**
+   * An active text-block or edit-target switch ends the gesture on the
+   * previous target and tidies unfinished number strings like a deliberate
+   * blur. Layout, group and sheet swaps never reach here, so they keep drafts.
+   */
+  useEffect(() => {
+    endActiveGesture("commit");
+    store.drafts.tidy();
+  }, [state.selectedId, state.mode]);
   useEffect(
     () => onInteractionChange?.(state.inTransaction),
     [state.inTransaction, onInteractionChange],
@@ -386,6 +403,7 @@ export function Editor({
         e.preventDefault();
         deleteSelected();
       } else if (e.key === "Escape") {
+        endActiveGesture("cancel");
         store.cancel();
         store.select(null);
       }
@@ -475,18 +493,40 @@ export function Editor({
     }
     return { blockId, target: { kind: "block", from: 0, to: 0 } };
   }
-  const numericInteraction = useRef(false);
-  function beginNumericInteraction() {
-    if (numericInteraction.current) return;
-    store.commit();
-    store.begin();
-    numericInteraction.current = true;
+  const activeHandle = useRef<TransactionHandle | null>(null);
+  /** The edit target a control gesture is scoped to when it is acquired. */
+  function gestureTarget() {
+    return `${state.selectedId ?? ""}:${state.mode}:control`;
   }
-  function endNumericInteraction() {
-    if (!numericInteraction.current) return;
-    numericInteraction.current = false;
-    store.commit();
+  function beginNumericInteraction() {
+    activeHandle.current = store.acquire("control", gestureTarget());
+  }
+  function endNumericInteraction(action: "commit" | "cancel" = "commit") {
+    const handle = activeHandle.current;
+    activeHandle.current = null;
+    // A stale close must not finish a newer gesture (or one from a new page).
+    if (handle && store.activeTransaction()?.id === handle.id)
+      store.finish(handle, action);
     selectionChanged((v) => v + 1);
+  }
+  /** End the gesture on the previous target before an active switch/delete. */
+  function endActiveGesture(action: "commit" | "cancel" = "commit") {
+    const handle = activeHandle.current;
+    activeHandle.current = null;
+    if (handle) store.finish(handle, action);
+  }
+  /** Keep every control write inside the gesture's single transaction. */
+  function withControlGesture(work: () => void) {
+    if (store.activeTransaction()?.owner === "control") {
+      work();
+      return;
+    }
+    const handle = store.acquire("control", gestureTarget());
+    try {
+      work();
+    } finally {
+      store.finish(handle, "commit");
+    }
   }
   function applyPreparedFontChange(change: PreparedFontChange) {
     const editor = activeEditor;
@@ -523,66 +563,38 @@ export function Editor({
       if (chosen) void fontChoice.choose(chosen);
       return;
     }
-    if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
-      if (!numericInteraction.current) {
-        store.commit();
-        store.begin();
+    withControlGesture(() => {
+      if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
+        if (textSelection.current)
+          restoreSelection(activeEditor, textSelection.current);
+        if (patch.fontWeight !== undefined) activeEditor.commands.unsetBold();
+        // setMark triggers RichTextEditor.onUpdate, which writes the real
+        // content and selection inside this gesture's transaction.
+        activeEditor.commands.setMark("textStyle", patch);
+      } else {
+        store.updateBlock(selected.id, (b) => ({
+          ...b,
+          defaultStyle: { ...b.defaultStyle, ...patch },
+          content: applyTextStyle(
+            b.content,
+            { kind: "block", from: 0, to: 0 },
+            patch,
+          ),
+        }));
       }
-      if (textSelection.current)
-        restoreSelection(activeEditor, textSelection.current);
-      if (patch.fontWeight !== undefined) activeEditor.commands.unsetBold();
-      activeEditor.commands.setMark("textStyle", patch);
-      if (!numericInteraction.current) store.commit();
-      selectionChanged((v) => v + 1);
-    } else if (numericInteraction.current) {
-      store.updateBlock(selected.id, (b) => ({
-        ...b,
-        defaultStyle: { ...b.defaultStyle, ...patch },
-        content: applyTextStyle(
-          b.content,
-          { kind: "block", from: 0, to: 0 },
-          patch,
-        ),
-      }));
-    } else {
-      store.transact((d) => ({
-        ...d,
-        textBlocks: d.textBlocks.map((b) =>
-          b.id === selected.id
-            ? {
-                ...b,
-                defaultStyle: { ...b.defaultStyle, ...patch },
-                content: applyTextStyle(
-                  b.content,
-                  { kind: "block", from: 0, to: 0 },
-                  patch,
-                ),
-              }
-            : b,
-        ),
-      }));
-    }
+    });
+    selectionChanged((v) => v + 1);
   }
   function updateSelected(change: (block: TextBlock) => TextBlock) {
     if (!selected) return;
-    if (numericInteraction.current) {
-      store.updateBlock(selected.id, change);
-      return;
-    }
-    store.commit();
-    store.transact((d) => ({
-      ...d,
-      textBlocks: d.textBlocks.map((b) =>
-        b.id === selected.id ? change(b) : b,
-      ),
-    }));
+    withControlGesture(() => store.updateBlock(selected.id, change));
   }
   function deleteSelected() {
-    const id = state.selectedId;
-    if (id)
-      for (const key of Array.from(drafts.current.keys()))
-        if (key.startsWith(`${draftSession.current}:${id}:`))
-          drafts.current.delete(key);
+    // Both entries read the live store selection, not a rendered snapshot,
+    // and clear every suspended draft of the removed block.
+    const id = store.getState().selectedId;
+    endActiveGesture("commit");
+    if (id) store.drafts.discardBlock(id);
     store.deleteSelected();
   }
   function toggleEdit() {
@@ -733,14 +745,17 @@ export function Editor({
             }
             step={1}
             {...draft(selected.id, `position-${field}`)}
-            onValueChange={(n) => {
-              store.transact((d) => ({
-                ...d,
-                textBlocks: d.textBlocks.map((b) =>
-                  b.id === selected.id ? { ...b, [field]: n } : b,
-                ),
-              }));
-            }}
+            onValueChange={(n) =>
+              withControlGesture(() => {
+                const d = store.getState().document;
+                store.update({
+                  ...d,
+                  textBlocks: d.textBlocks.map((b) =>
+                    b.id === selected.id ? { ...b, [field]: n } : b,
+                  ),
+                });
+              })
+            }
           />
           <small>px</small>
         </label>

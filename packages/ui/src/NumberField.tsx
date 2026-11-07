@@ -15,13 +15,25 @@ const HOLD_DELAY = 500;
 const HOLD_INTERVAL = 50;
 
 /**
- * The editable string outlives a field that a layout change unmounts. Owners
- * keep it per session, block and property; null means the edit session is over
- * and the field may go back to showing the document value.
+ * The full suspended state of a numeric input session. `raw` is the exact
+ * string on screen, `baseline` is the valid value from before the session
+ * began (what Escape restores) and `lastValid` is the most recent value that
+ * took effect. The edit session keeps it so a breakpoint swap, a panel
+ * remount or a display-mode change can put the very same input back.
+ */
+export type NumberDraftSnapshot = {
+  raw: string;
+  baseline: number | null;
+  lastValid: number | null;
+};
+
+/**
+ * Owners keep the snapshot per work/template, block, property and edit
+ * target. A caller without a binding keeps all of this locally instead.
  */
 export type NumberDraftBinding = {
-  initialDraft?: string;
-  onDraftChange?: (draft: string | null) => void;
+  initialDraft?: NumberDraftSnapshot;
+  onDraftChange?: (snapshot: NumberDraftSnapshot | null) => void;
 };
 
 export type NumberFieldProps = NumberDraftBinding & {
@@ -40,7 +52,8 @@ export type NumberFieldProps = NumberDraftBinding & {
   unit?: string;
   stepBase?: number;
   onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
+  /** "commit" finalises the gesture, "cancel" reverts it (Escape). */
+  onInteractionEnd?: (action: "commit" | "cancel") => void;
 };
 
 export function NumberField({
@@ -64,11 +77,17 @@ export function NumberField({
   onDraftChange,
 }: NumberFieldProps): ReactElement {
   const [draft, setDraft] = useState(
-    initialDraft ?? (value == null ? "" : String(value)),
+    initialDraft ? initialDraft.raw : value == null ? "" : String(value),
   );
-  const settled = useRef(value);
-  const prior = useRef(value);
-  const interacting = useRef(false);
+  const settled = useRef<number | null>(
+    initialDraft ? initialDraft.lastValid : value,
+  );
+  const baseline = useRef<number | null>(
+    initialDraft ? initialDraft.baseline : value,
+  );
+  const sessionStarted = useRef(!!initialDraft);
+  // A restored snapshot continues the same input session across a remount.
+  const interacting = useRef(!!initialDraft);
   const startRef = useRef(onInteractionStart);
   const endRef = useRef(onInteractionEnd);
   startRef.current = onInteractionStart;
@@ -83,10 +102,25 @@ export function NumberField({
   const holdRepeat = useRef<number | undefined>(undefined);
   const pointerStepped = useRef(false);
 
+  function emitSnapshot(raw: string) {
+    onDraftChange?.({
+      raw,
+      baseline: baseline.current,
+      lastValid: settled.current,
+    });
+  }
+
+  function ensureBaseline() {
+    if (sessionStarted.current) return;
+    baseline.current = settled.current;
+    sessionStarted.current = true;
+  }
+
   useEffect(() => {
     if (value !== settled.current) {
       settled.current = value;
-      prior.current = value;
+      baseline.current = value;
+      sessionStarted.current = false;
       setDraft(value == null ? "" : String(value));
       onDraftChange?.(null);
     }
@@ -94,11 +128,9 @@ export function NumberField({
 
   useEffect(
     () => () => {
+      // A remount must keep the session draft and its open gesture alive;
+      // only releaseRef (an interrupted press) may end an interaction.
       releaseRef.current?.();
-      if (interacting.current) {
-        interacting.current = false;
-        endRef.current?.();
-      }
     },
     [],
   );
@@ -106,13 +138,16 @@ export function NumberField({
   function startInteraction() {
     if (interacting.current) return;
     interacting.current = true;
+    ensureBaseline();
     startRef.current?.();
   }
 
-  function endInteraction() {
+  function endInteraction(action: "commit" | "cancel" = "commit") {
     if (!interacting.current) return;
     interacting.current = false;
-    endRef.current?.();
+    sessionStarted.current = false;
+    baseline.current = settled.current;
+    endRef.current?.(action);
   }
 
   function commit(next: number | null) {
@@ -124,6 +159,9 @@ export function NumberField({
       next === settled.current
     )
       return;
+    // Acquire the gesture transaction before the value takes effect, so a
+    // cancel can revert to the pre-session document value.
+    startInteraction();
     settled.current = next;
     onValueChange(next);
   }
@@ -137,8 +175,9 @@ export function NumberField({
     const parsed = classifyNumberDraft(draft, bounds.lower, bounds.upper);
     if (parsed.kind === "valid") commit(parsed.value);
     setDraft(settled.current == null ? "" : String(settled.current));
-    prior.current = settled.current;
+    // An unfinished string is tidied up like a deliberate blur.
     onDraftChange?.(null);
+    endInteraction("commit");
   }
 
   function stepBy(delta: number) {
@@ -225,9 +264,21 @@ export function NumberField({
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      commit(prior.current);
-      refreshDraft();
+      // Restore the valid value from before this input session. A bound
+      // field cancels its session transaction (endInteraction("cancel")),
+      // which rolls the document back through the store. A caller without a
+      // session transaction has no such rollback, so keep the shared
+      // control's original local behaviour and write the pre-session value
+      // back through onValueChange, exactly as the baseline commit(prior)
+      // did; otherwise the displayed draft and the controlled value diverge.
+      const restore = baseline.current;
+      const changed = restore !== settled.current;
+      settled.current = restore;
+      setDraft(restore == null ? "" : String(restore));
       onDraftChange?.(null);
+      if (!endRef.current && restore !== null && changed)
+        onValueChange(restore);
+      endInteraction("cancel");
       return;
     }
     if (event.ctrlKey || event.metaKey) return;
@@ -284,15 +335,13 @@ export function NumberField({
       onChange={(event) => {
         const raw = event.currentTarget.value;
         setDraft(raw);
-        onDraftChange?.(raw);
+        ensureBaseline();
         const bounds = params.current;
         const parsed = classifyNumberDraft(raw, bounds.lower, bounds.upper);
         if (parsed.kind === "valid") commit(parsed.value);
+        emitSnapshot(raw);
       }}
       onBlur={finish}
-      onFocus={() => {
-        prior.current = value;
-      }}
       onKeyDown={handleKeyDown}
     />
   );

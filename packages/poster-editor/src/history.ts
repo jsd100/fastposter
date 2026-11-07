@@ -5,6 +5,12 @@ export class DocumentHistory<T> {
   private future: T[] = [];
   private pending: T | undefined;
   private active = false;
+  /**
+   * Identity of the transaction that opened `pending`. A bare `begin()` /
+   * `update()` leaves it undefined; the edit session passes its handle so a
+   * late timer or blur can only finish the transaction it actually owns.
+   */
+  private token: unknown;
   constructor(
     initial: T,
     private limit = 100,
@@ -23,11 +29,16 @@ export class DocumentHistory<T> {
   get inTransaction() {
     return this.active;
   }
-  begin() {
+  begin(token?: unknown) {
     if (!this.active) {
       this.pending = clone(this.current);
       this.active = true;
+      this.token = token;
     }
+  }
+  /** True only while `token` is still the identity of the open transaction. */
+  matches(token: unknown) {
+    return this.active && this.token === token;
   }
   update(value: T) {
     if (!this.active) this.begin();
@@ -43,12 +54,14 @@ export class DocumentHistory<T> {
     }
     this.active = false;
     this.pending = undefined;
+    this.token = undefined;
   }
   cancel() {
     if (this.active) {
       this.current = this.pending as T;
       this.pending = undefined;
       this.active = false;
+      this.token = undefined;
     }
     return this.current;
   }
@@ -76,5 +89,6 @@ export class DocumentHistory<T> {
     this.future = [];
     this.pending = undefined;
     this.active = false;
+    this.token = undefined;
   }
 }

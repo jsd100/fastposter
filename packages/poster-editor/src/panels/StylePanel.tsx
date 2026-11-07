@@ -1,9 +1,5 @@
 import type { TextBlock } from "@fastposter/poster-schema";
-import {
-  Button,
-  NumberField,
-  type NumberDraftBinding,
-} from "@fastposter/ui";
+import { Button, NumberField, type NumberDraftBinding } from "@fastposter/ui";
 import { ColorField } from "./ColorField";
 export function StylePanel({
   block,
@@ -15,7 +11,7 @@ export function StylePanel({
   block: TextBlock;
   update: (change: (b: TextBlock) => TextBlock) => void;
   onNumericStart: () => void;
-  onNumericEnd: () => void;
+  onNumericEnd: (action: "commit" | "cancel") => void;
   draft: (field: string) => NumberDraftBinding;
 }) {
   const fields = [

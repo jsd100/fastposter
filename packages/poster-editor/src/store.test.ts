@@ -1,8 +1,116 @@
 import { it, expect } from "vitest";
 import { parseDocument } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
-import { createEditorStore } from "./store";
+import {
+  createEditorStore,
+  NumberDraftSession,
+  type DraftScope,
+  type TransactionHandle,
+} from "./store";
 import { prepareFontChange } from "./fonts/prepare-change";
+
+function emptyDoc() {
+  return parseDocument({
+    schemaVersion: 1,
+    canvas: { width: 1200, height: 1600 },
+    background: { assetId: "bg", version: "1" },
+    fonts: [],
+    textBlocks: [],
+  });
+}
+function resized(store: ReturnType<typeof createEditorStore>, width: number) {
+  store.update({
+    ...store.getState().document,
+    canvas: { ...store.getState().document.canvas, width },
+  });
+}
+
+it("finish only ends the transaction that still matches the handle", () => {
+  const store = createEditorStore(emptyDoc());
+  const first = store.acquire("control", "block-a:color");
+  resized(store, 800);
+  expect(store.getState().inTransaction).toBe(true);
+  // A handle from another session/identity is ignored.
+  const stale: TransactionHandle = {
+    session: 999,
+    target: "block-a:color",
+    id: 999,
+    owner: "control",
+  };
+  expect(store.finish(stale, "commit")).toBe(false);
+  expect(store.getState().inTransaction).toBe(true);
+  expect(store.finish(first, "commit")).toBe(true);
+  expect(store.getState().inTransaction).toBe(false);
+  // A late timer / blur cannot commit a transaction that is already over.
+  expect(store.finish(first, "commit")).toBe(false);
+  expect(store.getState().document.canvas.width).toBe(800);
+});
+
+it("a newer transaction cannot be finished by an old handle", () => {
+  const store = createEditorStore(emptyDoc());
+  const typing = store.acquire("richtext", "block-a");
+  // A control gesture starts while typing is open: the old transaction is
+  // committed and a fresh identity is issued.
+  const color = store.acquire("control", "block-a:color");
+  expect(color.id).not.toBe(typing.id);
+  resized(store, 640);
+  // The rich-text debounce fires late and must not commit the color gesture.
+  expect(store.finish(typing, "commit")).toBe(false);
+  expect(store.getState().inTransaction).toBe(true);
+  expect(store.finish(color, "commit")).toBe(true);
+  expect(store.getState().inTransaction).toBe(false);
+});
+
+it("session invalidation ends the old session and ignores late handles", () => {
+  const store = createEditorStore(emptyDoc());
+  const old = store.acquire("control", "block-a:color");
+  resized(store, 900);
+  store.invalidateSession();
+  expect(store.getState().inTransaction).toBe(false);
+  expect(store.finish(old, "commit")).toBe(false);
+  const fresh = store.acquire("control", "block-a:color");
+  expect(fresh.session).not.toBe(old.session);
+  expect(store.finish(old, "commit")).toBe(false);
+  expect(store.finish(fresh, "commit")).toBe(true);
+});
+
+it("finish(handle, cancel) reverts without adding history", () => {
+  const store = createEditorStore(emptyDoc());
+  expect(store.getState().canUndo).toBe(false);
+  const handle = store.acquire("control", "block-a:padding");
+  resized(store, 500);
+  expect(store.finish(handle, "cancel")).toBe(true);
+  expect(store.getState().document.canvas.width).toBe(1200);
+  expect(store.getState().canUndo).toBe(false);
+});
+
+it("NumberDraftSession scopes, restores and discards a suspended snapshot", () => {
+  const drafts = new NumberDraftSession();
+  const scope: DraftScope = {
+    work: "u1:project:p1",
+    blockId: "b1",
+    field: "padding",
+    target: "select",
+  };
+  const snapshot = { raw: "12.", baseline: 0, lastValid: 12 };
+  const handle: TransactionHandle = {
+    session: 0,
+    target: "b1:padding",
+    id: 1,
+    owner: "control",
+  };
+  drafts.write(scope, snapshot, handle);
+  expect(drafts.read(scope)).toEqual(snapshot);
+  expect(drafts.handleOf(scope)).toEqual(handle);
+  // Another edit target or another block must not see this draft.
+  expect(drafts.read({ ...scope, target: "edit" })).toBeUndefined();
+  expect(drafts.read({ ...scope, blockId: "b2" })).toBeUndefined();
+  drafts.discardBlock("b1");
+  expect(drafts.read(scope)).toBeUndefined();
+  drafts.write(scope, snapshot, handle);
+  drafts.invalidate();
+  expect(drafts.read(scope)).toBeUndefined();
+});
 it("stores only immutable font references, not transport URLs", () => {
   const doc = parseDocument({
     schemaVersion: 1,
@@ -124,9 +232,8 @@ it("one undo restores the font references and the text style together", () => {
   );
   store.transact(() => change.nextDocument);
   expect(
-    store
-      .getState()
-      .document.textBlocks[0].content.content![0].content![1].marks![0].attrs,
+    store.getState().document.textBlocks[0].content.content![0].content![1]
+      .marks![0].attrs,
   ).toEqual({
     fontId: "kuaile-400",
     fontWeight: 400,

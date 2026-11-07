@@ -29,7 +29,7 @@ export type TextPanelProps = {
   fontPending: boolean;
   sizeBase?: number;
   onNumericStart: () => void;
-  onNumericEnd: () => void;
+  onNumericEnd: (action: "commit" | "cancel") => void;
   update: (change: (block: TextBlock) => TextBlock) => void;
   draft: (field: string) => NumberDraftBinding;
   editing: boolean;

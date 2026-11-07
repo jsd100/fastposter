@@ -14,7 +14,7 @@ export function ParagraphPanel({
   block: TextBlock;
   update: (change: (b: TextBlock) => TextBlock) => void;
   onNumericStart: () => void;
-  onNumericEnd: () => void;
+  onNumericEnd: (action: "commit" | "cancel") => void;
   draft: (field: string) => NumberDraftBinding;
 }) {
   return (

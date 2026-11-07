@@ -42,6 +42,39 @@ test("flushes latest edits and previews the exact native PNG available for downl
   if (baseline) await writeFile(baseline, await readFile(path!));
 });
 
+test("unmodified picker does not block export", async ({ page }) => {
+  await openPoster(page, "a03export");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "PUT" &&
+      /\/api\/v1\/projects\//.test(request.url())
+    )
+      writes.push(request.url());
+  });
+  // An open-but-unedited color picker must not start a transaction: the saved
+  // state, the export control and the absence of writes all stay untouched.
+  await page.getByRole("button", { name: "效果", exact: true }).click();
+  const trigger = page.getByLabel("文字背景色", { exact: true });
+  await trigger.click();
+  await expect(page.locator(".ant-color-picker-hex-input")).toBeVisible();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "导出 PNG", exact: true }),
+  ).toBeEnabled();
+  expect(writes).toHaveLength(0);
+  await trigger.click();
+  await expect(page.locator(".ant-color-picker-hex-input")).toHaveCount(0);
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  expect(writes).toHaveLength(0);
+  // Closing an unedited picker leaves the stored document untouched.
+  const id = page.url().split("/").at(-2)!;
+  const body = await (await page.request.get(`/api/v1/projects/${id}`)).json();
+  const saved = JSON.parse(body.project.document);
+  expect(saved.textBlocks[0].effects.backgroundColor).toBe("#00000000");
+});
+
 test("closing the export dialog mid-flight reopens the same job and unlocks the page", async ({
   page,
 }) => {
