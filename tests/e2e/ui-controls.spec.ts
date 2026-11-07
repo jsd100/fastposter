@@ -844,9 +844,10 @@ test("reduced motion leaves overlays usable", async ({ browser, page }) => {
 /**
  * A04 / FP-01. antd gives every default, primary and danger button a resting
  * 2px bottom shadow through the shared Button theme tokens. It must be gone on
- * both sites while the keyboard focus treatment stays. Read computed style on
- * real `[data-fp-control]` buttons so a shadow is a product defect rather than
- * a selector miss.
+ * both sites while the border, disabled, busy, pressed and focus-visible
+ * feedback stays. Brief A04.1 asks for `toHaveCSS("box-shadow", "none")`: its
+ * auto-waiting read is what turns a settled resting shadow into a stable RED
+ * instead of catching an in-flight transition frame.
  */
 test("antd action buttons have no resting shadow", async ({
   browser,
@@ -855,49 +856,211 @@ test("antd action buttons have no resting shadow", async ({
   test.setTimeout(180_000);
   await openPoster(page, "a04_shadow");
 
-  const readShadows = (scope: Page) =>
-    scope.locator("button[data-fp-control]").evaluateAll((els) =>
-      els.map((el) => ({
-        name: el.getAttribute("aria-label") || el.textContent?.trim() || "",
-        variant:
-          [...el.classList].find((c) =>
-            /^button-(primary|secondary|danger|ghost)$/.test(c),
-          ) ?? "",
-        shadow: getComputedStyle(el).boxShadow,
-      })),
-    );
-
-  const userButtons = await readShadows(page);
-  expect(userButtons.length, "editor exposes shared buttons").toBeGreaterThan(
-    0,
+  const controls = page.locator("button[data-fp-control]");
+  const count = await controls.count();
+  expect(count, "editor exposes shared buttons").toBeGreaterThan(0);
+  // Auto-waiting per-button read. On the real baseline the settled value is a
+  // stable 2px projection, not the 0.02px interpolation frame a single
+  // getComputedStyle snapshot can catch right after mount.
+  for (let i = 0; i < count; i++) {
+    await expect(
+      controls.nth(i),
+      "every shared button has no resting shadow",
+    ).toHaveCSS("box-shadow", "none");
+  }
+  const variants = await controls.evaluateAll((els) =>
+    els.map(
+      (el) =>
+        [...el.classList].find((c) =>
+          /^button-(primary|secondary|danger|ghost)$/.test(c),
+        ) ?? "",
+    ),
   );
-  for (const button of userButtons) {
-    expect(
-      button.shadow,
-      `user ${button.variant} "${button.name}" resting shadow`,
-    ).toBe("none");
-  }
-  // The two header entries and the property area exercise both the default
-  // and the primary variant on real controls.
-  expect(
-    userButtons.some((button) => button.variant === "button-secondary"),
-  ).toBeTruthy();
-  expect(
-    userButtons.some((button) => button.variant === "button-primary"),
-  ).toBeTruthy();
+  expect(variants, "default variant is under test").toContain(
+    "button-secondary",
+  );
+  expect(variants, "primary variant is under test").toContain("button-primary");
 
-  // Removing the resting shadow must not remove keyboard focus feedback.
-  let visibleFocus = false;
-  for (let i = 0; i < 8 && !visibleFocus; i++) {
-    await page.keyboard.press("Tab");
-    visibleFocus = await page.evaluate(() => {
-      const el = document.activeElement;
-      if (!el) return false;
-      const style = getComputedStyle(el);
-      return style.outlineStyle !== "none" || style.boxShadow !== "none";
-    });
+  // FP-01 / Ruling 38: at 320px the header must not scroll and every header
+  // control must keep a 44x44 touch target. The two collapsed actions keep
+  // their accessible names (a real `title` attribute would need a DOM change
+  // outside this task's file list).
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.waitForTimeout(250);
+  const header = await page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>(".editor-header");
+    const items = el
+      ? [...el.querySelectorAll<HTMLElement>("button, a")].map((node) => {
+          const box = node.getBoundingClientRect();
+          return {
+            name:
+              node.getAttribute("aria-label") ||
+              node.textContent?.trim() ||
+              node.tagName,
+            width: Math.round(box.width * 10) / 10,
+            height: Math.round(box.height * 10) / 10,
+          };
+        })
+      : [];
+    return {
+      scrollWidth: el?.scrollWidth ?? -1,
+      clientWidth: el?.clientWidth ?? -1,
+      items,
+    };
+  });
+  expect(
+    header.scrollWidth,
+    "320px header does not scroll horizontally",
+  ).toBeLessThanOrEqual(header.clientWidth + 1);
+  expect(header.items.length, "header controls present").toBeGreaterThanOrEqual(
+    4,
+  );
+  for (const item of header.items) {
+    expect(
+      item.width,
+      `320px ${item.name} hit-area width`,
+    ).toBeGreaterThanOrEqual(44);
+    expect(
+      item.height,
+      `320px ${item.name} hit-area height`,
+    ).toBeGreaterThanOrEqual(44);
   }
-  expect(visibleFocus, "Tab keeps a visible focus treatment").toBeTruthy();
+
+  // Ruling 38: the collapsed icon buttons stay discoverable. The DOM file
+  // (ProjectWorkspace.tsx) is out of scope, so there is no real `title`; the
+  // stylesheet renders the accessible name as a CSS-only tooltip instead.
+  // Prove the three states on a real labelled button while still at 320px.
+  const labelled = page.locator(".editor-header .button[aria-label]").first();
+  const tipRest = await labelled.evaluate((el) => ({
+    label: el.getAttribute("aria-label"),
+    display: getComputedStyle(el, "::after").display,
+  }));
+  expect(
+    tipRest.label,
+    "collapsed action keeps an accessible name",
+  ).toBeTruthy();
+  expect(tipRest.display, "tooltip is hidden at rest").toBe("none");
+  await labelled.hover();
+  const tipHover = await labelled.evaluate((el) => ({
+    display: getComputedStyle(el, "::after").display,
+    content: getComputedStyle(el, "::after").content,
+  }));
+  expect(tipHover.display, "tooltip shows on hover").toBe("block");
+  expect(tipHover.content, "tooltip text comes from aria-label").toBe(
+    `"${tipRest.label}"`,
+  );
+  await page.mouse.move(0, 0);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.waitForTimeout(200);
+
+  // Ruling 37 / FP-01: focus a concrete shared button by keyboard and check
+  // the project's own focus ring, not "some focused element has an outline".
+  const save = page.getByLabel("保存作品", { exact: true });
+  await expect(save, "resting outline is not visible").toHaveCSS(
+    "outline-style",
+    "none",
+  );
+  await page.keyboard.press("Tab"); // establish keyboard modality
+  await save.focus();
+  const focusRing = await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement;
+    const style = getComputedStyle(el);
+    return {
+      isControl: !!el?.matches("button[data-fp-control]"),
+      focusVisible: el?.matches(":focus-visible") ?? false,
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+      shadow: style.boxShadow,
+    };
+  });
+  expect(focusRing.isControl, "a concrete button is focused").toBeTruthy();
+  expect(
+    focusRing.focusVisible,
+    "keyboard focus is :focus-visible",
+  ).toBeTruthy();
+  expect(focusRing.outlineStyle, "project focus ring appears").toBe("solid");
+  expect(focusRing.outlineWidth, "project ring keeps its 3px width").toBe(
+    "3px",
+  );
+  expect(focusRing.shadow, "focus does not restore a resting shadow").toBe(
+    "none",
+  );
+
+  // FP-01 feedback that removing the resting shadow must not erase.
+  const redo = page.getByLabel("重做", { exact: true });
+  await expect(redo, "a real disabled control exists").toBeDisabled();
+  await expect(redo, "disabled feedback survives").toHaveCSS(
+    "cursor",
+    "not-allowed",
+  );
+  await expect(redo).toHaveCSS("box-shadow", "none");
+
+  const add = page.getByRole("button", { name: "添加文字", exact: true });
+  const restBg = await add.evaluate(
+    (el) => getComputedStyle(el).backgroundColor,
+  );
+  const addBox = (await add.boundingBox())!;
+  await page.mouse.move(
+    addBox.x + addBox.width / 2,
+    addBox.y + addBox.height / 2,
+  );
+  await page.mouse.down();
+  // The :active background is a short CSS transition; a single read can land
+  // on its first frame (identical to rest) and report a false miss. Poll while
+  // the button is held so the settled pressed colour is what we compare.
+  await expect
+    .poll(() => add.evaluate((el) => getComputedStyle(el).backgroundColor), {
+      message: "pressed (:active) feedback survives",
+      timeout: 3000,
+    })
+    .not.toBe(restBg);
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+
+  let busySeen = false;
+  await page.route("**/api/v1/**", async (route) => {
+    try {
+      await new Promise((r) => setTimeout(r, 800));
+      await route.continue();
+    } catch {
+      // A request cancelled while the delay is pending is already settled by
+      // the browser; the busy state we are observing has already been read.
+    }
+  });
+  try {
+    if (await save.isEnabled()) {
+      await save.click();
+      await expect
+        .poll(() => save.getAttribute("aria-busy"), "busy flag appears")
+        .toBe("true");
+      busySeen = true;
+      await expect(save, "busy control keeps no resting shadow").toHaveCSS(
+        "box-shadow",
+        "none",
+      );
+    }
+  } finally {
+    await page.unroute("**/api/v1/**");
+  }
+  expect(busySeen, "a real busy state was observed").toBeTruthy();
+
+  // dangerShadow is a separate theme token: isolate a real variant="danger"
+  // instance (the move-to-trash confirmation) and assert its resting shadow.
+  await page.getByRole("link", { name: "返回作品", exact: true }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await page
+    .getByTestId("project-card")
+    .first()
+    .getByLabel(/的操作/, { exact: false })
+    .click();
+  await page.getByRole("menuitem", { name: "移到回收站", exact: true }).click();
+  const danger = page.locator("button.button-danger");
+  await expect(danger, "a real danger button is under test").toHaveCount(1);
+  await expect(danger, "dangerShadow is removed too").toHaveCSS(
+    "box-shadow",
+    "none",
+  );
 
   // Admin site shares the same theme. A fixed test account avoids consuming
   // the per-IP registration quota for this assertion.
@@ -914,15 +1077,14 @@ test("antd action buttons have no resting shadow", async ({
       .click();
     await expect(admin).toHaveURL(/\/admin\/overview$/);
     await admin.goto("http://127.0.0.1:15174/admin/templates");
-    const adminButtons = await readShadows(admin);
-    expect(adminButtons.length, "admin exposes shared buttons").toBeGreaterThan(
-      0,
-    );
-    for (const button of adminButtons) {
-      expect(
-        button.shadow,
-        `admin ${button.variant} "${button.name}" resting shadow`,
-      ).toBe("none");
+    const adminButtons = admin.locator("button[data-fp-control]");
+    const adminCount = await adminButtons.count();
+    expect(adminCount, "admin exposes shared buttons").toBeGreaterThan(0);
+    for (let i = 0; i < adminCount; i++) {
+      await expect(adminButtons.nth(i), "admin resting shadow").toHaveCSS(
+        "box-shadow",
+        "none",
+      );
     }
   } finally {
     await adminContext.close();
@@ -949,12 +1111,18 @@ test("closed select values share the trigger center", async ({
   async function alignment(scope: Page, label: string): Promise<Alignment> {
     const root = selectRoot(scope, label);
     await expect(root, `${label} trigger`).toBeVisible();
+    // The closed value is normally the shared `labelRender` span
+    // ([data-fp-select-value]); a combobox with no value can instead render
+    // antd's own placeholder node. Measure whichever the browser produced so
+    // empty / placeholder states are covered by the same centre-line rule.
     const value = selectValue(scope, label);
-    await expect(value, `${label} value`).toHaveCount(1);
+    const placeholder = root.locator(".ant-select-selection-placeholder");
+    const text = (await value.count()) > 0 ? value : placeholder;
+    await expect(text, `${label} value or placeholder`).toHaveCount(1);
     const caret = root.locator(".ant-select-suffix svg");
     await expect(caret, `${label} caret`).toHaveCount(1);
     const rootBox = (await root.boundingBox())!;
-    const valueBox = (await value.boundingBox())!;
+    const valueBox = (await text.boundingBox())!;
     const caretBox = (await caret.boundingBox())!;
     return {
       trigger: rootBox.y + rootBox.height / 2,
@@ -973,8 +1141,8 @@ test("closed select values share the trigger center", async ({
     ).toBeLessThanOrEqual(2);
   }
 
-  // Editor "文字" group: numeric weight / mixed, Chinese font, preset colour
-  // swatch. These are closed, filled selects of three different content kinds.
+  // A04.1 list, editor "文字" group: numeric weight / mixed, Chinese font,
+  // preset colour swatch. These are closed, filled selects of three kinds.
   const cases = [
     ["文字字重", "数字/字号与混合态"],
     ["文字字体", "中文字体"],
@@ -1002,35 +1170,54 @@ test("closed select values share the trigger center", async ({
     ).toBeLessThanOrEqual(2);
   }
 
-  // A04.4 / FP-03: the two-layer swatch and the inspector typography are
-  // UI-only. Poster document nodes live under .poster-canvas /
-  // [data-text-block] and keep their own document styles; none of the A04
-  // selectors (.panel-field / .style-target / .inspector-content / .swatch)
-  // reach the canvas, thumbnail or export text. This is a regression
-  // assertion — the scope was already correct, no product defect here.
+  // Ruling 36 / A04.4: "样式不作用到海报文档节点" is proved by reading the
+  // document node's computed font-size / colour and comparing them with the
+  // A04 UI rule values (13px labels / --fp-text #202C25), not by DOM ancestry.
+  // The real text block created by openPoster guarantees the node exists.
   {
     const scope = await page.evaluate(() => {
       const canvas = document.querySelector(".poster-canvas");
-      const block = document.querySelector("[data-text-block]");
+      const block = document.querySelector<HTMLElement>("[data-text-block]");
       const uiSwatches = document.querySelectorAll(
         ".editor-properties [class*='swatch']",
       );
+      const cs = block ? getComputedStyle(block) : null;
       return {
         uiSwatches: uiSwatches.length,
         swatchInCanvas: [...uiSwatches].some((s) => !!canvas?.contains(s)),
-        blockInInspector: !!(
-          block &&
-          block.closest(".panel-field, .style-target, .inspector-content")
-        ),
+        hasBlock: !!block,
+        fontSize: cs?.fontSize ?? null,
+        color: cs?.color ?? null,
+        inlineFontSize: block?.style.fontSize ?? null,
+        inlineColor: block?.style.color ?? null,
+        matchesUI: block
+          ? block.matches(
+              ".panel-field, .style-target, .inspector-content, .editor-properties, [class*='swatch'], [data-fp-input]",
+            )
+          : null,
       };
     });
     expect(scope.uiSwatches, "inspector renders UI swatches").toBeGreaterThan(
       0,
     );
-    expect(scope.swatchInCanvas, "UI swatch never enters the canvas").toBe(
+    expect(scope.hasBlock, "a real document text block exists").toBeTruthy();
+    expect(scope.matchesUI, "document node matches no A04 UI selector").toBe(
       false,
     );
-    expect(scope.blockInInspector, "document text keeps its own scope").toBe(
+    expect(scope.fontSize, "canvas font-size comes from the document").toBe(
+      scope.inlineFontSize,
+    );
+    expect(
+      scope.fontSize,
+      "A04 13px label rule does not reach the canvas",
+    ).not.toBe("13px");
+    expect(scope.color, "canvas colour comes from the document").toBe(
+      scope.inlineColor,
+    );
+    expect(scope.color, "A04 --fp-text ink does not reach the canvas").not.toBe(
+      "rgb(32, 44, 37)",
+    );
+    expect(scope.swatchInCanvas, "UI swatch never enters the canvas").toBe(
       false,
     );
   }
@@ -1062,11 +1249,8 @@ test("closed select values share the trigger center", async ({
     await expect(page.getByRole("listbox")).toHaveCount(0);
   }
 
-  // Admin site category filter — the second site of the FP-13 matrix and the
-  // "后台分类" coverage item. A dialog-backed category filter was also tried
-  // here, but its rc-motion appear animation made an in-flight caret rect
-  // differ by ~220px in one run; that is a layout measurement artefact, not a
-  // product defect, so the stable admin filter carries this assertion instead.
+  // Admin site: "后台分类" (FP-13 second site) plus the A04.1 "空值" and
+  // "禁用" coverage items. A fixed account avoids the registration quota.
   const adminContext = await browser.newContext();
   try {
     const admin = await adminContext.newPage();
@@ -1081,7 +1265,67 @@ test("closed select values share the trigger center", async ({
     await expect(admin).toHaveURL(/\/admin\/overview$/);
     await admin.goto("http://127.0.0.1:15174/admin/templates");
     expectCentered(await alignment(admin, "筛选模板分类"), "后台分类 select");
+
+    // Ruling 34: real empty-value and disabled Select instances. Editing a
+    // seeded font opens a form whose 素材分类 is an empty-string value and
+    // whose 字体字重 / 字体样式 are disabled until a replacement file is
+    // chosen. No DOM is mocked; these are the app's own documented states.
+    await admin.goto("http://127.0.0.1:15174/admin/fonts");
+    await admin
+      .getByRole("button", { name: "编辑", exact: true })
+      .first()
+      .click();
+    await expect(admin.getByRole("dialog", { name: "编辑素材" })).toBeVisible();
+    // antd Dialog slides in with an rc-motion appear transform. Two sequential
+    // boundingBox() calls can land on different frames of that animation and
+    // report a false ~300px offset, so let the dialog settle before measuring.
+    await admin.waitForTimeout(400);
+    await expect(
+      selectValue(admin, "素材分类"),
+      "空值走 labelRender 值节点",
+    ).toHaveText("未分类");
+    expectCentered(await alignment(admin, "素材分类"), "空值/未分类 select");
+    for (const label of ["字体字重", "字体样式"] as const) {
+      await expect(
+        selectRoot(admin, label),
+        `${label} is a real disabled select`,
+      ).toHaveClass(/ant-select-disabled/);
+      expectCentered(await alignment(admin, label), `禁用 select ${label}`);
+    }
   } finally {
     await adminContext.close();
+  }
+
+  // Ruling 39 / FP-01: touch-sized real text inputs at 390 and 320. The
+  // position group renders .geometry-fields directly under .inspector-content,
+  // outside .panel-field, so it needs its own 16px rule on touch widths.
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.waitForTimeout(300);
+    const entry = page.getByRole("button", { name: "文字设置", exact: true });
+    if (await entry.count()) await entry.first().click();
+    await page.waitForTimeout(200);
+    // The sheet keeps the previously shown group across viewport changes, so
+    // return to 文字 explicitly before reading a .panel-field input.
+    const textTab = page.getByRole("button", { name: "文字", exact: true });
+    if (await textTab.count()) await textTab.first().click();
+    await page.waitForTimeout(150);
+    const panelFs = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>(
+        ".panel-field [data-fp-input]",
+      );
+      return el ? getComputedStyle(el).fontSize : null;
+    });
+    const posTab = page.getByRole("button", { name: "位置", exact: true });
+    if (await posTab.count()) await posTab.first().click();
+    await page.waitForTimeout(200);
+    const geoFs = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>(".geometry-fields input");
+      return el ? getComputedStyle(el).fontSize : null;
+    });
+    expect(geoFs, `${width}px position-group input is 16px`).toBe("16px");
+    expect(panelFs, `${width}px panel field input stays 16px`).toBe("16px");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
   }
 });

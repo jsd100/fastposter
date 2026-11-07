@@ -625,6 +625,13 @@
     font-size: 16px;
     min-height: 44px;
   }
+  /* The position group renders .geometry-fields directly under
+     .inspector-content, outside .panel-field, so the rule above misses its
+     real X/Y/width inputs. FP-01 / A04.4 still require 16px for every touch
+     text input; keep that here in the shared stylesheet. */
+  .geometry-fields input {
+    font-size: 16px;
+  }
   .panel-field [data-fp-stepper] {
     height: 46px;
   }

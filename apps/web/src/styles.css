@@ -907,22 +907,60 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* antd's CSS-in-JS is injected after this stylesheet and sets the button's
-     own font-size and padding-inline, so a plain `font-size: 0` / `padding`
-     on the button loses the cascade. Target the label span directly (it only
-     inherits the button size, so a direct declaration wins) and pin the
-     padding with !important to keep the row within 320px. */
-  .editor-header .button {
-    padding-inline: 6px !important;
+  /* Converge the collapse to the two labelled secondary actions only (they
+     are the only header buttons with aria-label). Select by the attribute's
+     presence rather than a hard-coded Chinese literal, so an i18n rename does
+     not break the rule. (0,3,0) outranks antd's injected .ant-btn padding
+     rule (0,2,0), so no `!important` is needed and the unlabelled export
+     button keeps its own spacing. */
+  .editor-header .button[aria-label] {
+    padding-inline: 6px;
   }
-  .editor-header .button[aria-label="保存作品"] > span,
-  .editor-header .button[aria-label="导出模板包"] > span {
+  /* antd CSS-in-JS owns the button's own font-size, so hide the label text on
+     the inner span it renders; the explicit svg size keeps the icon legible. */
+  .editor-header .button[aria-label] > span {
     font-size: 0;
   }
-  .editor-header .button[aria-label="保存作品"] svg,
-  .editor-header .button[aria-label="导出模板包"] svg {
+  .editor-header .button[aria-label] svg {
     width: 16px;
     height: 16px;
+  }
+  /* FP-01: every header control keeps a 44x44 touch target at 320px, even
+     after its label collapses. h1 is the flexible row item and absorbs the
+     extra width, so the header still does not scroll. */
+  .editor-header .return-link,
+  .editor-header .button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* CSS-only tooltip for the collapsed icon buttons: the aria-label supplies
+     the text, so no literal is duplicated. A real `title` attribute would
+     still need ProjectWorkspace.tsx, which is outside this task's file list;
+     that limitation is written back in the report. */
+  .editor-header .button[aria-label] {
+    position: relative;
+    overflow: visible;
+  }
+  .editor-header .button[aria-label]::after {
+    content: attr(aria-label);
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--fp-text);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .editor-header .button[aria-label]:hover::after,
+  .editor-header .button[aria-label]:focus-visible::after {
+    display: block;
   }
 }
 .background-picker {
