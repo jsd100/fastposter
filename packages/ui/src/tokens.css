@@ -25,6 +25,11 @@
   --fp-focus-line: #88a471;
   --fp-focus-ring: #8dc6aa;
   --fp-focus-shadow: #b4c7a522;
+  /* FP-01 semantic text inks on white. The inspector and form helpers use
+     these instead of the older pale greens, which fell below the 4.5:1
+     contrast floor for ordinary text. */
+  --fp-text: #202c25;
+  --fp-text-secondary: #526159;
   --fp-backdrop: #23352266;
   --fp-dialog-shadow: #2b3c2733;
   --fp-radius-icon: 5px;

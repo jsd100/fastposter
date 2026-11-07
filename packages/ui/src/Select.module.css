@@ -9,12 +9,22 @@
   -webkit-appearance: none;
   cursor: pointer;
 }
-.select:global(.ant-select) :global(.ant-select-content) {
+/* `content` is antd's public semantic slot (classNames.content), shared by
+   Select and Combobox. For a filled single value antd sets it to
+   `display:block` and centres the slot itself with `align-self:center`, while
+   the suffix/arrow uses the same axis. The previous rule forced
+   `height:100%`, stretching that block to the full control height so the
+   inline value sat at its top — a ~7px upward offset from the centred caret.
+   Keep the slot at its intrinsic line box instead: the plain value, the
+   placeholder, the swatch and the search input then all share the arrow's
+   centre line. Long values still clip through the value span's ellipsis.
+   This is the only rule that has to know antd's content slot; it stays in
+   this shared module (also imported by Combobox) on purpose. */
+.content {
   flex: 1;
   min-width: 0;
-  height: 100%;
-  align-items: center;
   overflow: hidden;
+  align-self: center;
 }
 .select:global(.ant-select) :global(.ant-select-input) {
   padding: 0;

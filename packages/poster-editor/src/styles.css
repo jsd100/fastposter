@@ -278,14 +278,14 @@
   border-bottom: 2px solid transparent;
   padding: 2px 4px 0;
   background: transparent;
-  color: #849377;
+  color: var(--fp-text-secondary);
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 .inspector-tab[aria-pressed="true"] {
-  border-color: #5d7f4a;
-  color: #41652e;
+  border-color: #2e694f;
+  color: #2e694f;
   font-weight: 650;
 }
 .inspector-tab:focus-visible {
@@ -305,12 +305,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
-  color: #8d9d7f;
+  font-size: 12px;
+  color: var(--fp-text-secondary);
   min-width: 0;
 }
 .selection-scope strong {
-  color: #4f6842;
+  color: var(--fp-text);
   font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -328,15 +328,15 @@
 .geometry-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 15px 10px;
+  gap: 12px 10px;
 }
 .geometry-fields label {
   position: relative;
-  font-size: 9px;
-  color: #97a487;
+  font-size: 13px;
+  color: var(--fp-text-secondary);
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 .geometry-fields input {
   width: 100%;
@@ -344,33 +344,33 @@
   border: 1px solid #e0e7d7;
   background: #fafcf7;
   border-radius: 4px;
-  height: 33px;
+  height: 36px;
   padding: 0 19px 0 8px;
-  font-size: 11px;
-  color: #60764e;
+  font-size: 14px;
+  color: var(--fp-text);
 }
 .geometry-fields small {
   position: absolute;
   right: 6px;
   bottom: 11px;
-  font-size: 8px;
-  color: #a9b69b;
+  font-size: 12px;
+  color: var(--fp-text-secondary);
 }
 .property-hint {
-  color: #a4af98;
-  font-size: 9px;
+  color: var(--fp-text-secondary);
+  font-size: 12px;
   line-height: 1.8;
-  margin-top: 18px;
+  margin-top: 8px;
 }
 .properties-empty {
   text-align: center;
-  color: #b5c1a7;
+  color: var(--fp-text-secondary);
   margin-top: 70px;
 }
 .properties-empty p {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.9;
-  margin-top: 18px;
+  margin-top: 8px;
 }
 .overflow-notice {
   background: #fff1df;
@@ -515,19 +515,21 @@
   min-width: 0;
 }
 .style-target {
-  font-size: 9px;
-  color: #8da279;
-  margin-bottom: 15px;
+  font-size: 12px;
+  color: var(--fp-text-secondary);
+  margin-bottom: 8px;
   line-height: 1.7;
 }
 .panel-field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  font-size: 10px;
-  color: #80936b;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fp-text-secondary);
   min-width: 0;
-  margin: 12px 0;
+  /* Group spacing comes from .inspector-content / .panel-row gaps (12-16px);
+     a field margin here would stack on top of them. */
+  margin: 0;
 }
 .panel-field [data-fp-input],
 .panel-field .select {
@@ -535,11 +537,11 @@
   min-width: 0;
   border: 1px solid #dce6d0;
   border-radius: 5px;
-  height: 35px;
+  height: 36px;
   padding: 0 8px;
-  color: #5a7345;
+  color: var(--fp-text);
   background: #fcfdf9;
-  font-size: 12px;
+  font-size: 14px;
   outline: none;
 }
 .panel-field .select {
@@ -557,7 +559,7 @@
   gap: 12px;
 }
 .panel-field [data-fp-stepper] {
-  height: 35px;
+  height: 36px;
   border: 1px solid #dce6d0;
   border-radius: 5px;
   background: #fcfdf9;
@@ -601,14 +603,14 @@
   color: #41652e;
 }
 .effect-panel {
-  font-size: 10px;
-  color: #80936b;
+  font-size: 12px;
+  color: var(--fp-text-secondary);
 }
 .panel-field .button.clear-effect {
   border: 0;
   background: none;
-  color: #92a380;
-  font-size: 9px;
+  color: var(--fp-text-secondary);
+  font-size: 12px;
   font-weight: 400;
   padding: 1px 6px;
   align-self: flex-end;

@@ -100,7 +100,7 @@ export function Combobox({
       aria-label={ariaLabel}
       data-fp-control=""
       className={`select ${menu.select} ${className}`}
-      classNames={{ popup: { root: menu.dropdown } }}
+      classNames={{ content: menu.content, popup: { root: menu.dropdown } }}
       labelRender={({ value: optionValue }) =>
         search ? (
           ""

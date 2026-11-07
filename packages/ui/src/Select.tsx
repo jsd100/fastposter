@@ -64,7 +64,7 @@ export function Select<T extends string | number>({
       className={`select ${styles.select}${
         density === "compact" ? ` ${styles.compact}` : ""
       } ${className}`}
-      classNames={{ popup: { root: styles.dropdown } }}
+      classNames={{ content: styles.content, popup: { root: styles.dropdown } }}
       labelRender={({ label }) => (
         <span className={styles.value} data-fp-select-value="" title={current}>
           {selected?.swatch && (

@@ -33,6 +33,13 @@ export const fastPosterTheme: ThemeConfig = {
       controlHeightSM: 32,
       paddingInline: 16,
       paddingInlineSM: 10,
+      // antd gives every default, primary and danger button a 2px resting
+      // shadow. FP-01 removes that projection on both sites through the
+      // shared theme while keeping the border, disabled, busy, pressed and
+      // focus-visible feedback (the focus ring comes from styles.css).
+      defaultShadow: "none",
+      primaryShadow: "none",
+      dangerShadow: "none",
     },
     Alert: {
       defaultPadding: "12px 14px",

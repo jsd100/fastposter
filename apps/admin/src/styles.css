@@ -179,8 +179,8 @@
   background: white;
   border-radius: 5px;
   padding: 0 12px;
-  color: #637d4e;
-  font-size: 11px;
+  color: var(--fp-text);
+  font-size: 14px;
   margin-bottom: 24px;
 }
 .table-wrap {
@@ -432,8 +432,8 @@ td .button {
   border: 1px solid #dfe8d4;
   background: white;
   border-radius: 5px;
-  color: #829b68;
-  font-size: 11px;
+  color: var(--fp-text);
+  font-size: 14px;
 }
 .admin-resource-grid {
   display: grid;
@@ -522,7 +522,7 @@ td .button {
   gap: 16px;
 }
 .resource-form .select {
-  font-size: 12px;
+  font-size: 14px;
   width: 100%;
 }
 .resource-form textarea,
@@ -531,9 +531,9 @@ td .button {
   border: 1px solid #dce7d0;
   border-radius: 5px;
   padding: 9px;
-  color: #6f8956;
+  color: var(--fp-text);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   resize: vertical;
 }
 .admin-form-row {
@@ -708,8 +708,8 @@ td .button {
   border: 1px solid #dfe8d4;
   border-radius: 5px;
   padding: 0 10px;
-  font-size: 13px;
-  color: #4d6140;
+  font-size: 14px;
+  color: var(--fp-text);
   background: #fbfdf8;
 }
 .template-editor-meta .select {
@@ -719,8 +719,8 @@ td .button {
   border: 1px solid #dfe8d4;
   background: #fff;
   border-radius: 5px;
-  color: #829b68;
-  font-size: 11px;
+  color: var(--fp-text);
+  font-size: 14px;
 }
 .template-sort {
   display: flex;

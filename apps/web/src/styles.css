@@ -635,8 +635,8 @@
 .saved-label {
   margin-left: auto;
   white-space: nowrap;
-  color: #8da179;
-  font-size: 10px;
+  color: var(--fp-text-secondary);
+  font-size: 12px;
 }
 @keyframes pulse {
   to {
@@ -891,14 +891,38 @@
   }
 }
 @media (max-width: 360px) {
-  /* The narrowest phone still has to fit the save, package and export actions
-     beside the title; trim the chrome rather than letting the header scroll. */
+  /* 320px: keep back / abbreviated title / save status / export legible and
+     stop the header from scrolling horizontally. The two secondary actions
+     keep their accessible names but collapse to icons so the row fits; a
+     named "更多" entry would need a DOM change outside this task's file list,
+     so this is the equivalent pure-CSS containment. */
   .editor-header {
     gap: 6px;
-    padding: 0 10px;
+    padding: 0 8px;
   }
+  .editor-header h1 {
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* antd's CSS-in-JS is injected after this stylesheet and sets the button's
+     own font-size and padding-inline, so a plain `font-size: 0` / `padding`
+     on the button loses the cascade. Target the label span directly (it only
+     inherits the button size, so a direct declaration wins) and pin the
+     padding with !important to keep the row within 320px. */
   .editor-header .button {
-    padding: 0 7px;
+    padding-inline: 6px !important;
+  }
+  .editor-header .button[aria-label="保存作品"] > span,
+  .editor-header .button[aria-label="导出模板包"] > span {
+    font-size: 0;
+  }
+  .editor-header .button[aria-label="保存作品"] svg,
+  .editor-header .button[aria-label="导出模板包"] svg {
+    width: 16px;
+    height: 16px;
   }
 }
 .background-picker {

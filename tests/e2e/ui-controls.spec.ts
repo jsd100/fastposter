@@ -840,3 +840,248 @@ test("reduced motion leaves overlays usable", async ({ browser, page }) => {
     await reduceContext.close();
   }
 });
+
+/**
+ * A04 / FP-01. antd gives every default, primary and danger button a resting
+ * 2px bottom shadow through the shared Button theme tokens. It must be gone on
+ * both sites while the keyboard focus treatment stays. Read computed style on
+ * real `[data-fp-control]` buttons so a shadow is a product defect rather than
+ * a selector miss.
+ */
+test("antd action buttons have no resting shadow", async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await openPoster(page, "a04_shadow");
+
+  const readShadows = (scope: Page) =>
+    scope.locator("button[data-fp-control]").evaluateAll((els) =>
+      els.map((el) => ({
+        name: el.getAttribute("aria-label") || el.textContent?.trim() || "",
+        variant:
+          [...el.classList].find((c) =>
+            /^button-(primary|secondary|danger|ghost)$/.test(c),
+          ) ?? "",
+        shadow: getComputedStyle(el).boxShadow,
+      })),
+    );
+
+  const userButtons = await readShadows(page);
+  expect(userButtons.length, "editor exposes shared buttons").toBeGreaterThan(
+    0,
+  );
+  for (const button of userButtons) {
+    expect(
+      button.shadow,
+      `user ${button.variant} "${button.name}" resting shadow`,
+    ).toBe("none");
+  }
+  // The two header entries and the property area exercise both the default
+  // and the primary variant on real controls.
+  expect(
+    userButtons.some((button) => button.variant === "button-secondary"),
+  ).toBeTruthy();
+  expect(
+    userButtons.some((button) => button.variant === "button-primary"),
+  ).toBeTruthy();
+
+  // Removing the resting shadow must not remove keyboard focus feedback.
+  let visibleFocus = false;
+  for (let i = 0; i < 8 && !visibleFocus; i++) {
+    await page.keyboard.press("Tab");
+    visibleFocus = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el) return false;
+      const style = getComputedStyle(el);
+      return style.outlineStyle !== "none" || style.boxShadow !== "none";
+    });
+  }
+  expect(visibleFocus, "Tab keeps a visible focus treatment").toBeTruthy();
+
+  // Admin site shares the same theme. A fixed test account avoids consuming
+  // the per-IP registration quota for this assertion.
+  const adminContext = await browser.newContext();
+  try {
+    const admin = await adminContext.newPage();
+    await admin.goto("http://127.0.0.1:15174/admin/login");
+    await admin.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+    await admin
+      .getByLabel("密码", { exact: true })
+      .fill("fastposter-test-only-password");
+    await admin
+      .getByRole("button", { name: "登录管理后台", exact: true })
+      .click();
+    await expect(admin).toHaveURL(/\/admin\/overview$/);
+    await admin.goto("http://127.0.0.1:15174/admin/templates");
+    const adminButtons = await readShadows(admin);
+    expect(adminButtons.length, "admin exposes shared buttons").toBeGreaterThan(
+      0,
+    );
+    for (const button of adminButtons) {
+      expect(
+        button.shadow,
+        `admin ${button.variant} "${button.name}" resting shadow`,
+      ).toBe("none");
+    }
+  } finally {
+    await adminContext.close();
+  }
+});
+
+/**
+ * A04 / FP-03. The closed select value, the swatch, the search input and the
+ * arrow must all sit on the trigger's vertical centre line. antd turns the
+ * single-value `content` slot into `display:block`, and the old rule stretched
+ * it to `height:100%`, so the inline text sat at the block's top while the
+ * suffix stayed centred (~7px offset). Measure the real boxes: the gap between
+ * the visible value container and the trigger must stay within 2px, and the
+ * arrow is checked separately.
+ */
+test("closed select values share the trigger center", async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await openPoster(page, "a04_center");
+
+  type Alignment = { trigger: number; value: number; caret: number };
+  async function alignment(scope: Page, label: string): Promise<Alignment> {
+    const root = selectRoot(scope, label);
+    await expect(root, `${label} trigger`).toBeVisible();
+    const value = selectValue(scope, label);
+    await expect(value, `${label} value`).toHaveCount(1);
+    const caret = root.locator(".ant-select-suffix svg");
+    await expect(caret, `${label} caret`).toHaveCount(1);
+    const rootBox = (await root.boundingBox())!;
+    const valueBox = (await value.boundingBox())!;
+    const caretBox = (await caret.boundingBox())!;
+    return {
+      trigger: rootBox.y + rootBox.height / 2,
+      value: valueBox.y + valueBox.height / 2,
+      caret: caretBox.y + caretBox.height / 2,
+    };
+  }
+  function expectCentered(m: Alignment, note: string) {
+    expect(
+      Math.abs(m.value - m.trigger),
+      `${note}: value vs trigger`,
+    ).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(m.caret - m.trigger),
+      `${note}: caret vs trigger`,
+    ).toBeLessThanOrEqual(2);
+  }
+
+  // Editor "文字" group: numeric weight / mixed, Chinese font, preset colour
+  // swatch. These are closed, filled selects of three different content kinds.
+  const cases = [
+    ["文字字重", "数字/字号与混合态"],
+    ["文字字体", "中文字体"],
+    ["预设文字颜色", "预设色/色块"],
+  ] as const;
+  for (const [label, note] of cases) {
+    expectCentered(await alignment(page, label), `${label} (${note})`);
+  }
+
+  // The colour swatch itself must share the same centre line. Select a preset
+  // first so labelRender actually renders the swatch span (the initial colour
+  // is a custom #000000 with no preset swatch).
+  await chooseOption(page, "预设文字颜色", "经典 · 墨黑");
+  {
+    const root = selectRoot(page, "预设文字颜色");
+    const swatch = root.locator("[data-fp-select-value] > span").first();
+    await expect(swatch, "preset swatch").toHaveCount(1);
+    const rootBox = (await root.boundingBox())!;
+    const swatchBox = (await swatch.boundingBox())!;
+    expect(
+      Math.abs(
+        swatchBox.y + swatchBox.height / 2 - (rootBox.y + rootBox.height / 2),
+      ),
+      "preset swatch vs trigger",
+    ).toBeLessThanOrEqual(2);
+  }
+
+  // A04.4 / FP-03: the two-layer swatch and the inspector typography are
+  // UI-only. Poster document nodes live under .poster-canvas /
+  // [data-text-block] and keep their own document styles; none of the A04
+  // selectors (.panel-field / .style-target / .inspector-content / .swatch)
+  // reach the canvas, thumbnail or export text. This is a regression
+  // assertion — the scope was already correct, no product defect here.
+  {
+    const scope = await page.evaluate(() => {
+      const canvas = document.querySelector(".poster-canvas");
+      const block = document.querySelector("[data-text-block]");
+      const uiSwatches = document.querySelectorAll(
+        ".editor-properties [class*='swatch']",
+      );
+      return {
+        uiSwatches: uiSwatches.length,
+        swatchInCanvas: [...uiSwatches].some((s) => !!canvas?.contains(s)),
+        blockInInspector: !!(
+          block &&
+          block.closest(".panel-field, .style-target, .inspector-content")
+        ),
+      };
+    });
+    expect(scope.uiSwatches, "inspector renders UI swatches").toBeGreaterThan(
+      0,
+    );
+    expect(scope.swatchInCanvas, "UI swatch never enters the canvas").toBe(
+      false,
+    );
+    expect(scope.blockInInspector, "document text keeps its own scope").toBe(
+      false,
+    );
+  }
+
+  // Font search state: the search input and arrow stay on the centre line.
+  {
+    const font = selectTrigger(page, "文字字体");
+    await font.click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await font.fill("字");
+    const root = selectRoot(page, "文字字体");
+    const rootBox = (await root.boundingBox())!;
+    const input = root.locator(".ant-select-input");
+    await expect(input, "font search input").toHaveCount(1);
+    const caret = root.locator(".ant-select-suffix svg");
+    await expect(caret, "font search caret").toHaveCount(1);
+    const inputBox = (await input.boundingBox())!;
+    const caretBox = (await caret.boundingBox())!;
+    const trigger = rootBox.y + rootBox.height / 2;
+    expect(
+      Math.abs(inputBox.y + inputBox.height / 2 - trigger),
+      "font search input vs trigger",
+    ).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(caretBox.y + caretBox.height / 2 - trigger),
+      "font search caret vs trigger",
+    ).toBeLessThanOrEqual(2);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+  }
+
+  // Admin site category filter — the second site of the FP-13 matrix and the
+  // "后台分类" coverage item. A dialog-backed category filter was also tried
+  // here, but its rc-motion appear animation made an in-flight caret rect
+  // differ by ~220px in one run; that is a layout measurement artefact, not a
+  // product defect, so the stable admin filter carries this assertion instead.
+  const adminContext = await browser.newContext();
+  try {
+    const admin = await adminContext.newPage();
+    await admin.goto("http://127.0.0.1:15174/admin/login");
+    await admin.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+    await admin
+      .getByLabel("密码", { exact: true })
+      .fill("fastposter-test-only-password");
+    await admin
+      .getByRole("button", { name: "登录管理后台", exact: true })
+      .click();
+    await expect(admin).toHaveURL(/\/admin\/overview$/);
+    await admin.goto("http://127.0.0.1:15174/admin/templates");
+    expectCentered(await alignment(admin, "筛选模板分类"), "后台分类 select");
+  } finally {
+    await adminContext.close();
+  }
+});

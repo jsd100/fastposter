@@ -114,11 +114,12 @@ export function ColorField({
           aria-expanded={open}
           disabled={disabled}
         >
-          <span
-            className={styles.swatch}
-            style={{ backgroundColor: value }}
-            aria-hidden="true"
-          />
+          <span className={styles.swatch} aria-hidden="true">
+            <span
+              className={styles.swatchColor}
+              style={{ backgroundColor: value }}
+            />
+          </span>
           <span className={styles.hex}>{value.toUpperCase()}</span>
         </button>
       </ColorPicker>
