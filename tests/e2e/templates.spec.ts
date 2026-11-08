@@ -146,6 +146,131 @@ test("closing template editor returns to the filtered list", async ({
   await adminContext.close();
 });
 
+/**
+ * FP-06 / A05.1 / A05.4. A create whose outcome cannot be confirmed (server
+ * committed but the reply was dropped, a 5xx, a network abort) must never be
+ * resubmitted automatically; the only next step is a read-only list reload.
+ * The same rule covers the local two-step chain, template apply and ZIP import.
+ */
+test("unknown creation outcome only refreshes list", async ({ page }) => {
+  test.setTimeout(150_000);
+  await registerUser(page, "a05_unknown");
+
+  // A minimal, valid published template document so the picker can offer the
+  // "使用模板" action without any admin catalog setup. The apply/import writes
+  // themselves are intercepted below; nothing is silently retried.
+  const document = JSON.stringify({
+    schemaVersion: 1,
+    canvas: { width: 4, height: 3 },
+    background: { assetId: "e2e-template-bg", version: "1" },
+    fonts: [],
+    textBlocks: [],
+  });
+  let createPosts = 0;
+  let applyPosts = 0;
+  let importPosts = 0;
+  await page.route(/\/api\/v1\/projects(\?|$)/, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    createPosts += 1;
+    // The server really commits the project (route.fetch), but the browser
+    // only sees a 5xx, so the outcome cannot be confirmed.
+    await route.fetch();
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "CREATE_UNCONFIRMED",
+        message: "创建结果无法确认",
+        requestId: "e2e-create",
+      }),
+    });
+  });
+  await page.route(/\/api\/v1\/catalog\/template(\?|$)/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        requestId: "e2e-catalog",
+        total: 1,
+        resources: [
+          {
+            id: "e2e-template-1",
+            kind: "template",
+            title: "未知结果测试模板",
+            sortOrder: 0,
+            published: true,
+            version: "1",
+            document,
+          },
+        ],
+      }),
+    }),
+  );
+  // A connection drop (network TypeError) is also an unknown outcome.
+  await page.route(/\/api\/v1\/templates\/[^/]+\/apply(\?|$)/, (route) => {
+    applyPosts += 1;
+    return route.abort("internetdisconnected");
+  });
+  // A non-JSON 200 decodes as INVALID_RESPONSE: still an unknown outcome.
+  await page.route(/\/api\/v1\/templates\/import(\?|$)/, (route) => {
+    importPosts += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "text/plain",
+      body: "not-json",
+    });
+  });
+
+  const unknownNotice = () =>
+    page.getByTestId("notice").filter({ hasText: "结果未确认" });
+  const reloadAction = () => unknownNotice().getByTestId("notice-action");
+
+  // (1) Local two-step chain: server committed, response disconnected.
+  await page
+    .getByLabel("导入背景图文件")
+    .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+  await expect(unknownNotice()).toHaveCount(1);
+  await expect(reloadAction()).toHaveText("重新加载作品列表");
+  await expect(page).toHaveURL(/\/projects$/);
+  expect(createPosts).toBe(1); // no automatic re-submission
+  await expect(page.getByTestId("project-card")).toHaveCount(0);
+  await reloadAction().click();
+  await expect(page.getByTestId("project-card")).toHaveCount(1);
+  await expect(unknownNotice()).toHaveCount(0);
+
+  // (2) Template apply: unknown outcome, no resubmission, no editor navigation.
+  await page.getByRole("button", { name: "模板库", exact: true }).click();
+  let picker = page.getByRole("dialog", { name: "模板库" });
+  const card = picker
+    .locator(".template-card")
+    .filter({ hasText: "未知结果测试模板" });
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await expect(card.getByRole("button", { name: "使用模板" })).toBeEnabled();
+  await card.getByRole("button", { name: "使用模板" }).click();
+  await expect(picker).toHaveCount(0); // return to the works list
+  await expect(unknownNotice()).toHaveCount(1);
+  await expect(page).toHaveURL(/\/projects$/);
+  expect(applyPosts).toBe(1);
+  await reloadAction().click();
+  await expect(unknownNotice()).toHaveCount(0);
+
+  // (3) ZIP import: unknown outcome, no resubmission, no editor navigation.
+  await page.getByRole("button", { name: "模板库", exact: true }).click();
+  picker = page.getByRole("dialog", { name: "模板库" });
+  await picker.getByLabel("导入模板包文件", { exact: true }).setInputFiles({
+    name: "unknown.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.from("PK\u0003\u0004test"),
+  });
+  await expect(picker).toHaveCount(0);
+  await expect(unknownNotice()).toHaveCount(1);
+  await expect(page).toHaveURL(/\/projects$/);
+  expect(importPosts).toBe(1);
+  expect(createPosts).toBe(1); // none of the reloads created another write
+  await reloadAction().click();
+  await expect(unknownNotice()).toHaveCount(0);
+});
+
 test("administrator publishes a template, user applies and re-imports an independent package, unpublication preserves the applied work", async ({
   browser,
   page,

@@ -48,9 +48,20 @@ import {
   readPosition,
   type CollectionPosition,
 } from "./collection-position";
+import {
+  buildProjectFromBackground,
+  classifyCreationFailure,
+  normalizeTitle,
+  useCreationScope,
+  type CreationOperation,
+  type ProjectBackground,
+} from "./project-creation";
 
 /** UI-04: the gallery always asks the server for 24 works per page. */
 const PAGE_SIZE = 24;
+
+/** An uploaded asset held for one local create operation (FP-06 stage 3). */
+type HeldAsset = { asset: ProjectBackground; title: string };
 
 export function ProjectsPage({
   position,
@@ -60,6 +71,9 @@ export function ProjectsPage({
   const { user, logout } = useSession();
   const cache = useQueryClient();
   const userId = user!.id;
+  /* FP-06: every create reply is bound to this account, one operation id and
+     the lifetime of this page. A late reply from another account cannot act. */
+  const scope = useCreationScope(user?.id ?? "");
   /* A position saved by this account during this App session. Anything else
      — another account, a new session — starts from the first page. */
   const saved = readPosition(position.current, userId);
@@ -73,7 +87,11 @@ export function ProjectsPage({
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [uploading, setUploading] = useState(false),
+    [creating, setCreating] = useState(false),
     [uploadError, setUploadError] = useState(""),
+    [createError, setCreateError] = useState(""),
+    [unknownError, setUnknownError] = useState(""),
+    [held, setHeld] = useState<HeldAsset | null>(null),
     [pendingFile, setPendingFile] = useState<File | null>(null),
     [deletionProject, setDeletionProject] = useState<ProjectDTO | null>(null),
     [deletionError, setDeletionError] = useState(""),
@@ -195,6 +213,25 @@ export function ProjectsPage({
       ? { label: "重试导入", onClick: () => void upload(pendingFile) }
       : undefined,
   });
+  /* A known, uncommitted create rejection may retry the create with the held
+     asset; it never re-uploads the file. Ruling 49. */
+  useErrorNotice("projects:create", createError || null, {
+    action: held
+      ? { label: "重试", onClick: () => void retryCreate() }
+      : undefined,
+  });
+  /* An unconfirmed outcome offers only a read-only list reload. No create
+     retry and no editor navigation. Rulings 47/49. */
+  useErrorNotice("projects:unknown", unknownError || null, {
+    persistent: true,
+    action: {
+      label: "重新加载作品列表",
+      onClick: () => {
+        setUnknownError("");
+        void refresh();
+      },
+    },
+  });
   useErrorNotice(
     "projects:list",
     query.error ? errorMessage(query.error) : null,
@@ -203,12 +240,68 @@ export function ProjectsPage({
       action: { label: "重新加载", onClick: () => void query.refetch() },
     },
   );
+  /* Stage 4/5: submit the create and classify its outcome. The same entry is
+     used by the first create and by a create-only retry, so both reference the
+     very same held asset (Rulings 48/49). */
+  async function createAndFinish(op: CreationOperation, source: HeldAsset) {
+    setCreating(true);
+    try {
+      const input = buildProjectFromBackground(source.title, source.asset);
+      const result = await request(routes.CreateProject, input);
+      // Late reply: no navigation, no stale notice, no cache update.
+      if (!scope.isValid(op)) return;
+      setHeld(null);
+      setCreateError("");
+      setUnknownError("");
+      await refresh();
+      navigate(`/projects/${result.project.id}/edit`);
+    } catch (e) {
+      if (!scope.isValid(op)) return;
+      const kind = classifyCreationFailure(e);
+      if (kind === "auth-required") {
+        window.dispatchEvent(new Event("session-expired"));
+        return;
+      }
+      if (kind === "unknown-outcome") {
+        // The server may have committed; never resubmit automatically.
+        setHeld(null);
+        setCreateError("");
+        setUnknownError("结果未确认：请重新加载作品列表确认，未自动重新提交。");
+        return;
+      }
+      // Known uncommitted rejection: keep the held asset for retryCreate().
+      setCreateError(errorMessage(e));
+    } finally {
+      if (scope.isValid(op)) setCreating(false);
+    }
+  }
+  /* The only retry path. It claims a fresh operation and reuses the asset that
+     was already uploaded, so no second upload POST is issued. */
+  async function retryCreate() {
+    if (!held) return;
+    const op = scope.claim();
+    if (!op) return;
+    setCreateError("");
+    try {
+      await createAndFinish(op, held);
+    } finally {
+      scope.release(op);
+    }
+  }
+  /* FP-06 five stages: 选择 → 上传 → 已有素材 → 创建 → 结果. The synchronous
+     claim() is the shared submit lock for button, card, file select, drop and
+     retry: only one write may be in flight. */
   async function upload(file: File) {
-    if (uploading) return;
+    const op = scope.claim();
+    if (!op) return;
     setUploadError("");
+    setCreateError("");
+    setUnknownError("");
+    setHeld(null);
     setPendingFile(file);
     if (file.size > 40 * 1024 * 1024) {
       setUploadError("图片不能超过 40 MiB");
+      scope.release(op);
       return;
     }
     setUploading(true);
@@ -219,27 +312,37 @@ export function ProjectsPage({
         "/api/v1/assets/images",
         form,
       );
-      const document = {
-        schemaVersion: 1,
-        canvas: { width: asset.width, height: asset.height },
-        background: { assetId: asset.id, version: asset.version },
-        fonts: [],
-        textBlocks: [],
+      if (!scope.isValid(op)) return;
+      // Stage 3: hold the asset id, version and dimensions for this account.
+      const source: HeldAsset = {
+        asset: {
+          id: asset.id,
+          version: asset.version,
+          width: asset.width,
+          height: asset.height,
+        },
+        title: normalizeTitle(file.name),
       };
-      const result = await request(routes.CreateProject, {
-        title: file.name.replace(/\.[^.]+$/, "") || "未命名海报",
-        document: JSON.stringify(document),
-      });
+      setHeld(source);
       setPendingFile(null);
-      await refresh();
-      navigate(`/projects/${result.project.id}/edit`);
-    } catch (e) {
-      if (e instanceof ApiClientError && e.code === "AUTH_REQUIRED")
-        window.dispatchEvent(new Event("session-expired"));
-      setUploadError(errorMessage(e));
-    } finally {
       setUploading(false);
-      if (fileInput.current) fileInput.current.value = "";
+      await createAndFinish(op, source);
+    } catch (e) {
+      if (!scope.isValid(op)) return;
+      // An upload failure happens before any asset exists, so the existing
+      // re-upload retry is safe (no project could have been committed).
+      if (classifyCreationFailure(e) === "auth-required") {
+        window.dispatchEvent(new Event("session-expired"));
+      } else {
+        setUploadError(errorMessage(e));
+      }
+    } finally {
+      if (scope.isValid(op)) {
+        setUploading(false);
+        setCreating(false);
+        if (fileInput.current) fileInput.current.value = "";
+      }
+      scope.release(op);
     }
   }
   async function act(action: ProjectAction, project: ProjectDTO) {
@@ -434,7 +537,7 @@ export function ProjectsPage({
               <Button
                 variant="primary"
                 onClick={() => fileInput.current?.click()}
-                disabled={uploading}
+                disabled={uploading || creating}
               >
                 <Plus size={18} />
                 新建海报
@@ -471,6 +574,11 @@ export function ProjectsPage({
           {uploading && (
             <Status>
               <span className="spinner" /> 正在导入并保存原图，请稍候…
+            </Status>
+          )}
+          {creating && (
+            <Status>
+              <span className="spinner" /> 正在创建作品，请稍候…
             </Status>
           )}
           {trash && (
@@ -582,8 +690,17 @@ export function ProjectsPage({
           onClose={() => setTemplatesOpen(false)}
           onApplied={(id) => {
             setTemplatesOpen(false);
+            setUnknownError("");
             void refresh();
             navigate(`/projects/${id}/edit`);
+          }}
+          onUnknownOutcome={() => {
+            // Return to the works list; the persistent notice only offers a
+            // read-only reload, never a resubmission or editor navigation.
+            setTemplatesOpen(false);
+            setUnknownError(
+              "结果未确认：请重新加载作品列表确认，未自动重新提交。",
+            );
           }}
         />
       )}

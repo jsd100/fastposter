@@ -23,17 +23,27 @@ import {
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
+import {
+  classifyCreationFailure,
+  useCreationScope,
+} from "../projects/project-creation";
 
 const PAGE_SIZE = 24;
 
 export function TemplatePicker({
   onClose,
   onApplied,
+  onUnknownOutcome,
 }: {
   onClose: () => void;
   onApplied: (projectId: string) => void;
+  onUnknownOutcome: () => void;
 }) {
   const { user } = useSession();
+  /* FP-06 / Ruling 50: apply and import may create a work too, so their
+     replies are bound to the current account, one operation and this picker's
+     lifetime. A late reply must not navigate or raise a stale notice. */
+  const scope = useCreationScope(user?.id ?? "");
   const [page, setPage] = useState(1),
     [keyword, setKeyword] = useState(""),
     [category, setCategory] = useState(""),
@@ -130,8 +140,20 @@ export function TemplatePicker({
       active = false;
     };
   }, [fonts.data, signature, documents]);
+  /* FP-06: known rejections stay on the original error path; an unconfirmed
+     outcome hands control back to the works list with a reload-only notice. */
+  function handleFailure(e: unknown) {
+    const kind = classifyCreationFailure(e);
+    if (kind === "unknown-outcome") {
+      setError("");
+      onUnknownOutcome();
+      return;
+    }
+    setError(errorMessage(e));
+  }
   async function apply(resource: ResourceDTO) {
-    if (busy) return;
+    const op = scope.claim();
+    if (!op) return;
     setBusy(resource.id);
     setError("");
     try {
@@ -139,17 +161,24 @@ export function TemplatePicker({
         id: resource.id,
         version: resource.version,
       });
+      // Late reply from a logged-out/switched account: never navigate.
+      if (!scope.isValid(op)) return;
       onApplied(result.project.id);
     } catch (e) {
-      setError(errorMessage(e));
+      if (!scope.isValid(op)) return;
+      handleFailure(e);
     } finally {
-      setBusy("");
+      if (scope.isValid(op)) setBusy("");
+      scope.release(op);
     }
   }
   async function importPackage(selected: File | undefined) {
     if (!selected) return;
+    const op = scope.claim();
+    if (!op) return;
     if (selected.size > 80 * 1024 * 1024) {
       setError("模板包不能超过 80 MiB");
+      scope.release(op);
       return;
     }
     setBusy("import");
@@ -161,12 +190,19 @@ export function TemplatePicker({
         "/api/v1/templates/import",
         form,
       );
+      if (!scope.isValid(op)) return;
       onApplied(result.project.id);
     } catch (e) {
-      setError(errorMessage(e));
+      if (!scope.isValid(op)) return;
+      // apiClient.upload() bypasses request(), so AUTH_REQUIRED needs the
+      // session-expired event dispatched explicitly here.
+      if (classifyCreationFailure(e) === "auth-required")
+        window.dispatchEvent(new Event("session-expired"));
+      handleFailure(e);
     } finally {
-      setBusy("");
+      if (scope.isValid(op)) setBusy("");
       if (file.current) file.current.value = "";
+      scope.release(op);
     }
   }
   return (

@@ -106,3 +106,68 @@ test("switching accounts in another tab drops stale data and leaves the old edit
   await expect(pageA.getByText(first, { exact: false })).toHaveCount(0);
   await context.close();
 });
+
+/**
+ * FP-06 / A05.1 / A05.4. A create reply that arrives after a logout and an
+ * account switch belongs to the previous account and a dead page operation.
+ * It must not navigate to the editor, show a stale notice, refresh the new
+ * account's list, or trigger any further write.
+ */
+test("stale create reply cannot navigate after account change", async ({
+  browser,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const first = "a05_stale_a_" + Date.now().toString(36);
+  const second = "a05_stale_b_" + Date.now().toString(36);
+  await register(request, first);
+  await register(request, second);
+
+  const context = await browser.newContext();
+  const pageA = await context.newPage();
+  await login(pageA, first, "a secure test password");
+
+  let createPosts = 0;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await pageA.route(/\/api\/v1\/projects(\?|$)/, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    createPosts += 1;
+    await held;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        requestId: "e2e-late",
+        project: { id: "e2e-stale-project", title: "迟到的旧账号作品" },
+      }),
+    });
+  });
+
+  await pageA
+    .getByLabel("导入背景图文件")
+    .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+  await expect.poll(() => createPosts).toBe(1);
+
+  // Switch accounts in another tab while the old account's create is in flight.
+  const pageB = await context.newPage();
+  await pageB.goto("/projects");
+  await expect(pageB).toHaveURL(/\/projects$/);
+  await pageB.getByRole("button", { name: "退出登录", exact: true }).click();
+  await expect(pageB).toHaveURL(/\/login/);
+  await expect(pageA).toHaveURL(/\/login/);
+  await login(pageB, second, "a secure test password");
+  await expect(pageA).toHaveURL(/\/projects$/);
+  await expect(pageA.locator(".account-name")).toContainText(second);
+
+  // The old account's create reply arrives now, under the new account.
+  release();
+  await pageA.waitForTimeout(2000);
+  await expect(pageA).toHaveURL(/\/projects$/);
+  await expect(pageA.getByTestId("notice")).toHaveCount(0);
+  await expect(pageA.getByTestId("project-card")).toHaveCount(0);
+  expect(createPosts).toBe(1);
+  await context.close();
+});
