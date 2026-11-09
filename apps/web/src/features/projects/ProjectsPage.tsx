@@ -12,8 +12,10 @@ import {
   ApiClientError,
   apiClient,
   routes,
+  type AssetDTO,
   type AssetReply,
   type ProjectDTO,
+  type ResourceDTO,
 } from "@fastposter/api-client";
 import {
   Button,
@@ -43,6 +45,7 @@ import { ProjectListView, type ProjectAction } from "./ProjectList";
 import { ProjectDeletionQueue } from "./ProjectDeletionQueue";
 import { DELETION_PAGE_SIZE, useProjectDeletion } from "./useProjectDeletion";
 import { TemplatePicker } from "../templates/TemplatePicker";
+import { BackgroundPicker } from "../catalog/BackgroundPicker";
 import {
   lastValidPage,
   readPosition,
@@ -101,8 +104,12 @@ export function ProjectsPage({
     } | null>(null),
     [name, setName] = useState(""),
     [dragging, setDragging] = useState(false),
-    [templatesOpen, setTemplatesOpen] = useState(false);
+    [templatesOpen, setTemplatesOpen] = useState(false),
+    /* FP-05: the shared source selection for the top bar and the empty state.
+       "menu" → source options; "library" → the published background library. */
+    [createStep, setCreateStep] = useState<"menu" | "library" | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const createEntryRef = useRef<HTMLButtonElement>(null);
   const retry = useRef<(() => void) | null>(null);
   const confirmRef = useRef<(() => Promise<void>) | null>(null);
   /* Only a keystroke may reset the page. A restored search value arrives
@@ -275,6 +282,34 @@ export function ProjectsPage({
       if (scope.isValid(op)) setCreating(false);
     }
   }
+  /* A06 / Ruling 64. The confirmed gallery asset is a published catalog
+     reference, so there is no local upload: feed its fresh metadata and the
+     resource title straight into A05's shared create path (buildProjectFrom-
+     Background / classifyCreationFailure / useCreationScope), including the
+     「结果未确认」 rule and the late-reply / account-scope guards. */
+  async function handleGalleryCreate(asset: AssetDTO, resource: ResourceDTO) {
+    const op = scope.claim();
+    if (!op) return;
+    const source: HeldAsset = {
+      asset: {
+        id: asset.id,
+        version: asset.version,
+        width: asset.width,
+        height: asset.height,
+      },
+      title: resource.title,
+    };
+    setHeld(source);
+    setCreateError("");
+    setUnknownError("");
+    setCreateStep(null);
+    try {
+      await createAndFinish(op, source);
+    } finally {
+      scope.release(op);
+    }
+  }
+
   /* The only retry path. It claims a fresh operation and reuses the asset that
      was already uploaded, so no second upload POST is issued. */
   async function retryCreate() {
@@ -536,7 +571,8 @@ export function ProjectsPage({
               </Button>
               <Button
                 variant="primary"
-                onClick={() => fileInput.current?.click()}
+                ref={createEntryRef}
+                onClick={() => setCreateStep("menu")}
                 disabled={uploading || creating}
               >
                 <Plus size={18} />
@@ -605,7 +641,7 @@ export function ProjectsPage({
               searchTerm={keyword}
               pendingDeletions={projectDeletion.total}
               onAction={(action, p) => void act(action, p)}
-              onUpload={() => fileInput.current?.click()}
+              onUpload={() => setCreateStep("menu")}
               onBrowseTemplates={() => setTemplatesOpen(true)}
               onClearSearch={() => searchThrough("")}
             />
@@ -702,6 +738,50 @@ export function ProjectsPage({
               "结果未确认：请重新加载作品列表确认，未自动重新提交。",
             );
           }}
+        />
+      )}
+      {createStep === "menu" && (
+        <Dialog
+          title="新建海报"
+          onClose={() => setCreateStep(null)}
+          restoreFocusTo={() => createEntryRef.current}
+        >
+          <p>选择海报图片的来源：上传本地图片，或从已发布的背景库挑选。</p>
+          <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+            <Button
+              variant="primary"
+              style={{ width: "100%" }}
+              onClick={() => {
+                // Open the native picker inside the click's user activation.
+                // The always-mounted hidden input keeps its upload() path.
+                fileInput.current?.click();
+                setCreateStep(null);
+              }}
+            >
+              上传本地图片
+            </Button>
+            <Button
+              style={{ width: "100%" }}
+              onClick={() => setCreateStep("library")}
+            >
+              从背景库选择
+            </Button>
+            <Button
+              style={{ width: "100%" }}
+              onClick={() => setCreateStep(null)}
+            >
+              取消
+            </Button>
+          </div>
+        </Dialog>
+      )}
+      {createStep === "library" && (
+        <BackgroundPicker
+          mode="create"
+          restoreFocusTo={() => createEntryRef.current}
+          onBack={() => setCreateStep("menu")}
+          onClose={() => setCreateStep(null)}
+          onChoose={handleGalleryCreate}
         />
       )}
     </div>

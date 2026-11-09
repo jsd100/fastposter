@@ -427,6 +427,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       />
       {libraryOpen && (
         <BackgroundPicker
+          mode="replace"
           restoreFocusTo={() =>
             document.querySelector<HTMLElement>("[data-fp-background-entry]")
           }
