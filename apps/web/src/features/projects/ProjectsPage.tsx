@@ -50,6 +50,8 @@ import { BackgroundPicker } from "../catalog/BackgroundPicker";
 import {
   lastValidPage,
   readPosition,
+  collectionIdentity,
+  canCorrectPage,
   type CollectionPosition,
 } from "./collection-position";
 import {
@@ -104,6 +106,11 @@ export function ProjectsPage({
       project: ProjectDTO;
     } | null>(null),
     [name, setName] = useState(""),
+    /* FP-09 / Ruling 109. Held only after a conflict, with the whole latest
+       ProjectDTO from GetProject (its document AND revision are submitted
+       together). renameError is an inline, non-retryable dialog message. */
+    [renameConflict, setRenameConflict] = useState<ProjectDTO | null>(null),
+    [renameError, setRenameError] = useState(""),
     [dragging, setDragging] = useState(false),
     [templatesOpen, setTemplatesOpen] = useState(false),
     /* FP-05: the shared source selection for the top bar and the empty state.
@@ -113,6 +120,35 @@ export function ProjectsPage({
   const createEntryRef = useRef<HTMLButtonElement>(null);
   const retry = useRef<(() => void) | null>(null);
   const confirmRef = useRef<(() => Promise<void>) | null>(null);
+  /* FP-09 / Ruling 109. One rename context is bound to this account, one
+     project and the lifetime of its dialog. Every async reply re-checks that
+     the context is still the active one, so closing the dialog, switching
+     account, deleting the work, or a newer conflict round invalidates an older
+     (late) reply instead of reopening the old dialog or writing into a new
+     account. */
+  const activeUser = useRef(userId);
+  activeUser.current = userId;
+  const renameCtx = useRef<{ userId: string; projectId: string } | null>(null);
+  const renameSeq = useRef(0);
+  function isRenameActive(
+    ctx: { userId: string; projectId: string } | null,
+    seq: number,
+  ): boolean {
+    return (
+      ctx !== null &&
+      renameCtx.current === ctx &&
+      renameSeq.current === seq &&
+      activeUser.current === ctx.userId
+    );
+  }
+  /* Switching accounts ends any rename context (FP-06 late-callback clause). */
+  useEffect(() => {
+    renameCtx.current = null;
+    renameSeq.current += 1;
+    setRenameConflict(null);
+    setRenameError("");
+    setDialog(null);
+  }, [userId]);
   /* Only a keystroke may reset the page. A restored search value arrives
      through the same state, and re-running the debounce would throw away the
      very page that position was saved with. */
@@ -126,15 +162,21 @@ export function ProjectsPage({
     }, 300);
     return () => clearTimeout(id);
   }, [search]);
+  /* The query identity of the view currently on screen. The same identity is
+     stamped onto each successful reply so a late response from an old account,
+     filter or page can never be mistaken for this view's data. */
+  const viewIdentity = collectionIdentity({ userId, trash, keyword, page });
   const query = useQuery({
     queryKey: ["projects", userId, trash, page, keyword],
-    queryFn: () =>
-      request(routes.ListProjects, {
+    queryFn: async () => {
+      const reply = await request(routes.ListProjects, {
         page,
         pageSize: PAGE_SIZE,
         trash,
         keyword,
-      }),
+      });
+      return { ...reply, __identity: viewIdentity };
+    },
     retry: false,
     staleTime: 15_000,
   });
@@ -165,20 +207,41 @@ export function ProjectsPage({
     return () => window.removeEventListener("scroll", store);
   }, [position, userId, trash, search, keyword, page, deletionPage]);
   /* A page the server no longer has — because a filter or a deletion shrank
-     the list — falls back to the last page that really has rows. Loading
-     never counts: while rows are in flight there is nothing to judge by. */
+     the list — falls back to the last page that really has rows. Only a
+     successful, settled reply for the exact identity currently on screen may
+     correct it: react-query keeps the previous `data` after a failed refetch,
+     so an error vetoes the correction, and a late reply from an old account,
+     filter or page must not move the position (FP-09 / Ruling 106). */
   useEffect(() => {
-    if (query.isPending || query.isFetching) return;
+    if (
+      !query.data ||
+      !canCorrectPage({
+        isSuccess: query.isSuccess,
+        isError: query.isError,
+        fetchStatus: query.fetchStatus,
+        resultIdentity: query.data.__identity,
+        viewIdentity,
+      })
+    )
+      return;
     const next = lastValidPage({
       page,
-      rows: query.data?.projects.length ?? 0,
+      rows: query.data.projects.length,
       total,
       pageSize: PAGE_SIZE,
     });
     if (next !== page) setPage(next);
-  }, [page, query.data, query.isFetching, query.isPending, total]);
+  }, [
+    page,
+    query.data,
+    query.isSuccess,
+    query.isError,
+    query.fetchStatus,
+    total,
+    viewIdentity,
+  ]);
   useEffect(() => {
-    if (projectDeletion.isLoading) return;
+    if (!projectDeletion.canCorrect) return;
     const next = lastValidPage({
       page: deletionPage,
       rows: projectDeletion.pending.length,
@@ -188,7 +251,7 @@ export function ProjectsPage({
     if (next !== deletionPage) setDeletionPage(next);
   }, [
     deletionPage,
-    projectDeletion.isLoading,
+    projectDeletion.canCorrect,
     projectDeletion.pending.length,
     projectDeletion.total,
   ]);
@@ -383,8 +446,21 @@ export function ProjectsPage({
   }
   async function act(action: ProjectAction, project: ProjectDTO) {
     setError("");
+    setRenameError("");
+    setRenameConflict(null);
     retry.current = null;
-    if (action === "rename" || action === "delete") {
+    if (action === "rename") {
+      /* One rename context, bound to this account, this project and the
+         lifetime of this dialog (FP-09 / Ruling 109). */
+      renameSeq.current += 1;
+      renameCtx.current = { userId, projectId: project.id };
+      setName(project.title);
+      setDialog({ action, project });
+      return;
+    }
+    /* Any other operation ends an outstanding rename context. */
+    renameCtx.current = null;
+    if (action === "delete") {
       setName(project.title);
       setDialog({ action, project });
       return;
@@ -429,12 +505,16 @@ export function ProjectsPage({
     }
   }
   async function confirm() {
-    if (!dialog || busy) return;
+    if (!dialog || busy || renameConflict) return;
+    const ctx = renameCtx.current;
+    const seq = ++renameSeq.current;
     setBusy(true);
     setError("");
+    setRenameError("");
     retry.current = () => void confirmRef.current?.();
     try {
       if (dialog.action === "rename") {
+        // Submit the full document held at open time, changing only the title.
         await request(routes.SaveProject, {
           id: dialog.project.id,
           expectedRevision: dialog.project.revision,
@@ -444,21 +524,101 @@ export function ProjectsPage({
       } else {
         await request(routes.DeleteProject, { id: dialog.project.id });
       }
+      // A late reply from a closed dialog, a switched account or a superseded
+      // operation must not act on the new state (FP-06 / Ruling 109).
+      if (dialog.action === "rename" && !isRenameActive(ctx, seq)) return;
       retry.current = null;
+      renameCtx.current = null;
       setDialog(null);
+      setRenameConflict(null);
       await refresh();
     } catch (e) {
+      if (
+        dialog.action === "rename" &&
+        e instanceof ApiClientError &&
+        e.code === "REVISION_CONFLICT"
+      ) {
+        /* FP-09 / Ruling 109. Keep the typed title, discard the stale retry,
+           read the latest snapshot through GetProject, show BOTH the cloud
+           title and the user's input, and wait for a NEW explicit confirmation.
+           Never auto-resubmit, never splice a new revision onto the held
+           document, never let the old 重试 resubmit a known-invalid revision. */
+        retry.current = null;
+        setError("");
+        await loadRenameConflict(ctx, seq);
+        return;
+      }
+      if (dialog.action === "rename" && !isRenameActive(ctx, seq)) return;
       setError(errorMessage(e));
-      if (e instanceof ApiClientError && e.code === "REVISION_CONFLICT")
-        await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+  /* Read the newest snapshot of the work on a conflict. The reply is guarded
+     against a closed dialog, a switched account or a newer conflict round. */
+  async function loadRenameConflict(
+    ctx: { userId: string; projectId: string } | null,
+    seq: number,
+  ) {
+    if (!ctx) return;
+    try {
+      const { project } = await request(routes.GetProject, {
+        id: ctx.projectId,
+      });
+      if (!isRenameActive(ctx, seq)) return;
+      // Hold the whole latest snapshot; document and revision are submitted
+      // together on the explicit resubmit, never mixed with the old document.
+      setRenameConflict(project);
+    } catch (e) {
+      if (!isRenameActive(ctx, seq)) return;
+      // No latest snapshot (e.g. the work was deleted): keep the user's input,
+      // show a quiet inline message, and never reopen or auto-resubmit.
+      setRenameError(errorMessage(e));
+    }
+  }
+  /* The ONLY path that resubmits after a conflict: a new explicit confirmation
+     using BOTH the latest snapshot's document and its revision. A second
+     conflict repeats the same flow instead of looping an invalid revision. */
+  async function confirmRenameWithLatest() {
+    if (!dialog || !renameConflict || busy) return;
+    const ctx = renameCtx.current;
+    const seq = ++renameSeq.current;
+    setBusy(true);
+    setRenameError("");
+    try {
+      await request(routes.SaveProject, {
+        id: renameConflict.id,
+        expectedRevision: renameConflict.revision,
+        title: name,
+        document: renameConflict.document,
+      });
+      if (!isRenameActive(ctx, seq)) return;
+      retry.current = null;
+      renameCtx.current = null;
+      setDialog(null);
+      setRenameConflict(null);
+      await refresh();
+    } catch (e) {
+      if (e instanceof ApiClientError && e.code === "REVISION_CONFLICT") {
+        // A second conflict repeats the flow: reload the latest snapshot.
+        retry.current = null;
+        await loadRenameConflict(ctx, seq);
+        return;
+      }
+      if (!isRenameActive(ctx, seq)) return;
+      setRenameError(errorMessage(e));
     } finally {
       setBusy(false);
     }
   }
   confirmRef.current = confirm;
   function closeDialog() {
+    renameCtx.current = null;
+    renameSeq.current += 1;
     setDialog(null);
     setError("");
+    setRenameConflict(null);
+    setRenameError("");
     retry.current = null;
   }
   /* The collection and the trash answer different questions, so switching
@@ -672,18 +832,34 @@ export function ProjectsPage({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void confirm();
+              // In a conflict state only the explicit action may submit.
+              if (!renameConflict) void confirm();
             }}
           >
             {dialog.action === "rename" ? (
-              <FormField
-                label="作品名称"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={120}
-                required
-                autoFocus
-              />
+              <>
+                <FormField
+                  label="作品名称"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={120}
+                  required
+                  autoFocus
+                />
+                {renameConflict && (
+                  <div data-testid="rename-conflict">
+                    <Status tone="error">
+                      检测到版本冲突：这份作品已被其他修改更新。
+                    </Status>
+                    <p>云端当前标题：{renameConflict.title}</p>
+                    <p>你输入的名称：{name}</p>
+                    <p>
+                      只有点击下方按钮，才会用云端最新的文档和版本，仅保留你输入的名称重新提交。
+                    </p>
+                  </div>
+                )}
+                {renameError && <Status tone="error">{renameError}</Status>}
+              </>
             ) : (
               <p>“{dialog.project.title}”将移入回收站，可在 30 天内恢复。</p>
             )}
@@ -691,13 +867,24 @@ export function ProjectsPage({
               <Button type="button" onClick={closeDialog} disabled={busy}>
                 取消
               </Button>
-              <Button
-                type="submit"
-                busy={busy}
-                variant={dialog.action === "delete" ? "danger" : "primary"}
-              >
-                {dialog.action === "rename" ? "保存名称" : "确认移入回收站"}
-              </Button>
+              {renameConflict ? (
+                <Button
+                  type="button"
+                  busy={busy}
+                  variant="primary"
+                  onClick={() => void confirmRenameWithLatest()}
+                >
+                  使用云端版本并保存
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  busy={busy}
+                  variant={dialog.action === "delete" ? "danger" : "primary"}
+                >
+                  {dialog.action === "rename" ? "保存名称" : "确认移入回收站"}
+                </Button>
+              )}
             </div>
           </form>
         </Dialog>

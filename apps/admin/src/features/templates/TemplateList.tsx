@@ -25,6 +25,11 @@ import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { Download, LayoutTemplate, Plus, Upload } from "lucide-react";
 import { download, errorMessage, request } from "../../api";
 import { PAGE_SIZE, RecordPager } from "../records";
+import {
+  pageAfterShrink,
+  adminPageIdentity,
+  canCorrectAdminPage,
+} from "../projects/pagination";
 
 const TemplateEditor = lazy(() =>
   import("./TemplateEditor").then((module) => ({
@@ -44,18 +49,43 @@ export function TemplatesPage() {
     [importFile, setImportFile] = useState<File | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState("");
+  const viewIdentity = adminPageIdentity(["template", page, keyword, category]);
   const q = useQuery({
     queryKey: ["admin", "resources", "template", page, keyword, category],
-    queryFn: () =>
-      request(routes.AdminResources, {
+    queryFn: async () => {
+      const reply = await request(routes.AdminResources, {
         kind: "template",
         page,
         pageSize: PAGE_SIZE,
         keyword,
         categoryId: category || undefined,
-      }),
+      });
+      return { ...reply, __identity: viewIdentity };
+    },
     retry: false,
   });
+  /* FP-09 / Ruling 108. Successful shrink falls back a page; a failed refetch
+     keeps react-query's old data and must not move the page. */
+  useEffect(() => {
+    if (
+      !q.data ||
+      !canCorrectAdminPage({
+        isSuccess: q.isSuccess,
+        isError: q.isError,
+        fetchStatus: q.fetchStatus,
+        resultIdentity: q.data.__identity,
+        viewIdentity,
+      })
+    )
+      return;
+    const next = pageAfterShrink(
+      page,
+      q.data.total,
+      q.data.resources.length,
+      PAGE_SIZE,
+    );
+    if (next !== page) setPage(next);
+  }, [page, q.data, q.isSuccess, q.isError, q.fetchStatus, viewIdentity]);
   const categories = useQuery({
     queryKey: ["admin", "categories", "template"],
     queryFn: () =>

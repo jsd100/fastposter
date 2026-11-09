@@ -226,9 +226,9 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
   const savedDocument = JSON.parse(project.document) as {
     fonts: { family: string }[];
   };
-  expect(
-    savedDocument.fonts.some((ref) => ref.family === "Test Inter"),
-  ).toBe(true);
+  expect(savedDocument.fonts.some((ref) => ref.family === "Test Inter")).toBe(
+    true,
+  );
   await admin
     .getByTestId("resource-card")
     .filter({ hasText: "中等字体 500" })
@@ -241,4 +241,104 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
     page.getByRole("link", { name: "下载原尺寸 PNG", exact: true }),
   ).toBeVisible({ timeout: 20000 });
   await context.close();
+});
+
+/* FP-09 / A08.1. The admin background grid shares the same 25 -> 24 shrink
+   path as the user gallery. On the baseline it has no pageAfterShrink at all,
+   so deleting the last page-2 row locks the list into its empty state instead
+   of re-requesting page=1. This case is PNG-safe (no export step). */
+test("background grid returns to the previous page after its last row disappears", async ({
+  browser,
+}) => {
+  test.setTimeout(60_000);
+  const context = await browser.newContext();
+  const admin = await context.newPage();
+  await admin.goto("http://127.0.0.1:15174/admin/login");
+  await admin.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+  await admin
+    .getByLabel("密码", { exact: true })
+    .fill("fastposter-test-only-password");
+  await admin
+    .getByRole("button", { name: "登录管理后台", exact: true })
+    .click();
+  await expect(admin).toHaveURL(/\/admin\/overview$/);
+  try {
+    const listPath = "/api/v1/admin/resources/background";
+    const row = (n: number) => ({
+      id: `a08-bg-${n}`,
+      kind: "background",
+      title: `背景 ${String(n).padStart(2, "0")}`,
+      categoryId: "",
+      sortOrder: n,
+      published: true,
+      version: "1",
+      asset: {
+        id: `a08-asset-${n}`,
+        version: "1",
+        kind: "image",
+        name: "bg",
+        width: 1200,
+        height: 800,
+        size: "1",
+        sha256: "x",
+        previewUrl: "",
+      },
+    });
+    const firstPage = Array.from({ length: 24 }, (_, i) => row(i + 1));
+    let shrunk = false;
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/background\?/,
+      async (route) => {
+        const page = new URL(route.request().url()).searchParams.get("page");
+        const resources = page === "2" ? (shrunk ? [] : [row(25)]) : firstPage;
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-a08",
+            resources,
+            total: shrunk ? 24 : 25,
+          }),
+        });
+      },
+    );
+    await admin.route(/\/api\/v1\/admin\/resources\/a08-bg-25$/, (route) => {
+      shrunk = true;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ requestId: "e2e-a08" }),
+      });
+    });
+
+    const listPages: string[] = [];
+    admin.on("request", (req) => {
+      const u = new URL(req.url());
+      if (req.method() === "GET" && u.pathname === listPath)
+        listPages.push(u.searchParams.get("page") ?? "1");
+    });
+
+    await admin.getByRole("link", { name: "背景库", exact: true }).click();
+    await expect(admin.getByTestId("resource-card")).toHaveCount(24);
+    await admin.getByRole("button", { name: "下一页", exact: true }).click();
+    await expect(admin.getByTestId("resource-card")).toHaveCount(1);
+    const last = admin
+      .getByTestId("resource-card")
+      .filter({ hasText: "背景 25" });
+    await expect(last).toBeVisible();
+
+    listPages.length = 0;
+    await last.getByRole("button", { name: "删除", exact: true }).click();
+
+    // 25 -> 24: a successful shrink must re-request page=1 (real sequence).
+    await expect.poll(() => listPages.includes("1")).toBe(true);
+    expect(listPages).toContain("2");
+    await expect(admin.getByTestId("resource-card")).toHaveCount(24);
+    await expect(
+      admin.getByRole("button", { name: "下一页", exact: true }),
+    ).toHaveCount(0);
+    await expect(admin.getByText("还没有共享背景")).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
 });

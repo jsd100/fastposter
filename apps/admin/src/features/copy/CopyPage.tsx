@@ -5,6 +5,11 @@ import { Button, TextInput, useErrorNotice } from "@fastposter/ui";
 import { Plus } from "lucide-react";
 import { errorMessage, request } from "../../api";
 import { PAGE_SIZE, RecordPager } from "../records";
+import {
+  pageAfterShrink,
+  adminPageIdentity,
+  canCorrectAdminPage,
+} from "../projects/pagination";
 import { CategoryTree } from "./CategoryTree";
 import { CategoryForm, CopyForm } from "./CopyForm";
 import { CopyList } from "./CopyList";
@@ -31,18 +36,50 @@ export function CopyPage() {
       }),
     retry: false,
   });
+  const viewIdentity = adminPageIdentity(["copy", selected, keyword, page]);
   const copies = useQuery({
     queryKey: ["admin", "copies", selected, keyword, page],
-    queryFn: () =>
-      request(routes.AdminResources, {
+    queryFn: async () => {
+      const reply = await request(routes.AdminResources, {
         kind: "copy",
         page,
         pageSize: PAGE_SIZE,
         keyword,
         categoryId: selected || undefined,
-      }),
+      });
+      return { ...reply, __identity: viewIdentity };
+    },
     retry: false,
   });
+  /* FP-09 / Ruling 108/115. Only the copy LIST's page is corrected here; the
+     category tree's full paging read is A09's concern and stays untouched. */
+  useEffect(() => {
+    if (
+      !copies.data ||
+      !canCorrectAdminPage({
+        isSuccess: copies.isSuccess,
+        isError: copies.isError,
+        fetchStatus: copies.fetchStatus,
+        resultIdentity: copies.data.__identity,
+        viewIdentity,
+      })
+    )
+      return;
+    const next = pageAfterShrink(
+      page,
+      copies.data.total,
+      copies.data.resources.length,
+      PAGE_SIZE,
+    );
+    if (next !== page) setPage(next);
+  }, [
+    page,
+    copies.data,
+    copies.isSuccess,
+    copies.isError,
+    copies.fetchStatus,
+    viewIdentity,
+  ]);
   const categoryRows = categories.data?.resources ?? [];
   useErrorNotice(
     "admin:copy-categories",
@@ -131,7 +168,8 @@ export function CopyPage() {
         />
         <section className="copy-main">
           <div className="admin-filters">
-            <TextInput variant="bare"
+            <TextInput
+              variant="bare"
               className="admin-search"
               aria-label="搜索文案"
               placeholder="搜索文案标题或内容"

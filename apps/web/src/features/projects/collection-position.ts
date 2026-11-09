@@ -54,3 +54,40 @@ export function lastValidPage(input: {
   const lastFull = Math.ceil(input.total / input.pageSize);
   return Math.max(1, Math.min(input.page - 1, lastFull));
 }
+
+/**
+ * One string that pins a list reply to the exact view that asked for it: the
+ * account, the trash/collection switch, the running keyword and the page. A
+ * late reply from an older account, filter or page carries a different identity
+ * and must never move the position that is currently on screen.
+ */
+export function collectionIdentity(input: {
+  userId: string;
+  trash: boolean;
+  keyword: string;
+  page: number;
+}): string {
+  return `${input.userId}|${input.trash ? 1 : 0}|${input.keyword}|${input.page}`;
+}
+
+/**
+ * FP-09 / Ruling 106. A page may only be corrected from a successful, fully
+ * settled reply that belongs to the exact query identity currently on screen.
+ * react-query keeps the previous `data` after a failed refetch, so an error
+ * vetoes the correction; a reply still in flight is not finished data; a late
+ * reply from an old identity must not overwrite the position.
+ */
+export function canCorrectPage(state: {
+  isSuccess: boolean;
+  isError: boolean;
+  fetchStatus: string;
+  resultIdentity: string;
+  viewIdentity: string;
+}): boolean {
+  return (
+    state.isSuccess &&
+    !state.isError &&
+    state.fetchStatus === "idle" &&
+    state.resultIdentity === state.viewIdentity
+  );
+}

@@ -1,5 +1,5 @@
 import { FontPreview } from "./FontPreview";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "antd";
 import {
@@ -23,6 +23,11 @@ import {
 import { Plus, ImagePlus, Type } from "lucide-react";
 import { request, errorMessage } from "../api";
 import { PAGE_SIZE, RecordPager } from "./records";
+import {
+  pageAfterShrink,
+  adminPageIdentity,
+  canCorrectAdminPage,
+} from "./projects/pagination";
 export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
   const cache = useQueryClient();
   const [page, setPage] = useState(1),
@@ -33,18 +38,43 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
     [busy, setBusy] = useState(false),
     [newCategory, setNewCategory] = useState(false),
     [categoryTitle, setCategoryTitle] = useState("");
+  const viewIdentity = adminPageIdentity([kind, page, keyword, category]);
   const q = useQuery({
     queryKey: ["admin", "resources", kind, page, keyword, category],
-    queryFn: () =>
-      request(routes.AdminResources, {
+    queryFn: async () => {
+      const reply = await request(routes.AdminResources, {
         kind,
         page,
         pageSize: PAGE_SIZE,
         keyword,
         categoryId: category || undefined,
-      }),
+      });
+      return { ...reply, __identity: viewIdentity };
+    },
     retry: false,
   });
+  /* FP-09 / Ruling 108. A successful 25 -> 24 shrink falls back to page 1;
+     a failed refetch (react-query keeps the prior data) must not. */
+  useEffect(() => {
+    if (
+      !q.data ||
+      !canCorrectAdminPage({
+        isSuccess: q.isSuccess,
+        isError: q.isError,
+        fetchStatus: q.fetchStatus,
+        resultIdentity: q.data.__identity,
+        viewIdentity,
+      })
+    )
+      return;
+    const next = pageAfterShrink(
+      page,
+      q.data.total,
+      q.data.resources.length,
+      PAGE_SIZE,
+    );
+    if (next !== page) setPage(next);
+  }, [page, q.data, q.isSuccess, q.isError, q.fetchStatus, viewIdentity]);
   const categories = useQuery({
     queryKey: ["admin", "categories", kind],
     queryFn: () =>
@@ -57,14 +87,10 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
   });
   const refresh = () =>
     cache.invalidateQueries({ queryKey: ["admin", "resources", kind] });
-  useErrorNotice(
-    "admin:resources",
-    q.error ? errorMessage(q.error) : null,
-    {
-      persistent: true,
-      action: { label: "重新加载", onClick: () => void q.refetch() },
-    },
-  );
+  useErrorNotice("admin:resources", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
   useErrorNotice("admin:resource-action", error || null);
   async function publish(resource: ResourceDTO) {
     setBusy(true);
@@ -120,7 +146,8 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         </Button>
       </div>
       <div className="admin-filters">
-        <TextInput variant="bare"
+        <TextInput
+          variant="bare"
           className="admin-search"
           aria-label="搜索素材"
           placeholder="搜索素材名称"
@@ -458,7 +485,8 @@ function ResourceForm({
         />
         <label className="form-field">
           授权说明
-          <Textarea variant="bare"
+          <Textarea
+            variant="bare"
             aria-label="授权说明"
             value={license}
             onChange={(e) => setLicense(e.target.value)}

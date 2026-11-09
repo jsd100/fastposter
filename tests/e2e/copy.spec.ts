@@ -232,3 +232,81 @@ test("administrator maintains a five-level copy tree; users cascade, search, ins
   await paged.getByRole("button", { name: "关闭", exact: true }).click();
   await adminContext.close();
 });
+
+/* FP-09 / A08.1. The admin copy list shares the 25 -> 24 shrink path and has
+   no pageAfterShrink on the baseline (empty-state lock-up). The publish toggle
+   is the list action that triggers the refetch; the controlled responses model
+   a real 25 -> 24 shrink. PNG-safe. */
+test("copy list returns to the previous page after its last row disappears", async ({
+  browser,
+}) => {
+  test.setTimeout(60_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  try {
+    const listPath = "/api/v1/admin/resources/copy";
+    const row = (n: number) => ({
+      id: `a08-copy-${n}`,
+      kind: "copy",
+      title: `文案 ${String(n).padStart(2, "0")}`,
+      body: `文案内容 ${n}`,
+      categoryId: "",
+      sortOrder: n,
+      published: true,
+      version: "1",
+    });
+    const firstPage = Array.from({ length: 24 }, (_, i) => row(i + 1));
+    let shrunk = false;
+    await admin.route(/\/api\/v1\/admin\/resources\/copy\?/, async (route) => {
+      const page = new URL(route.request().url()).searchParams.get("page");
+      const resources = page === "2" ? (shrunk ? [] : [row(25)]) : firstPage;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-a08",
+          resources,
+          total: shrunk ? 24 : 25,
+        }),
+      });
+    });
+    // The publish toggle (AdminSaveResource POST) is the action that triggers
+    // the copies refetch; it models the shrink without a copy delete endpoint.
+    await admin.route(/\/api\/v1\/admin\/resources$/, (route) => {
+      shrunk = true;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ requestId: "e2e-a08", resource: row(25) }),
+      });
+    });
+
+    const listPages: string[] = [];
+    admin.on("request", (req) => {
+      const u = new URL(req.url());
+      if (req.method() === "GET" && u.pathname === listPath)
+        listPages.push(u.searchParams.get("page") ?? "1");
+    });
+
+    await admin.getByRole("link", { name: "文案库", exact: true }).click();
+    await expect(admin.getByTestId("copy-card")).toHaveCount(24);
+    await admin.getByRole("button", { name: "下一页", exact: true }).click();
+    await expect(admin.getByTestId("copy-card")).toHaveCount(1);
+    const last = admin.getByTestId("copy-card").filter({ hasText: "文案 25" });
+    await expect(last).toBeVisible();
+
+    listPages.length = 0;
+    await last.getByRole("button", { name: "下架", exact: true }).click();
+
+    await expect.poll(() => listPages.includes("1")).toBe(true);
+    expect(listPages).toContain("2");
+    await expect(admin.getByTestId("copy-card")).toHaveCount(24);
+    await expect(
+      admin.getByRole("button", { name: "下一页", exact: true }),
+    ).toHaveCount(0);
+    await expect(admin.getByText("还没有文案")).toHaveCount(0);
+  } finally {
+    await adminContext.close();
+  }
+});

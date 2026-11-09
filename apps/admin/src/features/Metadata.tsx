@@ -22,7 +22,11 @@ import {
   canPermanentlyDelete,
   ProjectDeletionQueue,
 } from "./projects/ProjectDeletionQueue";
-import { pageAfterShrink } from "./projects/pagination";
+import {
+  pageAfterShrink,
+  adminPageIdentity,
+  canCorrectAdminPage,
+} from "./projects/pagination";
 import {
   PAGE_SIZE,
   RecordPager,
@@ -266,15 +270,23 @@ export function ProjectsPage() {
     [busy, setBusy] = useState(false),
     [actionError, setActionError] = useState("");
   const cache = useQueryClient();
+  const viewIdentity = adminPageIdentity([
+    "admin-projects",
+    page,
+    keyword,
+    status,
+  ]);
   const q = useQuery({
     queryKey: ["admin", "projects", page, keyword, status],
-    queryFn: () =>
-      request(routes.AdminProjects, {
+    queryFn: async () => {
+      const reply = await request(routes.AdminProjects, {
         page,
         pageSize: PAGE_SIZE,
         keyword,
         status: status === "all" ? undefined : status,
-      }),
+      });
+      return { ...reply, __identity: viewIdentity };
+    },
     retry: false,
   });
   useErrorNotice("admin:projects", q.error ? errorMessage(q.error) : null, {
@@ -283,7 +295,19 @@ export function ProjectsPage() {
   });
   useErrorNotice("admin:project-deletion", actionError || null);
   useEffect(() => {
-    if (!q.data) return;
+    /* FP-09 / Ruling 108. Only a successful, settled result for the current
+       identity may correct the page; a failed refetch keeps the old data. */
+    if (
+      !q.data ||
+      !canCorrectAdminPage({
+        isSuccess: q.isSuccess,
+        isError: q.isError,
+        fetchStatus: q.fetchStatus,
+        resultIdentity: q.data.__identity,
+        viewIdentity,
+      })
+    )
+      return;
     const next = pageAfterShrink(
       page,
       q.data.total,
@@ -291,7 +315,7 @@ export function ProjectsPage() {
       PAGE_SIZE,
     );
     if (next !== page) setPage(next);
-  }, [page, q.data]);
+  }, [page, q.data, q.isSuccess, q.isError, q.fetchStatus, viewIdentity]);
   async function confirmDelete() {
     if (!target) return;
     setBusy(true);

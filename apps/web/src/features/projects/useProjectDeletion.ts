@@ -11,6 +11,7 @@ import { useNotify } from "@fastposter/ui";
 import { request } from "../../api";
 import { drafts } from "../editor/drafts";
 import { publishProjectDeletion } from "../editor/projectDeletionSync";
+import { canCorrectPage, collectionIdentity } from "./collection-position";
 
 export const DELETION_PAGE_SIZE = 24;
 export const DELETION_POLL_INTERVAL = 2000;
@@ -34,6 +35,12 @@ export function useProjectDeletion(
   const scope = `${userId}|${page}|${keyword}`;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
+  const listIdentity = collectionIdentity({
+    userId,
+    trash: true,
+    keyword,
+    page,
+  });
   const watched = useRef(new Set<string>());
   const checking = useRef(new Set<string>());
   const notified = useRef(new Set<string>());
@@ -41,16 +48,27 @@ export function useProjectDeletion(
   const listKey = ["project-deletions", userId, page, keyword] as const;
   const list = useQuery({
     queryKey: listKey,
-    queryFn: () =>
-      request(routes.ListProjectDeletions, {
+    queryFn: async () => {
+      const reply = await request(routes.ListProjectDeletions, {
         page,
         pageSize: DELETION_PAGE_SIZE,
         keyword: keyword || undefined,
-      }),
+      });
+      // Stamp the reply with the identity that produced it so a failed/late
+      // result can never correct the deletion page (FP-09 / Ruling 106).
+      return { ...reply, __identity: listIdentity };
+    },
     enabled,
     retry: false,
     refetchInterval: (query) =>
       (query.state.data?.total ?? 0) > 0 ? DELETION_POLL_INTERVAL : false,
+  });
+  const canCorrect = canCorrectPage({
+    isSuccess: list.isSuccess,
+    isError: list.isError,
+    fetchStatus: list.fetchStatus,
+    resultIdentity: list.data?.__identity ?? "",
+    viewIdentity: listIdentity,
   });
 
   useEffect(() => {
@@ -187,6 +205,7 @@ export function useProjectDeletion(
     total: list.data?.total ?? 0,
     isBusy: busy,
     isLoading: list.isLoading,
+    canCorrect,
     error: list.error,
     refetch: () => void list.refetch(),
   };

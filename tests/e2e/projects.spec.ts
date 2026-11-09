@@ -1,6 +1,6 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import path from "node:path";
-import { chooseCardAction } from "./helpers";
+import { chooseCardAction, openPoster } from "./helpers";
 async function account(page: Page, name: string) {
   await page.goto("/register");
   await page.getByLabel("用户名", { exact: true }).fill(name);
@@ -550,4 +550,300 @@ test("background library create with unknown outcome only refreshes the list", a
   expect(createPosts).toBe(1);
 
   await adminContext.close();
+});
+
+/* FP-09 / A08.1. A failed page 2 keeps page 2, the visible error and the
+   retry; the retry must re-request `page=2` (query.refetch keeps the queryKey).
+   The baseline's correction effect judges an empty/absent `data` and silently
+   falls back to page 1, so the error disappears instead. */
+test("failed second page stays on page two and retries it", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await account(page, "a08_fail_" + Date.now().toString(36));
+  await seedGallery(page, "分页作品", 24); // 25 works -> a real page 2
+  // A full reload drops the SPA's stale cached list (the import's refresh()
+  // only saw the first work), so the gallery really lists all 25.
+  await page.goto("/projects");
+  await expect(page.getByTestId("project-card")).toHaveCount(24);
+
+  const listPages: string[] = [];
+  page.on("request", (req) => {
+    const u = new URL(req.url());
+    if (req.method() === "GET" && u.pathname === "/api/v1/projects")
+      listPages.push(u.searchParams.get("page") ?? "1");
+  });
+  let pageTwoCalls = 0;
+  await page.route(/\/api\/v1\/projects\?/, async (route) => {
+    const u = new URL(route.request().url());
+    if (
+      route.request().method() === "GET" &&
+      u.searchParams.get("page") === "2"
+    ) {
+      pageTwoCalls += 1;
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "E2E_PAGE2_FAIL",
+          message: "第 2 页注入失败",
+          requestId: "e2e-a08",
+        }),
+      });
+    }
+    return route.continue();
+  });
+
+  const pager = page.getByRole("navigation", { name: "作品分页" });
+  listPages.length = 0;
+  await pager.getByRole("button", { name: "下一页", exact: true }).click();
+  await expect.poll(() => pageTwoCalls).toBeGreaterThanOrEqual(1);
+  // Let any (broken) correction settle. On the baseline the stale/empty page-2
+  // `data` makes lastValidPage fall back to page 1 and the error vanishes.
+  await page.waitForTimeout(600);
+  const error = page.getByText("作品列表加载失败，当前筛选已保留。");
+  await expect(error).toBeVisible();
+  expect(listPages).toContain("2");
+  expect(listPages.includes("1")).toBe(false);
+
+  // The retry keeps the queryKey and re-requests page=2, not page=1.
+  const reload = page
+    .locator(".gallery-error")
+    .getByRole("button", { name: "重新加载", exact: true });
+  await expect(reload).toBeVisible();
+  listPages.length = 0;
+  await reload.click();
+  await expect.poll(() => pageTwoCalls).toBeGreaterThanOrEqual(2);
+  await expect
+    .poll(() => listPages.filter((p) => p === "2").length)
+    .toBeGreaterThanOrEqual(1);
+  expect(listPages.includes("1")).toBe(false);
+  await expect(error).toBeVisible();
+});
+
+/* FP-09 / A08.1. A successful 25 -> 24 shrink automatically returns from
+   page 2 to page 1 and re-requests `page=1`. (This path already exists on the
+   baseline; the case is kept as an honest baseline-GREEN regression guard for
+   the success gate added in A08.3.) */
+test("deleting final second-page row returns to page one", async ({ page }) => {
+  test.setTimeout(180_000);
+  await account(page, "a08_shrink_" + Date.now().toString(36));
+  await seedGallery(page, "分页作品", 24); // 25 works
+  await page.goto("/projects");
+  await expect(page.getByTestId("project-card")).toHaveCount(24);
+
+  const listPages: string[] = [];
+  page.on("request", (req) => {
+    const u = new URL(req.url());
+    if (req.method() === "GET" && u.pathname === "/api/v1/projects")
+      listPages.push(u.searchParams.get("page") ?? "1");
+  });
+
+  const pager = page.getByRole("navigation", { name: "作品分页" });
+  await pager.getByRole("button", { name: "下一页", exact: true }).click();
+  await expect(page.getByTestId("project-card")).toHaveCount(1);
+  await expect(
+    pager.getByRole("button", { name: "页 2", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+
+  const lastTitle = (await page
+    .getByTestId("project-card")
+    .first()
+    .locator("h3")
+    .textContent())!;
+  expect(lastTitle).toBeTruthy();
+
+  listPages.length = 0;
+  await chooseCardAction(
+    page,
+    page.getByLabel(`${lastTitle} 的操作`),
+    "移到回收站",
+  );
+  await page.getByRole("button", { name: "确认移入回收站" }).click();
+
+  // 25 -> 24: the successful shrink must re-request page=1.
+  await expect.poll(() => listPages.includes("1")).toBe(true);
+  expect(listPages).toContain("2"); // the page-2 refetch that proved the shrink
+  await expect(page.getByTestId("project-card")).toHaveCount(24);
+  await expect(pager).toHaveCount(0); // total 24 <= PAGE_SIZE: pager gone
+  await expect(page.getByText(lastTitle, { exact: true })).toHaveCount(0);
+});
+
+/* FP-09 / A08.4. A concurrent text edit bumps the cloud revision before the
+   local rename is submitted. The 409 REVISION_CONFLICT must keep the user's
+   typed title, load the latest snapshot with GetProject, show BOTH the cloud
+   title and the user's input, and wait for a NEW explicit confirmation. Only
+   then may SaveProject resubmit with the new snapshot's `document` AND
+   `revision`; a known-invalid old revision must never be re-sent in a loop. */
+test("rename conflict resubmits latest document only after confirmation", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const suffix = Date.now().toString(36);
+  await openPoster(page, "a08_rename_" + suffix); // one poster with a text block
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const id = new URL(page.url()).pathname.split("/")[2];
+
+  // Wait until the editor's autosave has persisted the text block.
+  await expect
+    .poll(async () => {
+      const reply = await (
+        await page.request.get(`/api/v1/projects/${id}`)
+      ).json();
+      try {
+        return JSON.parse(reply.project.document).textBlocks.length;
+      } catch {
+        return 0;
+      }
+    })
+    .toBeGreaterThan(0);
+
+  // A full reload makes the gallery list reflect the exact saved snapshot
+  // (document + revision), which the rename dialog will then hold.
+  await page.goto("/projects");
+  await expect(page.getByTestId("project-card")).toHaveCount(1);
+
+  // The exact snapshot the gallery (and therefore the rename dialog) holds.
+  const current: {
+    id: string;
+    title: string;
+    document: string;
+    revision: string;
+  } = (await (await page.request.get(`/api/v1/projects/${id}`)).json()).project;
+  const doc1 = current.document;
+  const rev1 = current.revision;
+  const title1 = current.title;
+
+  // A concurrent request edits the poster text AND retitles it, bumping the
+  // cloud to rev2/doc2 BEFORE the local rename is submitted.
+  const marker = "并发文字 " + suffix;
+  const docObj = JSON.parse(doc1);
+  let editedText = false;
+  const setFirstText = (node: {
+    type?: string;
+    text?: string;
+    content?: unknown[];
+  }): void => {
+    if (editedText || !node) return;
+    if (node.type === "text") {
+      node.text = marker;
+      editedText = true;
+      return;
+    }
+    for (const child of node.content ?? []) setFirstText(child as never);
+  };
+  for (const block of docObj.textBlocks ?? []) setFirstText(block.content);
+  expect(editedText).toBe(true); // the poster really has editable text
+  const doc2 = JSON.stringify(docObj);
+  const cloudTitle = "云端并发标题 " + suffix;
+
+  // Freeze the gallery list at the stale snapshot so the dialog is guaranteed
+  // to hold rev1/doc1 while the cloud has already moved to rev2/doc2.
+  await page.route(/\/api\/v1\/projects\?/, async (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-a08",
+          projects: [current],
+          total: 1,
+        }),
+      });
+    return route.continue();
+  });
+
+  // Record every SaveProject PUT, in order, with its document/revision.
+  const savePuts: Array<{
+    title: string;
+    document: string;
+    expectedRevision: string;
+  }> = [];
+  page.on("request", (req) => {
+    if (
+      req.method() === "PUT" &&
+      new URL(req.url()).pathname === `/api/v1/projects/${id}`
+    ) {
+      const body = req.postDataJSON();
+      savePuts.push({
+        title: body.title,
+        document: body.document,
+        expectedRevision: body.expectedRevision,
+      });
+    }
+  });
+
+  // Concurrent edit lands on the server through a real SaveProject request.
+  const editStatus = await page.evaluate(
+    async ({ path, body }) => {
+      const r = await fetch(path, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return r.status;
+    },
+    {
+      path: `/api/v1/projects/${id}`,
+      body: { title: cloudTitle, document: doc2, expectedRevision: rev1 },
+    },
+  );
+  expect(editStatus).toBe(200);
+  const edited = (
+    await (await page.request.get(`/api/v1/projects/${id}`)).json()
+  ).project;
+  const rev2 = edited.revision as string;
+  expect(rev2).not.toBe(rev1);
+  expect(edited.document).toContain(marker);
+  expect(edited.title).toBe(cloudTitle);
+
+  const userTitle = "改名后的标题 " + suffix;
+  await chooseCardAction(page, page.getByLabel(`${title1} 的操作`), "重命名");
+  await page.getByLabel("作品名称").fill(userTitle);
+  await page.getByRole("button", { name: "保存名称", exact: true }).click();
+
+  // Submit used rev1 -> real 409 REVISION_CONFLICT. Load the latest snapshot,
+  // show both titles, preserve the input, and wait for a NEW confirmation.
+  const conflict = page.getByTestId("rename-conflict");
+  await expect(conflict).toBeVisible();
+  await expect(conflict).toContainText(cloudTitle); // from GetProject (latest)
+  await expect(conflict).toContainText(userTitle); // preserved user input
+  await expect(page.getByLabel("作品名称")).toHaveValue(userTitle);
+  // Only the concurrent edit and the rejected rename submit so far: no
+  // automatic resubmission, no old-revision retry loop.
+  expect(savePuts.length).toBe(2);
+  expect(savePuts[1].expectedRevision).toBe(rev1);
+  expect(savePuts[1].document).toBe(doc1);
+  await expect(
+    page.getByRole("button", { name: "重试", exact: true }),
+  ).toHaveCount(0);
+  const confirmLatest = page.getByRole("button", {
+    name: "使用云端版本并保存",
+    exact: true,
+  });
+  await expect(confirmLatest).toBeVisible();
+
+  // Only the explicit confirmation may resubmit, with the NEW snapshot.
+  await confirmLatest.click();
+  await expect.poll(() => savePuts.length).toBe(3);
+  const resubmit = savePuts[2];
+  expect(resubmit.title).toBe(userTitle);
+  expect(resubmit.document).toBe(edited.document); // verbatim latest snapshot
+  expect(resubmit.document).toContain(marker); // concurrent text edit kept
+  expect(JSON.parse(resubmit.document)).toEqual(JSON.parse(doc2));
+  expect(resubmit.expectedRevision).toBe(edited.revision); // rev2, not spliced
+  expect(resubmit.document).not.toBe(savePuts[1].document);
+  expect(resubmit.expectedRevision).not.toBe(savePuts[1].expectedRevision);
+  await page.waitForTimeout(500);
+  expect(savePuts.length).toBe(3); // no further automatic writes
+
+  // The server really holds the user's title on the NEW document, with the
+  // concurrent text edit still present and a fresh revision.
+  const saved = (
+    await (await page.request.get(`/api/v1/projects/${id}`)).json()
+  ).project;
+  expect(saved.title).toBe(userTitle);
+  expect(saved.document).toContain(marker);
+  expect(saved.revision).not.toBe(rev2);
+  expect(saved.revision).not.toBe(rev1);
 });
