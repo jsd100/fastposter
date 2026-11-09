@@ -1,6 +1,7 @@
 import { FontPreview } from "./FontPreview";
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "antd";
 import {
   apiClient,
   routes,
@@ -146,7 +147,27 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         />
         <Button onClick={() => setNewCategory(true)}>添加分类</Button>
       </div>
-      <div className="admin-resource-grid">
+      <div
+        className="admin-resource-grid"
+        role={q.isPending ? "status" : undefined}
+        aria-label={q.isPending ? "正在加载素材" : undefined}
+        aria-busy={q.isPending || undefined}
+      >
+        {q.isPending &&
+          [0, 1, 2].map((n) => (
+            <article className="admin-resource-card" key={n}>
+              <div className="admin-resource-preview">
+                <Skeleton active title={false} paragraph={{ rows: 3 }} />
+              </div>
+              <div className="resource-card-details">
+                <Skeleton
+                  active
+                  title={{ width: "55%" }}
+                  paragraph={{ rows: 2 }}
+                />
+              </div>
+            </article>
+          ))}
         {q.data?.resources.map((r) => (
           <article
             className="admin-resource-card"
