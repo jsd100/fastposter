@@ -298,20 +298,12 @@ textarea[data-fp-input]:focus {
 .status[data-fp-status] {
   margin-bottom: 16px;
 }
-.spinner {
-  display: inline-block;
-  width: 13px;
-  height: 13px;
-  border: 1.5px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  vertical-align: middle;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.fp-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--fp-text-secondary);
+  font-size: 13px;
 }
 .ant-drawer.ant-drawer-bottom
   > .ant-drawer-content-wrapper.bottom-sheet-wrapper {
@@ -363,9 +355,15 @@ textarea[data-fp-input]:focus {
 .sheet-content {
   padding-bottom: 8px;
 }
+/* A01 Ruling 9 / FP-02: reduced motion is CSS-only. There is no runtime
+   matchMedia subscription and the antd component tree never re-wraps, so
+   editor drafts survive. The antd Spin dot and Skeleton bars keep a static,
+   recognisable waiting appearance while role="status" text and aria-busy
+   continue to announce the wait exactly once. */
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation-duration: 1.6s;
+  .ant-spin-dot-spin,
+  .ant-skeleton-active * {
+    animation: none !important;
   }
 }
 @media (pointer: coarse) {

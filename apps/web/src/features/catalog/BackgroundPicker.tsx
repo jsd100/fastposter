@@ -9,6 +9,7 @@ import {
 import {
   Button,
   Dialog,
+  LoadingState,
   Select,
   Status,
   TextInput,
@@ -275,7 +276,7 @@ export function BackgroundPicker({
           );
         })}
       </div>
-      {q.isPending && <Status>正在加载预设背景…</Status>}
+      {q.isPending && <LoadingState label="正在加载预设背景…" />}
       {q.error && (
         <div className="picker-failed">
           <Status tone="error">预设背景加载失败，当前筛选已保留。</Status>

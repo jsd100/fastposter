@@ -493,24 +493,6 @@
 .text-danger {
   color: #a65d4e !important;
 }
-.project-skeleton {
-  border: 1px solid #e6ebdf;
-  border-radius: 8px;
-  background: #fff;
-  overflow: hidden;
-}
-.project-skeleton > div {
-  aspect-ratio: 1.5;
-  background: #e9eee3;
-  animation: pulse 1.2s infinite alternate;
-}
-.project-skeleton > span {
-  display: block;
-  width: 55%;
-  height: 12px;
-  background: #e9eee3;
-  margin: 22px 13px;
-}
 .empty-workspace {
   border: 1px dashed #dce4d2;
   border-radius: 10px;
@@ -637,11 +619,6 @@
   white-space: nowrap;
   color: var(--fp-text-secondary);
   font-size: 12px;
-}
-@keyframes pulse {
-  to {
-    opacity: 0.5;
-  }
 }
 @media (min-width: 1550px) {
   .auth-copy {
@@ -1148,8 +1125,5 @@
 @media (prefers-reduced-motion: reduce) {
   .project-card {
     transition: none;
-  }
-  .project-skeleton > div {
-    animation: none;
   }
 }

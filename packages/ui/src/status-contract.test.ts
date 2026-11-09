@@ -21,14 +21,16 @@ describe("Status contract", () => {
     );
     expect(error).toContain('role="alert"');
     const info = renderToStaticMarkup(
-      createElement(Status, { children: "正在加载作品…" }),
+      createElement(Status, { children: "可在连接恢复后点击保存重试" }),
     );
     expect(info).toContain('role="status"');
   });
 
   it("keeps the tone hooks the pages select on and adds the antd type", () => {
     const classes = classListOf(
-      renderToStaticMarkup(createElement(Status, { tone: "error", children: "已断开" })),
+      renderToStaticMarkup(
+        createElement(Status, { tone: "error", children: "已断开" }),
+      ),
     );
     expect(classes).toContain("status-error");
     expect(classes).toContain("ant-alert-error");

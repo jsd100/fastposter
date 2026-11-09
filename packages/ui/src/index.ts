@@ -4,6 +4,7 @@ export * from "./Checkbox";
 export * from "./Dialog";
 export * from "./Form";
 export * from "./Input";
+export * from "./LoadingState";
 export * from "./modal-layer";
 export * from "./NumberField";
 export * from "./number-draft";

@@ -10,9 +10,9 @@ import {
 import {
   Button,
   CheckboxField,
+  LoadingState,
   NumberField,
   Select,
-  Status,
   TextInput,
   Workbench,
   useErrorNotice,
@@ -281,7 +281,7 @@ export function TemplateEditor({
         </div>
       ) : !fontsReady ? (
         <div className="template-editor-empty">
-          <Status>正在载入字体…</Status>
+          <LoadingState label="正在载入字体…" />
         </div>
       ) : (
         <div className="template-editor-canvas">

@@ -1,3 +1,4 @@
+import { Spin } from "antd";
 import type { ButtonProps as AntButtonProps } from "antd";
 import { createElement, type ReactElement } from "react";
 
@@ -30,12 +31,15 @@ export function antdSize(density: SharedDensity): AntButtonProps["size"] {
 }
 
 /**
- * A busy control is disabled and shows the package spinner. antd's own loading
- * icon is `role="img" aria-label="loading"`, which would append English noise to
- * every accessible name, so the icon slot carries the hidden spinner instead.
+ * A busy control is disabled and shows an antd loading component in the icon
+ * slot. antd's own loading icon is `role="img" aria-label="loading"`, which
+ * would append English noise to every accessible name, so a hidden antd Spin
+ * takes that slot instead: the loading visual stays antd-owned and the name
+ * stays clean.
  */
 export function busySpinner(): ReactElement {
-  return createElement("span", { className: "spinner", "aria-hidden": true });
+  const props = { size: "small" as const, "aria-hidden": true };
+  return createElement(Spin, props);
 }
 
 export function busyLoading() {

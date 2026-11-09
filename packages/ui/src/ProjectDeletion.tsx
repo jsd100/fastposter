@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Spin } from "antd";
 import { Button } from "./Button";
 import { Dialog } from "./Dialog";
 import styles from "./ProjectDeletion.module.css";
@@ -108,8 +109,13 @@ export function ProjectDeletionStatus({
       </div>
     );
   return (
-    <div className={`${styles.status} ${styles.cleaning}`} role="status">
-      <span className="spinner" aria-hidden="true" />
+    <div
+      className={`${styles.status} ${styles.cleaning}`}
+      role="status"
+      aria-busy="true"
+      data-fp-loading=""
+    >
+      <Spin size="small" aria-hidden="true" />
       <p>正在清理相关文件…</p>
       <p>作品已不可恢复，你可以离开此页面。</p>
     </div>

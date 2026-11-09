@@ -1,6 +1,6 @@
 import type { ProjectDTO } from "@fastposter/api-client";
 import { Button, IconButton } from "@fastposter/ui";
-import { Dropdown, Empty } from "antd";
+import { Dropdown, Empty, Skeleton } from "antd";
 import type { ReactNode } from "react";
 import {
   Copy,
@@ -48,11 +48,20 @@ export function ProjectListView({
 }: Props) {
   if (loading)
     return (
-      <div className="project-grid" role="status" aria-label="正在加载作品">
+      <div
+        className="project-grid"
+        role="status"
+        aria-label="正在加载作品"
+        aria-busy="true"
+      >
         {[0, 1, 2].map((n) => (
-          <div key={n} className="project-skeleton">
-            <div />
-            <span />
+          <div key={n} className="project-card">
+            <div className="project-preview">
+              <Skeleton active title={false} paragraph={{ rows: 3 }} />
+            </div>
+            <div className="project-card-info">
+              <Skeleton active title={{ width: "55%" }} paragraph={false} />
+            </div>
           </div>
         ))}
       </div>
@@ -185,8 +194,7 @@ export function ProjectListView({
                     icon: ICONS[entry.action],
                     danger: entry.danger,
                   })),
-                  onClick: ({ key }) =>
-                    onAction(key as ProjectAction, project),
+                  onClick: ({ key }) => onAction(key as ProjectAction, project),
                 }}
               >
                 <IconButton

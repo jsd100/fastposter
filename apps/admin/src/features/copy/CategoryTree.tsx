@@ -1,6 +1,6 @@
 import { Tree } from "antd";
 import type { TreeDataNode } from "antd";
-import { IconButton, Status, Tooltip } from "@fastposter/ui";
+import { IconButton, LoadingState, Status, Tooltip } from "@fastposter/ui";
 import type { ResourceDTO } from "@fastposter/api-client";
 import { Pencil, Plus, RotateCcw } from "lucide-react";
 import { listState } from "../catalog-state";
@@ -123,7 +123,7 @@ export function CategoryTree({
           <Plus size={14} />
         </IconButton>
       </div>
-      {state === "loading" && <Status>正在加载分类…</Status>}
+      {state === "loading" && <LoadingState label="正在加载分类…" />}
       {state === "failed" && (
         <div className="copy-tree-failed">
           <Status tone="error">分类加载失败</Status>

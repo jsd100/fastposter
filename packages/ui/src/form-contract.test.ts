@@ -43,12 +43,15 @@ describe("Button contract", () => {
     expect(html).toContain('aria-busy="true"');
   });
 
-  it("keeps the package spinner while busy instead of an announced icon", () => {
+  it("uses an antd loading component while busy without an English announcement", () => {
     const html = renderToStaticMarkup(
       createElement(Button, { busy: true }, "保存中"),
     );
-    // An antd loading icon is role="img" with aria-label="loading", which would
-    // append English noise to every accessible name; the spinner stays hidden.
+    // A busy control must show an antd loading component, but its icon cannot
+    // be antd's native role="img" aria-label="loading": that would append
+    // English noise to every accessible name. The antd Spin stays hidden and
+    // the button keeps its antd loading class and aria-busy semantics.
+    expect(html).toContain("ant-spin");
     expect(html).toContain('aria-hidden="true"');
     expect(html).not.toContain('aria-label="loading"');
     expect(classListOf(html, /<button[^>]*>/)).toContain("ant-btn-loading");
@@ -56,7 +59,9 @@ describe("Button contract", () => {
 
   it("maps variants onto antd colors and keeps the page hook classes", () => {
     const primary = classListOf(
-      renderToStaticMarkup(createElement(Button, { variant: "primary" }, "导出")),
+      renderToStaticMarkup(
+        createElement(Button, { variant: "primary" }, "导出"),
+      ),
       /<button[^>]*>/,
     );
     expect(primary).toContain("ant-btn-color-primary");
@@ -68,7 +73,9 @@ describe("Button contract", () => {
     );
     expect(ghost).toContain("ant-btn-variant-text");
     const danger = classListOf(
-      renderToStaticMarkup(createElement(Button, { variant: "danger" }, "删除")),
+      renderToStaticMarkup(
+        createElement(Button, { variant: "danger" }, "删除"),
+      ),
       /<button[^>]*>/,
     );
     expect(danger).toContain("ant-btn-color-dangerous");
@@ -144,7 +151,11 @@ describe("FormField contract", () => {
 
   it("paints the error state with the control token, not a page override", () => {
     const html = renderToStaticMarkup(
-      createElement(FormField, { label: "密码", id: "pw2", error: "密码不正确" }),
+      createElement(FormField, {
+        label: "密码",
+        id: "pw2",
+        error: "密码不正确",
+      }),
     );
     // antd drives the red frame through its status; the page keeps no border
     // override of its own, so the status class is the visible contract.

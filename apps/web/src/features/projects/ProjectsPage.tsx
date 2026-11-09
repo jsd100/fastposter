@@ -22,6 +22,7 @@ import {
   Dialog,
   FormField,
   IconButton,
+  LoadingState,
   ProjectDeletionConfirm,
   Status,
   TextInput,
@@ -607,16 +608,8 @@ export function ProjectsPage({
               <span className="count-badge">{total}</span>
             </span>
           </div>
-          {uploading && (
-            <Status>
-              <span className="spinner" /> 正在导入并保存原图，请稍候…
-            </Status>
-          )}
-          {creating && (
-            <Status>
-              <span className="spinner" /> 正在创建作品，请稍候…
-            </Status>
-          )}
+          {uploading && <LoadingState label="正在导入并保存原图，请稍候…" />}
+          {creating && <LoadingState label="正在创建作品，请稍候…" />}
           {trash && (
             <ProjectDeletionQueue
               tasks={projectDeletion.pending}

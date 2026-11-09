@@ -8,15 +8,17 @@ import React, {
 } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { NotificationsProvider, Status, UIProvider } from "@fastposter/ui";
+import {
+  LoadingState,
+  NotificationsProvider,
+  UIProvider,
+} from "@fastposter/ui";
 import { navigate, usePath } from "./router";
 import { SessionProvider, useSession } from "./features/auth/Session";
 import { AuthPage } from "./features/auth/AuthPage";
 import { PasswordPage } from "./features/auth/PasswordPage";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
-import type {
-  CollectionPosition,
-} from "./features/projects/collection-position";
+import type { CollectionPosition } from "./features/projects/collection-position";
 import "@fastposter/ui/styles.css";
 import "./styles.css";
 
@@ -50,7 +52,7 @@ function App() {
     return (
       <main className="app-loading">
         <BrandIcon />
-        <Status>正在打开创作空间…</Status>
+        <LoadingState label="正在打开创作空间…" />
       </main>
     );
   if (
@@ -72,7 +74,7 @@ function App() {
       <Suspense
         fallback={
           <main className="app-loading">
-            <Status>正在打开编辑工作台…</Status>
+            <LoadingState label="正在打开编辑工作台…" />
           </main>
         }
       >

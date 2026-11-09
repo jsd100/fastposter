@@ -11,6 +11,7 @@ import { apiClient, routes, type UserDTO } from "@fastposter/api-client";
 import {
   Button,
   FormField,
+  LoadingState,
   NotificationsProvider,
   Status,
   UIProvider,
@@ -106,7 +107,7 @@ function AdminApp() {
   if (user === undefined)
     return (
       <main className="app-loading">
-        <Status>正在打开管理后台…</Status>
+        <LoadingState label="正在打开管理后台…" />
       </main>
     );
   if (!user)
@@ -150,7 +151,7 @@ function AdminApp() {
           .catch((e) => notify.show({ tone: "error", title: errorMessage(e) }))
       }
     >
-      <Suspense fallback={<Status>正在加载页面…</Status>}>
+      <Suspense fallback={<LoadingState label="正在加载页面…" />}>
         {path === "/admin/users" ? (
           <UsersPage />
         ) : path === "/admin/projects" ? (

@@ -10,6 +10,7 @@ import {
 import {
   Button,
   Dialog,
+  LoadingState,
   Select,
   Status,
   TextInput,
@@ -285,7 +286,7 @@ export function TemplatePicker({
           );
         })}
       </div>
-      {q.isPending && <Status>正在加载模板…</Status>}
+      {q.isPending && <LoadingState label="正在加载模板…" />}
       {q.error && (
         <div className="picker-failed">
           <Status tone="error">模板加载失败，当前筛选已保留。</Status>

@@ -11,8 +11,8 @@ import {
   Dialog,
   FileField,
   FormField,
+  LoadingState,
   Select,
-  Status,
   TextInput,
   useErrorNotice,
 } from "@fastposter/ui";
@@ -332,7 +332,7 @@ export function TemplatesPage() {
         label="模板分页"
       />
       {editing && (
-        <Suspense fallback={<Status>正在打开模板编辑器…</Status>}>
+        <Suspense fallback={<LoadingState label="正在打开模板编辑器…" />}>
           <TemplateEditor
             resource={editing === "new" ? undefined : editing}
             restoreFocusTo={() =>
@@ -476,7 +476,7 @@ function TemplatePreviewDialog({
           alt={`${resource.title} 完整预览`}
         />
       ) : (
-        <Status>正在准备预览…</Status>
+        <LoadingState label="正在准备预览…" />
       )}
     </Dialog>
   );

@@ -5,6 +5,7 @@ import { routes, type ResourceDTO } from "@fastposter/api-client";
 import {
   Button,
   Dialog,
+  LoadingState,
   Select,
   Status,
   TextInput,
@@ -129,7 +130,7 @@ export function CopyPicker({
           }}
         />
       </div>
-      {categories.isPending && <Status>正在加载文案分类…</Status>}
+      {categories.isPending && <LoadingState label="正在加载文案分类…" />}
       {levels.length > 0 && (
         <div className="copy-category-path">
           {levels.map((nodes, depth) => (
@@ -172,7 +173,7 @@ export function CopyPicker({
           </button>
         ))}
       </div>
-      {copies.isPending && <Status>正在加载文案…</Status>}
+      {copies.isPending && <LoadingState label="正在加载文案…" />}
       {copies.error && (
         <div className="picker-failed">
           <Status tone="error">文案加载失败，当前分类已保留。</Status>
