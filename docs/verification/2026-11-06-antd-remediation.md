@@ -20,17 +20,17 @@ workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
 branch: feat/fastposter
 review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
 execution_baseline: "71257c3"
-last_verified_commit: "846e183"
-task: A06
-next_step: A06.1 (awaiting the user's go-ahead; A05 completed 2026-11-08)
-spec_ids: [FP-06]
-actual_paths: ["apps/web/src/features/projects/project-creation.ts", "apps/web/src/features/projects/project-creation.test.ts", "apps/web/src/features/projects/ProjectsPage.tsx", "apps/web/src/features/templates/TemplatePicker.tsx", "tests/e2e/image-upload.spec.ts", "tests/e2e/templates.spec.ts", "tests/e2e/session-sync.spec.ts"]
-red: ["A05 E2E RED: 基线重试按钮为「重试导入」（重新上传）而非创建级「重试」", "A05 E2E RED: 基线无「结果未确认」通知（Expected 1 / Received 0）", "A05 E2E RED: 基线迟到 Create 回应跨账号导航到 /projects/e2e-stale-project/edit", "A05 单元 RED: 长中文 130 码点 / 控制字符未剥离 / 空标题未回退", "A05 单元诚实通过: 原始尺寸与素材引用基线本就正确"]
-green: ["202/202 单测（31 文件）", "pnpm typecheck exit 0", "project-creation.test.ts 4/4", "3 个 A05 验收 E2E 各 1 passed", "控制器独立复跑 8 个 E2E（3 验收 + 5 回归）全部 exit 0"]
-decisions: ["Ruling 9 移除 matchMedia 运行时订阅", "Ruling 17-21 A02 修复轮裁定", "Ruling 23 PNG 导出 SKIP", "Ruling 24-30 A03 修复轮裁定", "Ruling 31 429 中断后按原节奏续跑 A04", "Ruling 34-42 A04 修复轮裁定", "Ruling 44 「继续」仅授权 A05", "Ruling 45-53 A05 边界/失败分类/诚实标准裁定", "Ruling 54-55 A05 DONE_WITH_CONCERNS 处置", "Ruling 56-60 A05 评审 ⚠️ 逐项裁定与 Minor 延迟"]
-artifacts: [".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A05-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A05-brief.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-2f06ad4..846e183.diff"]
+last_verified_commit: "d4cdebc"
+task: A07
+next_step: A07.1 (awaiting the user's go-ahead; A06 completed 2026-11-09)
+spec_ids: [FP-05]
+actual_paths: ["apps/web/src/features/catalog/BackgroundPicker.tsx", "apps/web/src/features/projects/ProjectWorkspace.tsx", "apps/web/src/features/projects/ProjectsPage.tsx", "tests/e2e/projects.spec.ts"]
+red: ["A06 E2E RED（真实基线 3a6b1e0）: 三个新增用例均因 getByRole('dialog', { name: '新建海报' }) 元素不存在而失败——基线「新建海报」直接打开原生文件选择器，无来源选择/背景库入口", "A06 RED 诚实记录: 首轮两个用例为 150000ms timeout，补显式 dialog 可见性断言后得到清晰的 element(s) not found；早期 RED 的 PIPESTATUS 退出码未打印数字，改用 > log 2>&1; echo EXIT=$? 复跑，未伪造"]
+green: ["202/202 单测（31 文件）", "pnpm typecheck exit 0", "3 个 A06 验收 E2E 3 passed", "控制器独立复跑 20 个 E2E 全部 exit 0（projects 6/6、editor-mobile 9/9、templates 4/4、image-upload 1/1 及其余回归）"]
+decisions: ["Ruling 9 移除 matchMedia 运行时订阅", "Ruling 17-21 A02 修复轮裁定", "Ruling 23 PNG 导出 SKIP", "Ruling 24-30 A03 修复轮裁定", "Ruling 31 429 中断后按原节奏续跑 A04", "Ruling 34-42 A04 修复轮裁定", "Ruling 44 「继续」仅授权 A05", "Ruling 45-53 A05 边界/失败分类/诚实标准裁定", "Ruling 54-55 A05 DONE_WITH_CONCERNS 处置", "Ruling 56-60 A05 评审 ⚠️ 逐项裁定与 Minor 延迟", "Ruling 61 两条消息合并授权 A06 且中断无中间状态", "Ruling 62-68 A06 基线/文件边界/替换模式契约/携带项裁定", "Ruling 69-74 A06 评审 6 项 ⚠️ 逐项裁定", "Ruling 75 A06 8 项 Minor 延迟"]
+artifacts: [".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A06-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A06-brief.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-3a6b1e0..d4cdebc.diff"]
 blockers: []
-open_verification_items: ["Chrome 157 vs 锁定 156：export.spec.ts 2 个 + editor-fonts.spec.ts 2 个 PNG 导出用例标 SKIP，A10 须在匹配环境重跑；A03 不因此标为完全 VERIFIED", "A05 新增环境 SKIP：templates.spec.ts 的 administrator publishes a template… 在 line 350 导出步骤同样失败；实现者用 git apply -R 回退产品补丁对照，基线在完全相同行失败，证明先于 A05；A10 须在 Chrome 156 重跑", "A04 三张视觉证据 PNG 位于 /tmp/fp-a04-evidence/，A10 须落到受控路径或在执行记录中留可追踪引用", "A04 未新增真实具名「更多」DOM 入口（清单外文件限制），按 FP-14 写回规格建议，A10/后续任务评估", "FP-13 背景库创建的「结果未确认」覆盖属 A06：A06 派发时必须消费 A05 导出的 buildProjectFromBackground / classifyCreationFailure / useCreationScope 并补背景库未知结果 E2E（Ruling 56）", "FP-13 「注入上传失败」由既有 notifications.spec.ts 回归用例覆盖并重跑通过，无 A05 新增最小失败用例（Ruling 57），A10 矩阵复核", "A05 评审 5 项 Minor + A01-A04 累计 40 项 Minor 均推迟全分支评审（Ruling 60）"]
+open_verification_items: ["Chrome 157 vs 锁定 156：export.spec.ts 2 个 + editor-fonts.spec.ts 2 个 PNG 导出用例标 SKIP，A10 须在匹配环境重跑；A03 不因此标为完全 VERIFIED", "A05 环境 SKIP：templates.spec.ts 的 administrator publishes a template… 在 line 350 导出步骤失败；A05 基线对照证明先于 A05", "A06 新增/复核共 5 处 PNG 导出 SKIP：admin-catalog.spec.ts:100（实现者基线对照）、admin-catalog.spec.ts:242、full-flow.spec.ts:201、image-upload.spec.ts:67、templates.spec.ts:350；后四处由控制器用 456 行产品补丁 git apply -R 做纯基线对照，均在完全相同行失败，证明先于 A06、非产品回归。A10 须在 Chrome 156 重跑；A06 不因此标为完全 VERIFIED", "A06 评审 ⚠️：来源选择 dialog 的「取消」路径与空态触发路径缺焦点断言（Ruling 69），A07 派发时作为携带项、A10 五档矩阵补证据", "A06 评审 ⚠️：FP-13 FP-05 行的「没有素材 / 分页错误 / 重新选择」无 A06 新增断言，A10 矩阵补；「返回来源」/空目录/飞行中舍弃分支同样无断言（Ruling 72/74）", "FP-05 「替换背景」可见确认按钮文案按 Ruling 63 未实现（保留「选用 X」旧契约以维护 full-flow / admin-catalog 回归），按 FP-14 写回规格，A10/后续任务评估", "A06 评审 8 项 Minor + A01-A05 累计 45 项 Minor（共 53 项）推迟全分支评审；其中 clearInvalid 未 refetch q.data 导致改版后重选可能重复同一错误、须改筛选或重开选择器恢复，列为全分支评审优先候选（Ruling 75）", "FP-13 「注入上传失败」由既有 notifications.spec.ts 回归用例覆盖并重跑通过，无 A05 新增最小失败用例（Ruling 57），A10 矩阵复核", "A04 三张视觉证据 PNG 位于 /tmp/fp-a04-evidence/，A10 须落到受控路径；A05/A06 的 /tmp 测试证据同样需 A10 汇总"]
 ```
 
 B 批状态：`NOT_AUTHORIZED`（FP-11 涉及 IDL、生成代码与服务端事务，需用户单独授权；A 批不处理）。
@@ -118,9 +118,25 @@ B 批状态：`NOT_AUTHORIZED`（FP-11 涉及 IDL、生成代码与服务端事�
 - 遗留：5 项 Minor 推迟全分支评审（重复派发 `session-expired`、AUTH_REQUIRED 落到即将卸载的选择器错误态、「结果未确认」文案两处重复、瞬态 `creating`/`unknownError` 清理依赖 `scope.isValid`、`classifyCreationFailure`/`useCreationScope` 无直接单测）；A01–A04 的 40 项 Minor 同样保持延迟。
 - 证据：`.superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A05-report.md`（155 行）、`task-A05-brief.md`、`review-2f06ad4..846e183.diff`。
 
-### A06 … A10
+### A06 提供背景库创建与替换的共用交互 — DONE（含 5 处环境 SKIP）
 
-待执行，且 **A06 尚未获得用户开工指示**（Ruling 44：「继续」仅授权 A05）。A06 派发时必须携带 Ruling 56 的背景库未知结果覆盖要求与 A05 导出的公共接口。A10 负责 `pnpm verify`、逐 spec E2E、五档视觉矩阵、固定导出样本像素对比、三份维护文档，以及上述 PNG 导出用例在匹配 Chrome 156 环境下的重跑。
+- 提交：`d4cdebc feat(web): start posters from the published background library`（4 个文件，+656/-33，全部在 A06 清单内；显式路径暂存，未触碰 23 个未跟踪用户资产）。用户授权为 「继续」（2026-11-08 10:40，派发前中断）+「请接着之前中断的任务继续执行」（2026-11-09 09:27），按 Ruling 61 合并为 A06 单任务开工指示；恢复检查确认无中间状态。
+- 需求：FP-05、FP-06（背景库条款）、FP-13（FP-05 / FP-06 行）、FP-14；前置 A01、A05。
+- 实现要点：
+  - `ProjectsPage` 顶栏「新建海报」与空态主动作统一打开 `Dialog title="新建海报"`（`createStep: "menu" | "library" | null`），选项为「上传本地图片」「从背景库选择」「取消」；拖放仍直接导入。隐藏 `<input aria-label="导入背景图文件">` 保持 always-mounted 与 `onChange → upload(file)`，因此 `helpers.ts::openPoster` 与大量既有 E2E 无需改动（Ruling 65）。
+  - `BackgroundPicker` 新增 `mode: "create" | "replace"`、`onChoose(asset, resource)`、`onBack`；create 模式单选卡片（`aria-label="选择 X"` / `aria-pressed` / 「已选中」）+「用此背景创建」确认，保留返回来源、空目录、搜索、分类与分页；replace 模式保持「选用 X」一次点击直接 `onChoose` 的旧契约与 `ProjectWorkspace` 的异尺寸预检/事务（Ruling 63）。
+  - 确认时以当前筛选/分页重发 `routes.ListCatalog`，按账号 + 查询 + 四字段选中身份（资源 ID/版本、素材 ID/版本）隔离迟到响应；下架/改版/素材不可用/素材更新分别清除选中、说明原因、保留筛选分页、零创建请求；复查失败保留筛选分页与选中供重试、零创建请求；改搜索/分类/页码即时清除不可见选中（Ruling 66、Review Focus #4）。
+  - `handleGalleryCreate` 复用 A05 的 `scope.claim()` → `createAndFinish(op, source)` → `scope.release(op)`，走 `buildProjectFromBackground` / `classifyCreationFailure` / `useCreationScope`，零本地上传，画布取目录原始宽高、背景取 assetId/version、标题取 `resource.title`，并沿用「结果未确认」只读刷新与迟到响应账号隔离（Ruling 64 / Ruling 56 携带项已闭合）。
+- TDD（真实基线 `3a6b1e0`，仅先加测试）：三个新增用例均因 `getByRole('dialog', { name: '新建海报' })` 元素不存在而失败——基线「新建海报」直接打开原生文件选择器、无来源选择与背景库入口。首轮两个用例为 150000ms 超时，补显式 dialog 可见性断言后得到清晰的 `element(s) not found`；早期 RED 的 `PIPESTATUS` 退出码未打印数字已如实披露并改用 `> log 2>&1; echo EXIT=$?` 复跑，未伪造、未弱化。GREEN：3 个新增用例 3 passed。
+- 独立评审（任务级门禁）：Spec ✅、Task quality **Approved**、0 Critical / 0 Important / 8 Minor、6 项 ⚠️。评审者自行核实两处具名风险：全仓 `<BackgroundPicker` 仅两个调用点且都传了 `mode`；`ProjectList.tsx:95-105` 空态按钮走 `onUpload`，父级已改为 `setCreateStep("menu")`，故该文件确无改动必要。控制器按 Rulings 69–74 逐项裁定 6 项 ⚠️，均为跨任务或已由控制器终验补齐的证据项；8 项 Minor 按 Ruling 75 延迟全分支评审，未进入修复轮。
+- 验证（控制器独立复跑，本会话）：`pnpm typecheck` exit 0；`pnpm test` 31 文件 / **202 用例** exit 0；**20 个 E2E 全部 exit 0** —— `projects` 新增 3 + 既有 3（6/6）、`editor-mobile` 分两组 9/9、`templates` 4/4、`image-upload` 1/1 及其余回归；各命令独立临时栈、`GOPROXY=off GOSUMDB=off`、`--output /tmp/fp-a06-ctrl-*`。另复跑 `full-flow.spec.ts:143` 以验证「选用」旧按钮与已引用背景下架后可用路径：「选用 X」点击、已保存、下架、reload、`naturalWidth === 1200` 等前置断言全部通过。
+- **环境 SKIP（共 5 处，非 A06 回归）**：`admin-catalog.spec.ts:100`（实现者基线对照）、`admin-catalog.spec.ts:242`、`full-flow.spec.ts:201`、`image-upload.spec.ts:67`、`templates.spec.ts:350`（Ruling 54）均失败在「下载原尺寸 PNG」导出步骤。控制器用 456 行产品补丁 `git apply -R` 做纯基线对照（`REVERSE_CHECK_OK` / `REVERSE_APPLIED` / 基线 diff 0 行），后四处在**完全相同行**同样失败；恢复后 `RESTORED`、HEAD 仍 `d4cdebc`、索引与工作树干净。属 Chrome `157.0.8103.38` vs 锁定 `156.0.8078.48` 的导出差异。A10 须在匹配环境重跑；A06 不因此标为完全 VERIFIED。
+- 遗留：8 项 Minor 延迟全分支评审（累计 53 项），其中 `clearInvalid` 未 `q.refetch()` 导致改版后重新选择仍可能重复同一错误、需改筛选或重开选择器恢复，列为全分支评审优先候选；FP-05 「替换背景」可见确认按钮文案按 Ruling 63 未实现（保留「选用 X」旧契约），按 FP-14 写回规格；来源 dialog 的取消/空态触发焦点断言、FP-13 FP-05 行三个子项、返回来源/空目录/飞行中舍弃分支的 E2E 证据归 A07 / A10。
+- 证据：`.superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A06-report.md`（179 行）、`task-A06-brief.md`、`review-3a6b1e0..d4cdebc.diff`。
+
+### A07 … A10
+
+待执行，且 **A07 尚未获得用户开工指示**（Ruling 61：上一轮授权仅到 A06）。A07 派发时必须携带 Ruling 69 的来源 dialog 取消/空态焦点断言，并把 A05/A06 新增的忙碌与通知态按 FP-02 收敛到 antd 等待组件。A10 负责 `pnpm verify`、逐 spec E2E、五档视觉矩阵、固定导出样本像素对比、三份维护文档、PNG 导出用例在匹配 Chrome 156 环境下的重跑、53 项延迟 Minor 的全分支分诊，以及 `/tmp` 证据落盘。
 
 ## 遗留与裁定
 
