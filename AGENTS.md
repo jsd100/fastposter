@@ -54,6 +54,22 @@ pnpm dev
 - 使用 `pnpm exec prettier --write <文件路径>` 格式化修改过的前端文件，Go 使用 `gofmt -w <文件路径>`；避免无关的全仓格式化。当前未配置独立 lint 脚本。
 - 契约修改从 `idl` 开始，运行 `pnpm contracts:generate`，同时提交生成结果；禁止手改 `server/gen`、`packages/api-client/src/generated.ts` 及生成路由。
 
+## Ant Design 前端约定（A 批迁移后，FP-12）
+
+本节是交付版本内对实施必需契约的逐字重述。四份权威规范/计划仍是本机未跟踪输入（路径与基线 `124b4ea` 见 `docs/verification/2026-11-06-antd-remediation.md`），新检出依据本节、`README.md` 与 `deploy/toolchain.lock.json` 即可复现，不依赖忽略目录作为唯一交接来源。
+
+- **固定版本**：直接导入 antd 的工作区包固定 `antd@6.7.0`，声明位置 `packages/ui/package.json:15`、`packages/poster-editor/package.json:15`、`apps/web/package.json:17`、`apps/admin/package.json:17`。不升级组件库、不换路由框架、不重写编辑器 store。
+- **共享 UIProvider**：用户站与管理站共用 `packages/ui/src/UIProvider.tsx:25` 的 `UIProvider`，分别在 `apps/web/src/main.tsx:90`、`apps/admin/src/main.tsx:320` 挂载；共享主题、控件密度与加载语义由 `packages/ui` 统一定义，页面只管理业务布局与真实状态来源。任何直接使用 antd 的页面仍走共享 provider。
+- **renderer 隔离**：`apps/renderer` 独立，不引入 `antd` 或 `packages/ui/src`。`tools/check-entry-boundary.mjs` 的 `forbidden` 规则：renderer 不得含 `node_modules/antd/`、`packages/ui/src/`、`@fastposter+ui@`；web/admin 不得含 `@tiptap/`、`prosemirror-`。以 `vite build --manifest --sourcemap` 产物审计。
+- **背景库入口与创建/替换契约**：`BackgroundPicker` 提供 `mode: "create" | "replace"`；create 以「用此背景创建」确认并复用 A05 的 `buildProjectFromBackground` 与创建事务（零本地上传），replace 保留 `aria-label="选用 ${title}"` 一次点击旧契约与异尺寸预检/撤销。「确认按钮应写作「替换背景」」的可见文案偏差当前未实现，按 Ruling 63 记为 FP-14 写回项。
+- **手机历史与撤销**：390px / 320px 工作台提供可点击「撤销」「重做」，命中区 ≥44×44px；编辑手势、数值草稿与自动保存按 A02/A03 的会话边界收敛。
+- **视觉尺度（逐字值）**：内容表面 `#FFFFFF`、工作区 `#F3F5F4`、画布外围 `#E6EAE7`、主要文字 `#202C25`、辅助 `#526159`、主操作 `#2E694F`、危险色 `#A63232`；普通文字对比度 ≥4.5:1。常规控件 36px、桌面紧凑 32px、触控主操作 ≥44×44px；页面标题 24–29px、区域标题 14–16px、正文及常规值 14px、标签 13px、说明/单位/状态 12px、触控文本输入 16px；标签间距 4–8px、字段组间 12–16px、面板内边距 12–16px。
+- **五档与四个断点**：视口 1440×1000 / 1024×768 / 768×1024 / 390×844 / 320×700；编辑器断点 ≥1200px、881–1199px、681–880px、≤680px。`tests/e2e/ui-baseline.spec.ts` 的 `five-width layout guards` 默认可运行（不依赖 `FP_UI_BASELINE`），断言 `document.documentElement.scrollWidth <= innerWidth`、选区可见、关键操作可达。
+- **截图与导出采样开关**：`FP_UI_BASELINE=1` 启用截图，`FP_UI_BASELINE_OUT` 指向 `test-results/` 之外的绝对路径（Playwright 会清空 `test-results/`）；`FP_EXPORT_BASELINE_PATH` 把固定导出用例的下载字节写到指定位置（`tests/e2e/export.spec.ts:41-42`）。
+- **逐文件独立临时测试栈与预构建 renderer**：E2E 每个 spec 独立临时栈、`GOPROXY=off GOSUMDB=off`、`--output <证据目录>/results/<suite>`，单文件注册限流时按互斥 `-g` 分栈；开工先 `pnpm --filter @fastposter/renderer build`。
+- **Chrome 设置方式**：Playwright 取 `CHROME_PATH`（`playwright.config.ts:12-15`，默认 macOS 路径）；`deploy/toolchain.lock.json` 锁定 `156.0.8078.48`，本机实测 `157.0.8103.51`，固定导出样本像素对比须在匹配 Chrome 156 环境完成。
+- **`pnpm verify` 实际组成**：`contracts:check → typecheck → test → build`，不含 Go 与 E2E，须按改动范围补跑。
+
 ## 测试要求
 
 Vitest 测试与源码相邻，命名为 `*.test.ts`；应用内也支持 `*.test.tsx`。Go 测试使用 `*_test.go`；Playwright 使用 `tests/e2e/*.spec.ts`，复用 `tests/fixtures` 中的样例。

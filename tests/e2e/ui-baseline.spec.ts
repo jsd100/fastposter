@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Browser, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { chooseCardAction } from "./helpers";
@@ -429,4 +429,161 @@ describeCapture("mobile 390x844", () => {
     await shoot(admin, "m-08-admin-background-form");
     await adminContext.close();
   });
+});
+
+// A10.1 — three additional widths. Screenshots stay behind the capture flag;
+// shoot()/settle() and the 22 existing shot names above are untouched.
+async function captureWidthStates(
+  browser: Browser,
+  page: Page,
+  prefix: string,
+  viewport: { width: number; height: number },
+) {
+  test.setTimeout(240_000);
+  await page.goto("/login");
+  await shoot(page, `${prefix}-01-login`);
+
+  await page.getByLabel("用户名", { exact: true }).fill("ui_baseline");
+  await page.getByLabel("密码", { exact: true }).fill("a secure test password");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page.getByTestId("project-card")).toHaveCount(2);
+  await shoot(page, `${prefix}-02-projects`);
+
+  await page.getByRole("button", { name: "模板库", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "模板库" })).toBeVisible();
+  await shoot(page, `${prefix}-03-template-picker`);
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+
+  await page
+    .getByRole("link", { name: "编辑 春日明信片", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/edit$/);
+  // No PNG export step is introduced here (Ruling 137/162).
+  await shoot(page, `${prefix}-04-editor`);
+
+  // The copy/background library buttons only exist inside the editor, not on
+  // the project list, and submitting the admin login repeatedly in one shared
+  // stack can hit the registration throttle. Only the public auth surfaces
+  // are captured here; the original two widths already cover the backoffice
+  // form and shell.
+  const adminContext = await browser.newContext({ viewport });
+  const admin = await adminContext.newPage();
+  await adminLoginPage(admin);
+  await shoot(admin, `${prefix}-05-admin-login`);
+  await adminContext.close();
+}
+
+describeCapture("tablet landscape 1024x768", () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+  test("capture representative states at 1024x768", async ({
+    browser,
+    page,
+  }) => {
+    await captureWidthStates(browser, page, "t1", {
+      width: 1024,
+      height: 768,
+    });
+  });
+});
+
+describeCapture("tablet portrait 768x1024", () => {
+  test.use({ viewport: { width: 768, height: 1024 } });
+  test("capture representative states at 768x1024", async ({
+    browser,
+    page,
+  }) => {
+    await captureWidthStates(browser, page, "t2", {
+      width: 768,
+      height: 1024,
+    });
+  });
+});
+
+describeCapture("mobile 320x700", () => {
+  test.use({
+    viewport: { width: 320, height: 700 },
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  test("capture representative states at 320x700", async ({
+    browser,
+    page,
+  }) => {
+    await captureWidthStates(browser, page, "n3", {
+      width: 320,
+      height: 700,
+    });
+  });
+});
+
+// A10.1 — default-runnable layout guards. Kept outside describeCapture so a
+// plain `pnpm test:e2e tests/e2e/ui-baseline.spec.ts` run exercises them even
+// when FP_UI_BASELINE is unset (Ruling 161).
+const GUARD_VIEWPORTS = [
+  { name: "1440x1000", width: 1440, height: 1000 },
+  { name: "1024x768", width: 1024, height: 768 },
+  { name: "768x1024", width: 768, height: 1024 },
+  { name: "390x844", width: 390, height: 844 },
+  { name: "320x700", width: 320, height: 700 },
+];
+
+test.describe("five-width layout guards (default runnable)", () => {
+  for (const vp of GUARD_VIEWPORTS) {
+    test(`${vp.name}: no horizontal overflow, visible selection, reachable actions`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      // Public auth pages need no seeded account, so this guard is standalone.
+      await page.goto("/login");
+      await expect(
+        page.getByRole("button", { name: "登录", exact: true }),
+      ).toBeVisible();
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+
+      const selection = await page.evaluate(() => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+        );
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          const text = (node.textContent ?? "").trim();
+          const parent = node.parentElement;
+          if (
+            text.length >= 2 &&
+            parent &&
+            parent.getClientRects().length > 0
+          ) {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const sel = window.getSelection()!;
+            sel.removeAllRanges();
+            sel.addRange(range);
+            const rect = range.getBoundingClientRect();
+            return {
+              text: sel.toString().trim(),
+              left: rect.left,
+              right: rect.right,
+              innerWidth: window.innerWidth,
+            };
+          }
+        }
+        return null;
+      });
+      expect(selection, "a visible text selection must exist").not.toBeNull();
+      expect(selection!.text.length).toBeGreaterThan(0);
+      expect(selection!.left).toBeGreaterThanOrEqual(-1);
+      expect(selection!.right).toBeLessThanOrEqual(selection!.innerWidth + 1);
+
+      await expect(
+        page.getByRole("button", { name: "登录", exact: true }),
+      ).toBeInViewport();
+      await expect(page.getByLabel("用户名", { exact: true })).toBeInViewport();
+    });
+  }
 });

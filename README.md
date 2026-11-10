@@ -22,7 +22,7 @@ FastPoster 是一个在本机原生运行的海报编辑器：导入自己的图
 
 - 导入 JPG/PNG/WebP 背景，保留原像素尺寸，校验动画、CMYK、16 位和损坏图片。
 - 混合字体富文本，支持字号、颜色、字重、强调、段落、选区样式和撤销重做。
-- 内置 10 个字体家族、15 个字面，支持搜索、预览与字形校验；提供 24 种预设文字颜色及自定义颜色。
+- 内置 10 个字体家族、15 个字面，支持搜索、预览与字形校验；提供 116 种预设文字颜色及自定义颜色（预设色定义见 `packages/poster-editor/src/panels/color-presets.ts`）。
 - 拖动文字移动位置，两侧把手调整文本框宽度；桌面属性面板与手机底部面板共用编辑器。
 - 自动保存、离线草稿恢复与版本冲突另存。
 - MySQL 持久导出队列，支持租约、重试和幂等请求；Chrome 渲染原尺寸 PNG。
@@ -465,6 +465,20 @@ pnpm contracts:check
 ```
 
 生成结果包括 `server/gen`、TypeScript DTO 和生成路由，应与契约一起提交，不要手改。`pnpm verify` 已包含漂移检查。若提示缺少生成器，先完成上述安装，再运行验证，无需因此重新初始化数据库。
+
+## Ant Design 界面契约与视觉证据
+
+本节是 A 批（FP-12）交付的维护契约；完整逐字值、FP-13 矩阵与证据清单见 `docs/verification/2026-11-06-antd-remediation.md`。四份权威规范/计划仍是本机未跟踪输入（路径与基线 `124b4ea` 见该记录），新检出依据本节、`AGENTS.md` 与 `deploy/toolchain.lock.json` 即可复现，不依赖忽略目录作为唯一交接来源。
+
+- **版本与共享控件**：固定 `antd@6.7.0`（`packages/ui/package.json:15`、`packages/poster-editor/package.json:15`、`apps/web/package.json:17`、`apps/admin/package.json:17`）。两站共用 `packages/ui/src/UIProvider.tsx:25` 的 `UIProvider`（`apps/web/src/main.tsx:90`、`apps/admin/src/main.tsx:320`）；renderer 独立，不含 `antd` 与 `packages/ui/src`。
+- **入口边界与 forbidden 规则**：`tools/check-entry-boundary.mjs` 对 web/admin 禁 `@tiptap/`、`prosemirror-`，对 renderer 禁 `antd`、`packages/ui/src`、`@fastposter+ui@`；用 `vite build --manifest --sourcemap` 产物审计。
+- **创作路径与手机历史**：`BackgroundPicker` 的 `mode: "create" | "replace"` 创建/替换契约、手机 390px / 320px 工作台「撤销」「重做」≥44×44px，详见验收入口与 `AGENTS.md`。
+- **视觉尺度（逐字值）**：色板 7 个 HEX `#FFFFFF / #F3F5F4 / #E6EAE7 / #202C25 / #526159 / #2E694F / #A63232`，普通文字对比度 ≥4.5:1；常规控件 36px、桌面紧凑 32px、触控主操作 ≥44×44px；页面标题 24–29px、区域标题 14–16px、正文及常规值 14px、标签 13px、说明/单位/状态 12px、触控文本输入 16px；标签间距 4–8px、字段组间 12–16px、面板内边距 12–16px。
+- **五档尺寸与四个断点**：1440×1000 / 1024×768 / 768×1024 / 390×844 / 320×700；编辑器断点 ≥1200px、881–1199px、681–880px、≤680px。`tests/e2e/ui-baseline.spec.ts` 的 `five-width layout guards` 默认可运行，断言 `document.documentElement.scrollWidth <= innerWidth`、选区可见、关键操作可达。
+- **截图与导出采样开关**：`FP_UI_BASELINE=1 FP_UI_BASELINE_OUT=/绝对路径/screenshots pnpm test:e2e tests/e2e/ui-baseline.spec.ts`（`OUT` 不要指向 `test-results/`，Playwright 会清空）；`FP_EXPORT_BASELINE_PATH=/绝对路径/sample.png pnpm test:e2e tests/e2e/export.spec.ts -g 'flushes latest edits and previews the exact native PNG'` 把下载字节写到指定位置（`tests/e2e/export.spec.ts:41-42`）。
+- **逐文件独立临时测试栈与预构建 renderer**：每个 spec 独立临时栈、`GOPROXY=off GOSUMDB=off`、`--output <证据目录>/results/<suite>`，单文件注册限流时按互斥 `-g` 分栈；测试前 `pnpm --filter @fastposter/renderer build`。
+- **Chrome 设置方式**：Playwright 取 `CHROME_PATH`（`playwright.config.ts:12-15`，默认 macOS 路径）；`deploy/toolchain.lock.json` 锁定 `156.0.8078.48`，本机实测 `157.0.8103.51`、Node `v22.22.2` ≠ `24.21.0`。固定导出样本像素对比须在匹配 Chrome 156 / Node 24 环境完成，当前环境标 `BLOCKED`（见验收入口 A10.4）。
+- **`pnpm verify` 实际组成**：`contracts:check → typecheck → test → build`，不含 Go 与 E2E。
 
 ## 常见问题
 
