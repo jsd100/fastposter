@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pagination } from "antd";
-import { routes, type ResourceDTO } from "@fastposter/api-client";
+import {
+  loadCatalogPages,
+  routes,
+  type ResourceDTO,
+} from "@fastposter/api-client";
 import {
   Button,
   Dialog,
@@ -25,8 +29,11 @@ function categoryTree(rows: ResourceDTO[]): CategoryNode[] {
   const roots: CategoryNode[] = [];
   for (const row of rows) {
     const node = nodes.get(row.id)!;
-    if (!row.parentId) roots.push(node);
-    else nodes.get(row.parentId)?.children.push(node);
+    /* FP-10 / Ruling 135. A published node whose parent is not in the visible
+       (published) set becomes a selectable root and still carries its visible
+       descendants; real ids and the existing sort order are preserved. */
+    if (!row.parentId || !nodes.has(row.parentId)) roots.push(node);
+    else nodes.get(row.parentId)!.children.push(node);
   }
   const sort = (list: CategoryNode[]) => {
     list.sort(
@@ -51,27 +58,20 @@ export function CopyPicker({
     [path, setPath] = useState<string[]>([]);
   const categories = useQuery({
     queryKey: ["copy-categories", user!.id],
-    queryFn: async () => {
-      const resources: ResourceDTO[] = [];
-      let total = 0;
-      for (let page = 1; page <= 1000; page++) {
-        const reply = await request(routes.ListCatalog, {
+    queryFn: () =>
+      loadCatalogPages((page, pageSize) =>
+        request(routes.ListCatalog, {
           kind: "copy-category",
           page,
-          pageSize: 100,
-        });
-        total = reply.total;
-        resources.push(...reply.resources);
-        if (resources.length >= total || reply.resources.length === 0) break;
-      }
-      return { resources, total };
-    },
+          pageSize,
+        }),
+      ),
     retry: false,
     staleTime: 60_000,
   });
   const roots = useMemo(
-    () => categoryTree(categories.data?.resources ?? []),
-    [categories.data],
+    () => categoryTree(categories.isSuccess ? categories.data : []),
+    [categories.isSuccess, categories.data],
   );
   const levels: CategoryNode[][] = [];
   let current = roots;
@@ -131,6 +131,12 @@ export function CopyPicker({
         />
       </div>
       {categories.isPending && <LoadingState label="正在加载文案分类…" />}
+      {categories.isError && (
+        <div data-testid="category-error" className="picker-failed">
+          <Status tone="error">分类加载失败，请重新加载</Status>
+          <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
       {levels.length > 0 && (
         <div className="copy-category-path">
           {levels.map((nodes, depth) => (

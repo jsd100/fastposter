@@ -12,7 +12,12 @@ const PHONE = { width: 390, height: 844 };
 const JOBS = /\/api\/v1\/admin\/jobs(\?|$)/;
 // A control the page has not grown yet must fail the test, not stall it:
 // clicks wait for the action timeout, which is unbounded by default.
-test.use({ actionTimeout: 8_000 });
+/* Ruling 132: trace/screenshot must be off so a failing reset case cannot
+   persist the synthetic token in a DOM snapshot or trace. Playwright only
+   permits these two options at file scope (a describe-level use forces a new
+   worker and is rejected), so this covers the whole spec file, including the
+   four reset cases in the describe below. */
+test.use({ actionTimeout: 8_000, trace: "off", screenshot: "off" });
 
 type JobFixture = {
   id: string;
@@ -371,4 +376,271 @@ test("admin workbench isolates side nav and phone drawer from tab focus", async 
   } finally {
     await context.close();
   }
+});
+
+/* FP-10 / A09.1 / Ruling 132. A password reset is an authorized, in-memory
+   session. SYNTHETIC is NOT a secret: the real reset endpoint never issues it,
+   it is never logged, and trace/screenshots are disabled for this describe so
+   a failure cannot persist it. Token values use boolean comparisons only. */
+const SYNTHETIC = "FP-A09-SYNTHETIC-TOKEN-NOT-A-SECRET";
+const RESET_POST = /\/api\/v1\/admin\/users\/[^/?]+$/;
+const USERS_GET = /\/api\/v1\/admin\/users\?/;
+
+const RESET_USER = {
+  id: "e2e-reset-user",
+  username: "reset-target",
+  role: "user",
+  disabled: false,
+  mustChangePassword: false,
+  createdAt: "2026-11-05T08:00:00.000Z",
+};
+
+function stubUsers(page: Page) {
+  return page.route(USERS_GET, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        requestId: "e2e-reset-users",
+        users: [RESET_USER],
+        total: 1,
+      }),
+    }),
+  );
+}
+
+function resetReply(token?: string) {
+  return JSON.stringify({
+    requestId: "e2e-reset",
+    user: RESET_USER,
+    ...(token ? { resetToken: token } : {}),
+  });
+}
+
+async function openResetConfirm(page: Page) {
+  await page
+    .getByRole("button", { name: "重置密码", exact: true })
+    .first()
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("button", { name: "确认操作", exact: true }),
+  ).toBeVisible();
+  return dialog;
+}
+
+async function gotoUsers(page: Page) {
+  await login(page);
+  await stubUsers(page);
+  await openSection(page, false, "用户管理");
+  await expect(page).toHaveURL(/\/admin\/users$/);
+}
+
+test.describe("FP-10 admin reset authorization session", () => {
+  test("reset token remains visible after delayed success", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await gotoUsers(page);
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
+    let postCount = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(RESET_POST, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      postCount += 1;
+      await gate;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: resetReply(SYNTHETIC),
+      });
+    });
+    const dialog = await openResetConfirm(page);
+    await dialog.getByRole("button", { name: "确认操作", exact: true }).click();
+    await expect.poll(() => postCount).toBe(1);
+
+    // (1) cancel: gone or disabled while the POST is running.
+    const cancel = dialog.getByRole("button", { name: "取消", exact: true });
+    if ((await cancel.count()) > 0 && (await cancel.isEnabled()))
+      await cancel.click();
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/users$/);
+
+    // (2) mask click in the far corner, away from the centered panel.
+    await page.mouse.click(6, 6);
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/users$/);
+
+    // (3) Escape.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/users$/);
+
+    // (4) in-app navigation through the shell menu. The modal mask covers the
+    // shell, so activate the link through its own DOM click event; the Link
+    // onClick guard (Ruling 128) still runs and can preventDefault().
+    await page
+      .getByRole("navigation", { name: "管理导航" })
+      .getByRole("link", { name: "模板", exact: true })
+      .evaluate((el) => (el as HTMLElement).click());
+    await expect(page).toHaveURL(/\/admin\/users$/);
+    await expect(dialog).toBeVisible();
+    await expect(page.getByText(/请先完成/)).toBeVisible();
+
+    release();
+    const token = page.getByLabel("一次性重置令牌");
+    await expect(token).toBeVisible();
+    expect(postCount).toBe(1); // one POST, no duplicate confirm, no resend
+    expect((await token.inputValue()) === SYNTHETIC).toBe(true);
+
+    await dialog.getByRole("button", { name: "复制", exact: true }).click();
+    await expect(dialog.getByText("已复制", { exact: true })).toBeVisible();
+
+    // Done is the only action that releases the navigation lock.
+    await dialog.getByRole("button", { name: "完成", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await page
+      .getByRole("navigation", { name: "管理导航" })
+      .getByRole("link", { name: "模板", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/admin\/templates$/);
+  });
+
+  test("known reset failure stays retryable without auto-resend", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await gotoUsers(page);
+    let postCount = 0;
+    let fail = true;
+    await page.route(RESET_POST, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      postCount += 1;
+      if (fail)
+        return route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({
+            code: "INVALID_INPUT",
+            message: "重置被拒绝",
+            requestId: "e2e-reset",
+          }),
+        });
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: resetReply(SYNTHETIC),
+      });
+    });
+    const dialog = await openResetConfirm(page);
+    await dialog.getByRole("button", { name: "确认操作", exact: true }).click();
+    await expect(page.getByText("重置被拒绝", { exact: true })).toBeVisible();
+    expect(postCount).toBe(1);
+    // A known business rejection is not an unconfirmed outcome.
+    await expect(page.getByText(/结果未确认|旧凭据/)).toHaveCount(0);
+    await page.waitForTimeout(400);
+    expect(postCount).toBe(1); // no automatic resend
+    // The operator explicitly retries through the same confirm action.
+    fail = false;
+    await dialog.getByRole("button", { name: "确认操作", exact: true }).click();
+    const token = page.getByLabel("一次性重置令牌");
+    await expect(token).toBeVisible();
+    expect(postCount).toBe(2);
+    expect((await token.inputValue()) === SYNTHETIC).toBe(true);
+  });
+
+  test("unknown reset result from 5xx warns about revoked credentials without auto-resend", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await gotoUsers(page);
+    let postCount = 0;
+    let fail = true;
+    await page.route(RESET_POST, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      postCount += 1;
+      if (fail)
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            code: "UPSTREAM_UNAVAILABLE",
+            message: "服务暂不可用",
+            requestId: "e2e-reset",
+          }),
+        });
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: resetReply(SYNTHETIC),
+      });
+    });
+    const dialog = await openResetConfirm(page);
+    await dialog.getByRole("button", { name: "确认操作", exact: true }).click();
+    await expect(dialog.getByText(/结果未确认/)).toBeVisible();
+    await expect(dialog.getByText(/旧凭据可能已被撤销/)).toBeVisible();
+    expect(postCount).toBe(1);
+    await page.waitForTimeout(400);
+    expect(postCount).toBe(1); // no automatic resend
+    // Read-only re-check closes the flow without any new write.
+    await dialog
+      .getByRole("button", { name: "重新核对账号", exact: true })
+      .click();
+    expect(postCount).toBe(1);
+    await expect(dialog).toHaveCount(0);
+    // Only a new explicit issuance through the existing entry creates a POST.
+    fail = false;
+    const again = await openResetConfirm(page);
+    await again.getByRole("button", { name: "确认操作", exact: true }).click();
+    const token = page.getByLabel("一次性重置令牌");
+    await expect(token).toBeVisible();
+    expect(postCount).toBe(2);
+    expect((await token.inputValue()) === SYNTHETIC).toBe(true);
+  });
+
+  test("unknown reset result from dropped connection and non-JSON avoids auto-resend", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await gotoUsers(page);
+    let postCount = 0;
+    let mode: "abort" | "non-json" = "abort";
+    await page.route(RESET_POST, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      postCount += 1;
+      if (mode === "abort") return route.abort("internetdisconnected");
+      return route.fulfill({
+        status: 200,
+        contentType: "text/plain",
+        body: "not-json",
+      });
+    });
+    // (1) dropped connection (network TypeError).
+    let dialog = await openResetConfirm(page);
+    await dialog.getByRole("button", { name: "确认操作", exact: true }).click();
+    await expect(dialog.getByText(/结果未确认/)).toBeVisible();
+    expect(postCount).toBe(1);
+    await page.waitForTimeout(300);
+    expect(postCount).toBe(1);
+    await dialog
+      .getByRole("button", { name: "重新核对账号", exact: true })
+      .click();
+    await expect(dialog).toHaveCount(0);
+    // (2) non-JSON 200 decodes as INVALID_RESPONSE: still unconfirmed.
+    mode = "non-json";
+    dialog = await openResetConfirm(page);
+    await dialog.getByRole("button", { name: "确认操作", exact: true }).click();
+    await expect(dialog.getByText(/结果未确认/)).toBeVisible();
+    expect(postCount).toBe(2);
+    await page.waitForTimeout(300);
+    expect(postCount).toBe(2);
+    await expect(
+      dialog.getByRole("button", { name: "重新核对账号", exact: true }),
+    ).toBeVisible();
+  });
 });

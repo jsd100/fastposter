@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pagination } from "antd";
 import {
+  loadCatalogPages,
   routes,
   type AssetDTO,
   type ResourceDTO,
@@ -104,11 +105,13 @@ export function BackgroundPicker({
   const categories = useQuery({
     queryKey: ["background-categories", user!.id],
     queryFn: () =>
-      request(routes.ListCatalog, {
-        kind: "background-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.ListCatalog, {
+          kind: "background-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   useErrorNotice(
@@ -234,13 +237,18 @@ export function BackgroundPicker({
           onValueChange={(value) => changeFilter({ category: value, page: 1 })}
           options={[
             { value: "", label: "全部分类" },
-            ...(categories.data?.resources.map((r) => ({
-              value: r.id,
-              label: r.title,
-            })) ?? []),
+            ...(categories.isSuccess
+              ? categories.data.map((r) => ({ value: r.id, label: r.title }))
+              : []),
           ]}
         />
       </div>
+      {categories.isError && (
+        <div data-testid="category-error" className="picker-failed">
+          <Status tone="error">分类加载失败，请重新加载</Status>
+          <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
       <div className="background-picker-grid">
         {q.data?.resources.map((r) => {
           if (!r.asset) return null;

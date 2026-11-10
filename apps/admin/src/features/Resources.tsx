@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "antd";
 import {
   apiClient,
+  loadCatalogPages,
   routes,
   type AssetReply,
   type ResourceDTO,
@@ -16,6 +17,7 @@ import {
   FormField,
   NumberField,
   Select,
+  Status,
   TextInput,
   Textarea,
   useErrorNotice,
@@ -78,11 +80,13 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
   const categories = useQuery({
     queryKey: ["admin", "categories", kind],
     queryFn: () =>
-      request(routes.AdminResources, {
-        kind: kind + "-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.AdminResources, {
+          kind: kind + "-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   const refresh = () =>
@@ -166,14 +170,19 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
           }}
           options={[
             { value: "", label: "全部分类" },
-            ...(categories.data?.resources.map((r) => ({
-              value: r.id,
-              label: r.title,
-            })) ?? []),
+            ...(categories.isSuccess
+              ? categories.data.map((r) => ({ value: r.id, label: r.title }))
+              : []),
           ]}
         />
         <Button onClick={() => setNewCategory(true)}>添加分类</Button>
       </div>
+      {categories.isError && (
+        <div data-testid="category-error" className="picker-failed">
+          <Status tone="error">分类加载失败，请重新加载</Status>
+          <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
       <div
         className="admin-resource-grid"
         role={q.isPending ? "status" : undefined}
@@ -264,7 +273,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         <ResourceForm
           kind={kind}
           resource={editing === "new" ? undefined : editing}
-          categories={categories.data?.resources ?? []}
+          categories={categories.isSuccess ? categories.data : []}
           close={() => setEditing(null)}
           saved={async () => {
             setEditing(null);

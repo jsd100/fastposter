@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { chooseOption, selectValue } from "./helpers";
+import { chooseOption, selectValue, showOpenOptions } from "./helpers";
 
 async function loginAdmin(page: Page) {
   await page.goto("http://127.0.0.1:15174/admin/login");
@@ -536,6 +536,100 @@ test("template grid returns to the previous page after its last row disappears",
       admin.getByRole("button", { name: "下一页", exact: true }),
     ).toHaveCount(0);
     await expect(admin.getByText("还没有模板")).toHaveCount(0);
+  } finally {
+    await adminContext.close();
+  }
+});
+
+/* FP-10 / A09.1 / A09.4. A failure on ANY page keeps the current scope, shows
+   a visible error and retries the whole catalog (page 1 + page 2), never
+   presenting a partial tree. TemplateList and TemplateEditor share the
+   ["admin","categories","template"] query key, so this covers both. */
+test("template categories retry a failed page within the same scope", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  try {
+    const first = Array.from({ length: 100 }, (_, i) => ({
+      id: `a09-tpl-cat-${String(i).padStart(3, "0")}`,
+      kind: "template-category",
+      title: `模板分类 ${String(i).padStart(3, "0")}`,
+      sortOrder: i,
+      published: true,
+      version: "1",
+    }));
+    const last = {
+      id: "a09-tpl-cat-100",
+      kind: "template-category",
+      title: "第 101 个模板分类",
+      sortOrder: 100,
+      published: true,
+      version: "1",
+    };
+    let pageTwoFailed = false;
+    const seen: string[] = [];
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/template-category\?/,
+      (route) => {
+        const url = new URL(route.request().url());
+        const p = url.searchParams.get("page") ?? "1";
+        seen.push(`${p}:${url.searchParams.get("pageSize") ?? ""}`);
+        if (p === "2" && !pageTwoFailed) {
+          pageTwoFailed = true;
+          return route.fulfill({
+            status: 500,
+            contentType: "application/json",
+            body: JSON.stringify({
+              code: "UPSTREAM_UNAVAILABLE",
+              message: "分类第 2 页失败",
+              requestId: "e2e-a09",
+            }),
+          });
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-a09",
+            resources: p === "1" ? first : [last],
+            total: 101,
+          }),
+        });
+      },
+    );
+    await admin.route(/\/api\/v1\/admin\/resources\/template\?/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-a09",
+          resources: [],
+          total: 0,
+        }),
+      }),
+    );
+    await admin.getByRole("link", { name: "模板", exact: true }).click();
+    await expect(admin).toHaveURL(/\/admin\/templates$/);
+    await expect.poll(() => seen.join("|")).toBe("1:100|2:100");
+    const errorBox = admin.getByTestId("category-error");
+    await expect(errorBox).toBeVisible();
+    // Retry re-reads the entire catalog in the same scope.
+    seen.length = 0;
+    await errorBox
+      .getByRole("button", { name: "重新加载", exact: true })
+      .click();
+    await expect.poll(() => seen.join("|")).toBe("1:100|2:100");
+    await expect(errorBox).toHaveCount(0);
+    const listbox = await showOpenOptions(admin, "筛选模板分类");
+    await expect(
+      listbox.getByRole("option", {
+        name: "第 101 个模板分类",
+        exact: true,
+      }),
+    ).toBeVisible();
   } finally {
     await adminContext.close();
   }

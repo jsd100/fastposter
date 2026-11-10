@@ -1,5 +1,16 @@
 import { BrandIcon } from "@fastposter/ui";
-import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
+import {
+  createContext,
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
   QueryClient,
@@ -68,11 +79,73 @@ const CopyPage = lazy(() =>
 const cache = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
+
+/* FP-10 / Ruling 126. The authorized reset session lives only in this app's
+   memory: a phase plus a one-time token that is never persisted. Defining the
+   provider, context and exported hook here (no new file) lets UsersPage and
+   the admin shell consume the very same instance across in-app navigation. */
+type ResetPhase = "idle" | "running" | "result" | "unknown";
+type ResetSession = {
+  phase: ResetPhase;
+  token: string;
+  start: () => void;
+  succeed: (token: string) => void;
+  fail: () => void;
+  finish: () => void;
+  clear: () => void;
+};
+const ResetSessionContext = createContext<ResetSession | null>(null);
+
+export function ResetSessionProvider({ children }: { children: ReactNode }) {
+  const [phase, setPhase] = useState<ResetPhase>("idle");
+  const [token, setToken] = useState("");
+  const start = useCallback(() => {
+    setToken("");
+    setPhase("running");
+  }, []);
+  const succeed = useCallback((value: string) => {
+    setToken(value);
+    setPhase("result");
+  }, []);
+  /* An unconfirmed outcome (5xx / network / non-JSON) is NOT a retryable
+     business rejection: old credentials may already be revoked. */
+  const fail = useCallback(() => {
+    setToken("");
+    setPhase("unknown");
+  }, []);
+  const clear = useCallback(() => {
+    setToken("");
+    setPhase("idle");
+  }, []);
+  /* "完成" is the only user action that releases the navigation lock. */
+  const finish = useCallback(() => {
+    setToken("");
+    setPhase("idle");
+  }, []);
+  const value = useMemo<ResetSession>(
+    () => ({ phase, token, start, succeed, fail, finish, clear }),
+    [phase, token, start, succeed, fail, finish, clear],
+  );
+  return (
+    <ResetSessionContext.Provider value={value}>
+      {children}
+    </ResetSessionContext.Provider>
+  );
+}
+
+export function useResetSession(): ResetSession {
+  const session = useContext(ResetSessionContext);
+  if (!session)
+    throw new Error("useResetSession requires ResetSessionProvider");
+  return session;
+}
+
 function AdminApp() {
   const path = usePath();
   const client = useQueryClient();
   const [user, setUser] = useState<UserDTO | null>();
   const notify = useNotify();
+  const { clear } = useResetSession();
   useNotificationScope(user ? user.id : "anonymous");
   useEffect(() => {
     let active = true;
@@ -85,6 +158,7 @@ function AdminApp() {
         if (active) setUser(null);
       });
     const expire = () => {
+      clear();
       client.clear();
       setUser(null);
       navigate("/admin/login", true);
@@ -94,7 +168,7 @@ function AdminApp() {
       active = false;
       window.removeEventListener("session-expired", expire);
     };
-  }, [client]);
+  }, [client, clear]);
   useEffect(() => {
     if (user === null && path !== "/admin/login")
       navigate("/admin/login", true);
@@ -114,6 +188,7 @@ function AdminApp() {
     return (
       <Login
         onUser={(u) => {
+          clear();
           client.clear();
           setUser(u);
           navigate("/admin/overview");
@@ -127,6 +202,7 @@ function AdminApp() {
         <Button
           onClick={() =>
             void apiClient.request(routes.Logout, {}).then(() => {
+              clear();
               client.clear();
               setUser(null);
             })
@@ -144,6 +220,7 @@ function AdminApp() {
         void apiClient
           .request(routes.Logout, {})
           .then(() => {
+            clear();
             client.clear();
             setUser(null);
             navigate("/admin/login");
@@ -236,7 +313,9 @@ createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={cache}>
     <UIProvider>
       <NotificationsProvider>
-        <AdminApp />
+        <ResetSessionProvider>
+          <AdminApp />
+        </ResetSessionProvider>
       </NotificationsProvider>
     </UIProvider>
   </QueryClientProvider>,

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table } from "antd";
 import type { TableProps } from "antd";
 import {
+  ApiClientError,
   routes,
   type AuditDTO,
   type ProjectMetadataDTO,
@@ -18,6 +19,7 @@ import {
   useErrorNotice,
 } from "@fastposter/ui";
 import { request, errorMessage } from "../api";
+import { useResetSession } from "../main";
 import {
   canPermanentlyDelete,
   ProjectDeletionQueue,
@@ -82,9 +84,11 @@ export function UsersPage() {
     [target, setTarget] = useState<{ user: UserDTO; action: string } | null>(
       null,
     ),
-    [token, setToken] = useState(""),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [copied, setCopied] = useState(false);
+  const { phase, token, start, succeed, fail, finish, clear } =
+    useResetSession();
+  const locked = phase === "running" || phase === "result";
   const cache = useQueryClient();
   const q = useQuery({
     queryKey: ["admin", "users", page, keyword],
@@ -97,23 +101,81 @@ export function UsersPage() {
     action: { label: "重新加载", onClick: () => void q.refetch() },
   });
   useErrorNotice("admin:user-action", error || null);
-  async function confirm() {
-    if (!target) return;
-    setBusy(true);
+
+  /* FP-10 / Ruling 130. Local minimal classification: a well-formed 4xx
+     business code is a known rejection that may be retried; 5xx,
+     INVALID_RESPONSE (non-JSON), network failure and timeout leave the outcome
+     unconfirmed and must never be auto-resent. */
+  function resetOutcome(e: unknown): "known" | "unknown" {
+    if (e instanceof ApiClientError) {
+      if (e.code === "INVALID_RESPONSE") return "unknown";
+      if (e.status >= 500) return "unknown";
+      if (e.status >= 400) return "known";
+    }
+    return "unknown";
+  }
+
+  function openAction(user: UserDTO, action: string) {
+    clear();
     setError("");
+    setCopied(false);
+    setTarget({ user, action });
+  }
+
+  async function confirm() {
+    if (!target || phase === "running") return; // synchronous double-submit guard
+    setError("");
+    setCopied(false);
+    start();
     try {
       const r = await request(routes.AdminUser, {
         id: target.user.id,
         action: target.action,
       });
-      if (r.resetToken) setToken(r.resetToken);
-      else setTarget(null);
+      if (r.resetToken) succeed(r.resetToken);
+      else {
+        clear();
+        setTarget(null);
+      }
       await cache.invalidateQueries({ queryKey: ["admin", "users"] });
     } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
+      if (resetOutcome(e) === "unknown") fail();
+      else {
+        clear();
+        setError(errorMessage(e));
+      }
     }
+  }
+
+  async function copyToken() {
+    try {
+      await navigator.clipboard.writeText(token);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = token;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      el.remove();
+    }
+    setCopied(true);
+  }
+
+  function recheck() {
+    /* Read-only list refresh + close the flow; never re-POST the reset. */
+    void cache.invalidateQueries({ queryKey: ["admin", "users"] });
+    clear();
+    setTarget(null);
+    setError("");
+  }
+
+  function done() {
+    finish(); // the only action that releases the navigation lock
+    setTarget(null);
+    setCopied(false);
+    setError("");
   }
   const columns: TableProps<UserDTO>["columns"] = [
     {
@@ -152,22 +214,15 @@ export function UsersPage() {
         <>
           <Button
             variant="ghost"
-            onClick={() => {
-              setToken("");
-              setTarget({
-                user,
-                action: user.disabled ? "enable" : "disable",
-              });
-            }}
+            onClick={() =>
+              openAction(user, user.disabled ? "enable" : "disable")
+            }
           >
             {user.disabled ? "恢复账号" : "禁用账号"}
           </Button>
           <Button
             variant="ghost"
-            onClick={() => {
-              setToken("");
-              setTarget({ user, action: "reset-password" });
-            }}
+            onClick={() => openAction(user, "reset-password")}
           >
             重置密码
           </Button>
@@ -216,18 +271,23 @@ export function UsersPage() {
       {target && (
         <Dialog
           title={
-            token
+            phase === "result"
               ? "一次性密码重置"
-              : target.action === "reset-password"
-                ? "重置用户密码"
-                : "修改账号状态"
+              : phase === "unknown"
+                ? "请核对账号状态"
+                : target.action === "reset-password"
+                  ? "重置用户密码"
+                  : "修改账号状态"
           }
+          closable={!locked}
           onClose={() => {
+            if (locked) return; // no-op guard: mask / Escape / corner X
+            clear();
             setTarget(null);
-            setToken("");
+            setError("");
           }}
         >
-          {token ? (
+          {phase === "result" ? (
             <>
               <p>
                 已撤销旧密码和所有会话。将以下令牌交给本人，在 30 分钟内前往{" "}
@@ -240,15 +300,45 @@ export function UsersPage() {
                 className="reset-token"
                 value={token}
               />
+              <div className="dialog-actions">
+                <Button onClick={() => void copyToken()}>复制</Button>
+                {copied && <span className="reset-copied">已复制</span>}
+                <Button variant="primary" onClick={done}>
+                  完成
+                </Button>
+              </div>
+            </>
+          ) : phase === "unknown" ? (
+            <>
+              <p>
+                结果未确认：无法判断本次重置是否已生效，旧凭据可能已被撤销。
+              </p>
+              <p>
+                请重新核对账号状态；如需再次签发，请通过现有「重置密码」入口重新发起，系统不会自动重发。
+              </p>
+              <div className="dialog-actions">
+                <Button variant="primary" onClick={recheck}>
+                  重新核对账号
+                </Button>
+              </div>
             </>
           ) : (
             <>
               <p>确认对“{target.user.username}”执行此操作？</p>
               <div className="dialog-actions">
-                <Button onClick={() => setTarget(null)}>取消</Button>
+                {phase !== "running" && (
+                  <Button
+                    onClick={() => {
+                      clear();
+                      setTarget(null);
+                    }}
+                  >
+                    取消
+                  </Button>
+                )}
                 <Button
                   variant="primary"
-                  busy={busy}
+                  busy={phase === "running"}
                   onClick={() => void confirm()}
                 >
                   确认操作

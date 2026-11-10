@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Pagination } from "antd";
 import {
   apiClient,
+  loadCatalogPages,
   routes,
   type ProjectReply,
   type ResourceDTO,
@@ -67,11 +68,13 @@ export function TemplatePicker({
   const categories = useQuery({
     queryKey: ["template-categories", user!.id],
     queryFn: () =>
-      request(routes.ListCatalog, {
-        kind: "template-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.ListCatalog, {
+          kind: "template-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   const fonts = useQuery({
@@ -229,10 +232,9 @@ export function TemplatePicker({
           }}
           options={[
             { value: "", label: "全部分类" },
-            ...(categories.data?.resources.map((r) => ({
-              value: r.id,
-              label: r.title,
-            })) ?? []),
+            ...(categories.isSuccess
+              ? categories.data.map((r) => ({ value: r.id, label: r.title }))
+              : []),
           ]}
         />
         <Button
@@ -251,6 +253,12 @@ export function TemplatePicker({
           onChange={(e) => void importPackage(e.target.files?.[0])}
         />
       </div>
+      {categories.isError && (
+        <div data-testid="category-error" className="picker-failed">
+          <Status tone="error">分类加载失败，请重新加载</Status>
+          <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
       <div className="template-picker-grid">
         {q.data?.resources.map((resource) => {
           const document = documents.get(resource.id);

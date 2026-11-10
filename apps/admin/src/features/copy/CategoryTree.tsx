@@ -72,6 +72,14 @@ export function CategoryTree({
     failed,
     rows: categories.length,
   });
+  /* FP-10 / Ruling 135. After a COMPLETE admin read the server should expose
+     every parent (unpublished ones included). A node whose parentId is still
+     absent means the catalog is genuinely incomplete: say so and offer the
+     existing retry path instead of silently dropping the node. */
+  const ids = new Set(categories.map((r) => r.id));
+  const incomplete =
+    state === "ready" &&
+    categories.some((row) => row.parentId && !ids.has(row.parentId));
   const roots = categoryTree(categories);
   const node = (category: CategoryNode): TreeDataNode => ({
     key: category.id,
@@ -138,6 +146,16 @@ export function CategoryTree({
         <p className="copy-tree-empty">
           还没有分类。先创建一级分类，逐层向下最多五级。
         </p>
+      )}
+      {incomplete && (
+        <div className="copy-tree-failed" data-testid="category-incomplete">
+          <Status tone="error">目录不完整，请重新加载</Status>
+          <Tooltip label="重新加载分类">
+            <IconButton aria-label="重新加载分类" onClick={onRetry}>
+              <RotateCcw size={14} />
+            </IconButton>
+          </Tooltip>
+        </div>
       )}
       {state === "ready" && (
         <Tree

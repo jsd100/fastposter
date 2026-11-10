@@ -6,6 +6,7 @@ import {
   selectScenery,
   selectTrigger,
   selectValue,
+  showOpenOptions,
 } from "./helpers";
 test("administrator publishes a background, user adopts it, unpublication preserves export", async ({
   browser,
@@ -338,6 +339,86 @@ test("background grid returns to the previous page after its last row disappears
       admin.getByRole("button", { name: "下一页", exact: true }),
     ).toHaveCount(0);
     await expect(admin.getByText("还没有共享背景")).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
+/* FP-10 / A09.1 / A09.4. The admin background filter must read the WHOLE
+   category catalog before offering a tree/dropdown: the 101st category lives
+   on a second page. The request sequence (page 1, page 2, pageSize 100) is
+   asserted so a synthetic single page cannot pass by accident. */
+test("admin catalog reads every category page before showing the tree", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const context = await browser.newContext();
+  const admin = await context.newPage();
+  await admin.goto("http://127.0.0.1:15174/admin/login");
+  await admin.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+  await admin
+    .getByLabel("密码", { exact: true })
+    .fill("fastposter-test-only-password");
+  await admin
+    .getByRole("button", { name: "登录管理后台", exact: true })
+    .click();
+  await expect(admin).toHaveURL(/\/admin\/overview$/);
+  try {
+    const first = Array.from({ length: 100 }, (_, i) => ({
+      id: `a09-bg-cat-${String(i).padStart(3, "0")}`,
+      kind: "background-category",
+      title: `背景分类 ${String(i).padStart(3, "0")}`,
+      sortOrder: i,
+      published: true,
+      version: "1",
+    }));
+    const last = {
+      id: "a09-bg-cat-100",
+      kind: "background-category",
+      title: "第 101 个背景分类",
+      sortOrder: 100,
+      published: true,
+      version: "1",
+    };
+    const seen: string[] = [];
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/background-category\?/,
+      (route) => {
+        const url = new URL(route.request().url());
+        const p = url.searchParams.get("page") ?? "1";
+        seen.push(`${p}:${url.searchParams.get("pageSize") ?? ""}`);
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-a09",
+            resources: p === "1" ? first : [last],
+            total: 101,
+          }),
+        });
+      },
+    );
+    await admin.route(/\/api\/v1\/admin\/resources\/background\?/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-a09",
+          resources: [],
+          total: 0,
+        }),
+      }),
+    );
+    await admin.getByRole("link", { name: "背景库", exact: true }).click();
+    await expect(admin).toHaveURL(/\/admin\/backgrounds$/);
+    await expect.poll(() => seen.join("|")).toBe("1:100|2:100");
+    const listbox = await showOpenOptions(admin, "筛选素材分类");
+    await expect(
+      listbox.getByRole("option", {
+        name: "第 101 个背景分类",
+        exact: true,
+      }),
+    ).toBeVisible();
   } finally {
     await context.close();
   }

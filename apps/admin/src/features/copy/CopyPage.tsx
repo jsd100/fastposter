@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { routes, type ResourceDTO } from "@fastposter/api-client";
+import {
+  loadCatalogPages,
+  routes,
+  type ResourceDTO,
+} from "@fastposter/api-client";
 import { Button, TextInput, useErrorNotice } from "@fastposter/ui";
 import { Plus } from "lucide-react";
 import { errorMessage, request } from "../../api";
@@ -29,11 +33,13 @@ export function CopyPage() {
   const categories = useQuery({
     queryKey: ["admin", "copy-categories"],
     queryFn: () =>
-      request(routes.AdminResources, {
-        kind: "copy-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.AdminResources, {
+          kind: "copy-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   const viewIdentity = adminPageIdentity(["copy", selected, keyword, page]);
@@ -80,7 +86,7 @@ export function CopyPage() {
     copies.fetchStatus,
     viewIdentity,
   ]);
-  const categoryRows = categories.data?.resources ?? [];
+  const categoryRows = categories.isSuccess ? categories.data : [];
   useErrorNotice(
     "admin:copy-categories",
     categories.error ? errorMessage(categories.error) : null,
@@ -99,13 +105,15 @@ export function CopyPage() {
   );
   useErrorNotice("admin:copy-action", error || null);
   useEffect(() => {
+    // Only a complete, successful read may clear the selection; a failed
+    // refetch keeps the current scope (FP-10 / Ruling 134).
     if (
       selected &&
-      categories.data &&
+      categories.isSuccess &&
       !categoryRows.some((r) => r.id === selected)
     )
       setSelected("");
-  }, [categories.data, categoryRows, selected]);
+  }, [categories.isSuccess, categoryRows, selected]);
   const refresh = async () => {
     await Promise.all([
       cache.invalidateQueries({ queryKey: ["admin", "copy-categories"] }),

@@ -1,5 +1,11 @@
 import { BrandIcon, IconButton, Tooltip } from "@fastposter/ui";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { Drawer, Menu } from "antd";
 import type { MenuProps } from "antd";
 import type { UserDTO } from "@fastposter/api-client";
@@ -19,6 +25,7 @@ import {
   Menu as MenuIcon,
 } from "lucide-react";
 import { Link } from "./router";
+import { useResetSession } from "./main";
 
 /**
  * Navigation is grouped by what an operator is doing: tending accounts and
@@ -65,7 +72,7 @@ function AdminNav({
   onNavigate,
 }: {
   path: string;
-  onNavigate?: () => void;
+  onNavigate?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const selected = routeOf(path);
   const entries: MenuProps["items"] = groups.map((group) => ({
@@ -149,6 +156,23 @@ export function AdminLayout({
   const close = () => setDrawer(false);
   const toggle = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
+  /* Ruling 128. A running or completed-but-unfinished reset must not be
+     hidden by a user-initiated menu navigation; internal navigate() calls
+     (session-expired, logout, login redirect) are intentionally untouched. */
+  const { phase } = useResetSession();
+  const [navBlocked, setNavBlocked] = useState(false);
+  const handleNav = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (phase === "running" || phase === "result") {
+      event.preventDefault();
+      setNavBlocked(true);
+      return;
+    }
+    setNavBlocked(false);
+    setDrawer(false);
+  };
+  useEffect(() => {
+    if (phase !== "running" && phase !== "result") setNavBlocked(false);
+  }, [phase]);
   /**
    * Closing the navigation hands focus back to the button that opened it, on
    * every path out of the drawer: a link, the mask, Escape. The drawer library
@@ -164,12 +188,34 @@ export function AdminLayout({
   }, [drawer]);
   return (
     <div className="admin-shell">
+      {navBlocked && (
+        /* FP-10 / Ruling 128. Float above the modal mask so the explanation
+           is actually visible while the reset dialog is open. */
+        <div
+          className="admin-nav-blocked"
+          role="alert"
+          style={{
+            position: "fixed",
+            zIndex: 2000,
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#FFFFFF",
+            color: "#202C25",
+            padding: "10px 16px",
+            borderRadius: 8,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+          }}
+        >
+          请先完成密码重置流程，再切换页面。
+        </div>
+      )}
       <aside className="admin-sidebar">
         <Link className="brand" href="/admin/overview">
           <BrandIcon />
           FastPoster<small>管理</small>
         </Link>
-        <AdminNav path={path} />
+        <AdminNav path={path} onNavigate={handleNav} />
         <AdminFooter user={user} logout={logout} />
       </aside>
       <main className="admin-main">
@@ -204,7 +250,7 @@ export function AdminLayout({
         focusable={{ focusTriggerAfterClose: false }}
         styles={{ body: { padding: "8px 0 16px" } }}
       >
-        <AdminNav path={path} onNavigate={close} />
+        <AdminNav path={path} onNavigate={handleNav} />
         <AdminFooter user={user} logout={logout} onNavigate={close} />
       </Drawer>
     </div>

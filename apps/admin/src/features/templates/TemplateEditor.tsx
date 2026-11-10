@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   apiClient,
+  loadCatalogPages,
   routes,
   type AssetDTO,
   type AssetReply,
@@ -13,6 +14,7 @@ import {
   LoadingState,
   NumberField,
   Select,
+  Status,
   TextInput,
   Workbench,
   useErrorNotice,
@@ -59,11 +61,13 @@ export function TemplateEditor({
   const categories = useQuery({
     queryKey: ["admin", "categories", "template"],
     queryFn: () =>
-      request(routes.AdminResources, {
-        kind: "template-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.AdminResources, {
+          kind: "template-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   const fontQuery = useQuery({
@@ -229,10 +233,9 @@ export function TemplateEditor({
             onValueChange={setCategoryId}
             options={[
               { value: "", label: "未分类" },
-              ...(categories.data?.resources.map((r) => ({
-                value: r.id,
-                label: r.title,
-              })) ?? []),
+              ...(categories.isSuccess
+                ? categories.data.map((r) => ({ value: r.id, label: r.title }))
+                : []),
             ]}
           />
           <label className="template-sort">
@@ -251,6 +254,14 @@ export function TemplateEditor({
             checked={published}
             onChange={setPublished}
           />
+          {categories.isError && (
+            <div data-testid="category-error" className="picker-failed">
+              <Status tone="error">分类加载失败，请重新加载</Status>
+              <Button onClick={() => void categories.refetch()}>
+                重新加载
+              </Button>
+            </div>
+          )}
         </div>
         <div className="template-editor-actions">
           {overflow && <span className="template-overflow">文字超出画布</span>}

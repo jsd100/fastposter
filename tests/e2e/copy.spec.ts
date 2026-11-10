@@ -1,6 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
-import { chooseOption, selectTrigger, selectValue, setColor } from "./helpers";
+import {
+  chooseOption,
+  openPoster,
+  selectTrigger,
+  selectValue,
+  setColor,
+  showOpenOptions,
+} from "./helpers";
 
 async function loginAdmin(page: Page) {
   await page.goto("http://127.0.0.1:15174/admin/login");
@@ -309,4 +316,169 @@ test("copy list returns to the previous page after its last row disappears", asy
   } finally {
     await adminContext.close();
   }
+});
+
+/* FP-10 / A09.1. A complete catalog read must see past the 100th record and
+   still assemble a cross-page parent/child pair. The two synthetic pages are
+   keyed on searchParams("page"); the request sequence is asserted. */
+test("catalog includes category 101 and cross-page ancestry", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  try {
+    const first = Array.from({ length: 100 }, (_, i) => ({
+      id: `a09-cat-${String(i).padStart(3, "0")}`,
+      kind: "copy-category",
+      title: `分页分类 ${String(i).padStart(3, "0")}`,
+      sortOrder: i,
+      published: true,
+      version: "1",
+    }));
+    const parentId = first[0].id;
+    const child = {
+      id: "a09-cat-100",
+      kind: "copy-category",
+      title: "第 101 条跨页子分类",
+      sortOrder: 100,
+      published: true,
+      version: "1",
+      parentId,
+    };
+    const seen: string[] = [];
+    const categoryBody = (resources: unknown[]) =>
+      JSON.stringify({ requestId: "e2e-a09", resources, total: 101 });
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/copy-category\?/,
+      (route) => {
+        const url = new URL(route.request().url());
+        const p = url.searchParams.get("page") ?? "1";
+        seen.push(`${p}:${url.searchParams.get("pageSize") ?? ""}`);
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: categoryBody(p === "1" ? first : [child]),
+        });
+      },
+    );
+    await admin.route(/\/api\/v1\/admin\/resources\/copy\?/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-a09",
+          resources: [],
+          total: 0,
+        }),
+      }),
+    );
+    await admin.getByRole("link", { name: "文案库", exact: true }).click();
+    await expect(admin).toHaveURL(/\/admin\/copy$/);
+    // Exact request sequence: page 1 then page 2, both pageSize 100.
+    await expect.poll(() => seen.join("|")).toBe("1:100|2:100");
+    // The 101st record is in the tree and its cross-page parent is present.
+    await expect(
+      admin.getByText("第 101 条跨页子分类", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      admin.getByText("分页分类 000", { exact: true }),
+    ).toBeVisible();
+  } finally {
+    await adminContext.close();
+  }
+});
+
+/* FP-10 / A09.1 / Ruling 136. Prefer the real API: an unpublished parent with
+   a published child. The server filters by each category's own published flag,
+   so the parent is absent from the public catalog; the child must still be a
+   selectable top-level entry carrying its visible descendants. */
+test("published copy child without visible parent remains selectable", async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(150_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  const stamp = Date.now().toString(36);
+  const parentTitle = `未发布父级 ${stamp}`;
+  const childTitle = `可见子级 ${stamp}`;
+  const grandTitle = `可见孙级 ${stamp}`;
+  const post = (data: Record<string, unknown>) =>
+    admin.request.post("http://127.0.0.1:15174/api/v1/admin/resources", {
+      data,
+    });
+  const parentResponse = await post({
+    kind: "copy-category",
+    title: parentTitle,
+    published: false,
+  });
+  expect(parentResponse.ok()).toBeTruthy();
+  const parentId = (await parentResponse.json()).resource.id as string;
+  const childResponse = await post({
+    kind: "copy-category",
+    title: childTitle,
+    parentId,
+    published: true,
+  });
+  expect(childResponse.ok()).toBeTruthy();
+  const childId = (await childResponse.json()).resource.id as string;
+  const grandResponse = await post({
+    kind: "copy-category",
+    title: grandTitle,
+    parentId: childId,
+    published: true,
+  });
+  expect(grandResponse.ok()).toBeTruthy();
+  // A published root keeps the level-1 dropdown present on BOTH baseline and
+  // fixed code, so the orphaned-child assertion is a real product outcome,
+  // not a missing-selector timeout.
+  const anchorTitle = `可见根级 ${stamp}`;
+  const anchorResponse = await post({
+    kind: "copy-category",
+    title: anchorTitle,
+    published: true,
+  });
+  expect(anchorResponse.ok()).toBeTruthy();
+
+  const copyQueries: string[] = [];
+  page.on("request", (req) => {
+    const u = new URL(req.url());
+    if (req.method() === "GET" && u.pathname === "/api/v1/catalog/copy")
+      copyQueries.push(u.searchParams.get("categoryId") ?? "");
+  });
+
+  await openPoster(page, "a09_orphan");
+  const copyButton = page.getByRole("button", { name: "文案", exact: true });
+  await expect(copyButton).toBeEnabled({ timeout: 15_000 });
+  await copyButton.click();
+  const picker = page.getByRole("dialog", { name: "文案库" });
+  await expect(picker).toBeVisible();
+
+  const listbox = await showOpenOptions(page, "文案分类第1级");
+  await expect(
+    listbox.getByRole("option", { name: anchorTitle, exact: true }),
+  ).toBeVisible();
+  // The published child whose parent is invisible is a selectable root.
+  await expect(
+    listbox.getByRole("option", { name: childTitle, exact: true }),
+  ).toBeVisible();
+  await expect(
+    listbox.getByRole("option", { name: parentTitle, exact: true }),
+  ).toHaveCount(0);
+  await listbox.getByRole("option", { name: childTitle, exact: true }).click();
+  // antd keeps a closed dropdown mounted through its exit animation; wait for
+  // it to leave so getByRole('listbox') resolves to a single element again.
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+
+  // The real category id (not a synthetic one) drives the copy query.
+  await expect.poll(() => copyQueries.includes(childId)).toBe(true);
+  // Its published descendant is carried along as the next level.
+  const level2 = await showOpenOptions(page, "文案分类第2级");
+  await expect(
+    level2.getByRole("option", { name: grandTitle, exact: true }),
+  ).toBeVisible();
+  await adminContext.close();
 });
