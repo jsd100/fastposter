@@ -145,7 +145,13 @@ function AdminApp() {
   const client = useQueryClient();
   const [user, setUser] = useState<UserDTO | null>();
   const notify = useNotify();
-  const { clear } = useResetSession();
+  const { clear, phase } = useResetSession();
+  /* FP-10 / Ruling 142. An active reset flow must keep UsersPage (and its
+     token Dialog) mounted regardless of `path`. This structurally covers the
+     brand link, popstate/history and any internal navigate() that bypasses the
+     Link onClick guard, so in-app navigation cannot lose the running result. */
+  const resetActive =
+    phase === "running" || phase === "result" || phase === "unknown";
   useNotificationScope(user ? user.id : "anonymous");
   useEffect(() => {
     let active = true;
@@ -229,7 +235,7 @@ function AdminApp() {
       }
     >
       <Suspense fallback={<LoadingState label="正在加载页面…" />}>
-        {path === "/admin/users" ? (
+        {resetActive || path === "/admin/users" ? (
           <UsersPage />
         ) : path === "/admin/projects" ? (
           <ProjectsPage />

@@ -211,7 +211,7 @@ export function AdminLayout({
         </div>
       )}
       <aside className="admin-sidebar">
-        <Link className="brand" href="/admin/overview">
+        <Link className="brand" href="/admin/overview" onClick={handleNav}>
           <BrandIcon />
           FastPoster<small>管理</small>
         </Link>

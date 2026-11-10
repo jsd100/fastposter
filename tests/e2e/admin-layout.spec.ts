@@ -644,3 +644,79 @@ test.describe("FP-10 admin reset authorization session", () => {
     ).toBeVisible();
   });
 });
+
+/* FP-10 / A09 fix round 1 / Rulings 141-148. I-1: the shell brand link has no
+   onNavigate guard, and browser history (popstate) never passes through Link
+   onClick at all. Both change `path`, which used to unmount UsersPage and drop
+   its local `target`/Dialog while `phase: "result"` stayed live in the provider
+   above AdminApp — leaving the one-time token unreachable and 完成 unclickable.
+   FP-10 spec line 114 requires in-app navigation in the shell not to lose the
+   running result. Two independent cases, one per navigation path. Ruling 132:
+   synthetic token, boolean-only value assertions, no value in failure output. */
+test.describe("reset result survives brand link and browser history navigation", () => {
+  /** Drives a delayed POST to a successful, visible one-time token. */
+  async function reachResetResult(page: Page) {
+    await gotoUsers(page);
+    let postCount = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(RESET_POST, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      postCount += 1;
+      await gate;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: resetReply(SYNTHETIC),
+      });
+    });
+    const dialog = await openResetConfirm(page);
+    await dialog.getByRole("button", { name: "确认操作", exact: true }).click();
+    await expect.poll(() => postCount).toBe(1);
+    release();
+    const token = page.getByLabel("一次性重置令牌");
+    await expect(token).toBeVisible();
+    expect((await token.inputValue()) === SYNTHETIC).toBe(true);
+    return { dialog, token };
+  }
+
+  test("brand link keeps the one-time token and 完成 reachable", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const { dialog, token } = await reachResetResult(page);
+    // The brand link sits in the sidebar, outside the guarded AdminNav. The
+    // modal mask covers the shell, so activate the link through its own DOM
+    // click; the Link onClick still runs and can preventDefault().
+    await page.locator("a.brand").evaluate((el) => (el as HTMLElement).click());
+    await expect(dialog).toBeVisible();
+    await expect(token).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "完成", exact: true }),
+    ).toBeVisible();
+    expect((await token.inputValue()) === SYNTHETIC).toBe(true);
+    // 完成 stays the only action that releases the flow.
+    await dialog.getByRole("button", { name: "完成", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test("browser history keeps the one-time token and 完成 reachable", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const { dialog, token } = await reachResetResult(page);
+    // popstate never goes through Link onClick, so no preventDefault guard can
+    // stop it; only keeping UsersPage mounted structurally can preserve this.
+    await page.goBack();
+    await expect(dialog).toBeVisible();
+    await expect(token).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "完成", exact: true }),
+    ).toBeVisible();
+    expect((await token.inputValue()) === SYNTHETIC).toBe(true);
+    await dialog.getByRole("button", { name: "完成", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+});
