@@ -22,7 +22,14 @@ import {
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
 import { loadFonts, type FontSource } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
-import { errorMessage, request } from "../../api";
+import {
+  errorMessage,
+  isGone,
+  isRevisionConflict,
+  isStaleClient,
+  reloadResource,
+  request,
+} from "../../api";
 
 export function TemplateEditor({
   resource,
@@ -56,7 +63,8 @@ export function TemplateEditor({
     [uploading, setUploading] = useState(false),
     [overflow, setOverflow] = useState(false),
     [availableFonts, setAvailableFonts] = useState<FontSource[]>([]),
-    [fontsReady, setFontsReady] = useState(false);
+    [fontsReady, setFontsReady] = useState(false),
+    [conflict, setConflict] = useState<ResourceDTO | null>(null);
   const backgroundFile = useRef<HTMLInputElement>(null);
   const categories = useQuery({
     queryKey: ["admin", "categories", "template"],
@@ -185,7 +193,7 @@ export function TemplateEditor({
       if (backgroundFile.current) backgroundFile.current.value = "";
     }
   }
-  async function save() {
+  async function save(version: string | undefined = resource?.version) {
     if (!draft || busy) return;
     if (!title.trim()) {
       setError("请填写模板名称");
@@ -202,10 +210,29 @@ export function TemplateEditor({
         sortOrder,
         published,
         document: JSON.stringify(draft),
+        expectedVersion: version,
       });
+      setConflict(null);
       await saved();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) && resource) {
+        const latest = await reloadResource(resource.id).catch(() => null);
+        if (latest) {
+          setConflict(latest);
+          setError(
+            "模板已被其他操作更新，草稿与素材引用已保留。请确认后以最新版本重新提交。",
+          );
+        } else {
+          setError("模板已删除或无权访问，请关闭编辑器刷新页面。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
+        setError("页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("模板不存在或无权访问，请关闭编辑器刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -278,6 +305,29 @@ export function TemplateEditor({
           </Button>
         </div>
       </header>
+      {conflict && (
+        <div className="inline-confirm" data-testid="version-conflict">
+          <span>
+            最新版本 {conflict.version} · {conflict.title}
+            。当前草稿与素材引用已保留；确认后仅以最新版本重新提交，不会自动合并或覆盖。
+          </span>
+          <Button
+            variant="primary"
+            busy={busy}
+            onClick={() => void save(conflict.version)}
+          >
+            确认重新提交
+          </Button>
+          <Button
+            onClick={() => {
+              setConflict(null);
+              setError("请刷新页面后重新编辑。");
+            }}
+          >
+            放弃修改
+          </Button>
+        </div>
+      )}
       {!draft ? (
         <div className="template-editor-empty">
           <h2>{resource ? "模板文档不可用" : "选择模板背景"}</h2>

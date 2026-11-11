@@ -16,6 +16,7 @@ var GeneratedRoutes = []RouteSpec{
 	{"AdminAudit", "GET", "/api/v1/admin/audit"},
 	{"AdminResources", "GET", "/api/v1/admin/resources/:kind"},
 	{"AdminSaveResource", "POST", "/api/v1/admin/resources"},
+	{"AdminGetResource", "GET", "/api/v1/admin/resources/:id/detail"},
 	{"AdminDeleteResource", "DELETE", "/api/v1/admin/resources/:id"},
 	{"AdminMoveResource", "POST", "/api/v1/admin/resources/:id/move"},
 	{"UploadFont", "POST", "/api/v1/admin/fonts/upload"},

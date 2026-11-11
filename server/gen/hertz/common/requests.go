@@ -4030,20 +4030,21 @@ func (p *ChangePasswordInput) String() string {
 }
 
 type ResourceInput struct {
-	Kind       string  `thrift:"kind,1,required" form:"kind,required" json:"kind,required"`
-	Title      string  `thrift:"title,2,required" form:"title,required" json:"title,required"`
-	ID         *string `thrift:"id,3,optional" form:"id" json:"id,omitempty"`
-	CategoryId *string `thrift:"categoryId,4,optional" form:"categoryId" json:"categoryId,omitempty"`
-	SortOrder  *int32  `thrift:"sortOrder,5,optional" form:"sortOrder" json:"sortOrder,omitempty"`
-	Published  *bool   `thrift:"published,6,optional" form:"published" json:"published,omitempty"`
-	AssetId    *string `thrift:"assetId,7,optional" form:"assetId" json:"assetId,omitempty"`
-	Document   *string `thrift:"document,8,optional" form:"document" json:"document,omitempty"`
-	Body       *string `thrift:"body,9,optional" form:"body" json:"body,omitempty"`
-	ParentId   *string `thrift:"parentId,10,optional" form:"parentId" json:"parentId,omitempty"`
-	Family     *string `thrift:"family,11,optional" form:"family" json:"family,omitempty"`
-	Weight     *int32  `thrift:"weight,12,optional" form:"weight" json:"weight,omitempty"`
-	Style      *string `thrift:"style,13,optional" form:"style" json:"style,omitempty"`
-	License    *string `thrift:"license,14,optional" form:"license" json:"license,omitempty"`
+	Kind            string  `thrift:"kind,1,required" form:"kind,required" json:"kind,required"`
+	Title           string  `thrift:"title,2,required" form:"title,required" json:"title,required"`
+	ID              *string `thrift:"id,3,optional" form:"id" json:"id,omitempty"`
+	CategoryId      *string `thrift:"categoryId,4,optional" form:"categoryId" json:"categoryId,omitempty"`
+	SortOrder       *int32  `thrift:"sortOrder,5,optional" form:"sortOrder" json:"sortOrder,omitempty"`
+	Published       *bool   `thrift:"published,6,optional" form:"published" json:"published,omitempty"`
+	AssetId         *string `thrift:"assetId,7,optional" form:"assetId" json:"assetId,omitempty"`
+	Document        *string `thrift:"document,8,optional" form:"document" json:"document,omitempty"`
+	Body            *string `thrift:"body,9,optional" form:"body" json:"body,omitempty"`
+	ParentId        *string `thrift:"parentId,10,optional" form:"parentId" json:"parentId,omitempty"`
+	Family          *string `thrift:"family,11,optional" form:"family" json:"family,omitempty"`
+	Weight          *int32  `thrift:"weight,12,optional" form:"weight" json:"weight,omitempty"`
+	Style           *string `thrift:"style,13,optional" form:"style" json:"style,omitempty"`
+	License         *string `thrift:"license,14,optional" form:"license" json:"license,omitempty"`
+	ExpectedVersion *string `thrift:"expectedVersion,15,optional" form:"expectedVersion" json:"expectedVersion,omitempty"`
 }
 
 func NewResourceInput() *ResourceInput {
@@ -4169,6 +4170,15 @@ func (p *ResourceInput) GetLicense() (v string) {
 	return *p.License
 }
 
+var ResourceInput_ExpectedVersion_DEFAULT string
+
+func (p *ResourceInput) GetExpectedVersion() (v string) {
+	if !p.IsSetExpectedVersion() {
+		return ResourceInput_ExpectedVersion_DEFAULT
+	}
+	return *p.ExpectedVersion
+}
+
 var fieldIDToName_ResourceInput = map[int16]string{
 	1:  "kind",
 	2:  "title",
@@ -4184,6 +4194,7 @@ var fieldIDToName_ResourceInput = map[int16]string{
 	12: "weight",
 	13: "style",
 	14: "license",
+	15: "expectedVersion",
 }
 
 func (p *ResourceInput) IsSetID() bool {
@@ -4232,6 +4243,10 @@ func (p *ResourceInput) IsSetStyle() bool {
 
 func (p *ResourceInput) IsSetLicense() bool {
 	return p.License != nil
+}
+
+func (p *ResourceInput) IsSetExpectedVersion() bool {
+	return p.ExpectedVersion != nil
 }
 
 func (p *ResourceInput) Read(iprot thrift.TProtocol) (err error) {
@@ -4364,6 +4379,14 @@ func (p *ResourceInput) Read(iprot thrift.TProtocol) (err error) {
 		case 14:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField14(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 15:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField15(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -4563,6 +4586,17 @@ func (p *ResourceInput) ReadField14(iprot thrift.TProtocol) error {
 	p.License = _field
 	return nil
 }
+func (p *ResourceInput) ReadField15(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ExpectedVersion = _field
+	return nil
+}
 
 func (p *ResourceInput) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -4624,6 +4658,10 @@ func (p *ResourceInput) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField14(oprot); err != nil {
 			fieldId = 14
+			goto WriteFieldError
+		}
+		if err = p.writeField15(oprot); err != nil {
+			fieldId = 15
 			goto WriteFieldError
 		}
 	}
@@ -4906,6 +4944,25 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 14 end error: ", p), err)
 }
 
+func (p *ResourceInput) writeField15(oprot thrift.TProtocol) (err error) {
+	if p.IsSetExpectedVersion() {
+		if err = oprot.WriteFieldBegin("expectedVersion", thrift.STRING, 15); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ExpectedVersion); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 15 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 15 end error: ", p), err)
+}
+
 func (p *ResourceInput) String() string {
 	if p == nil {
 		return "<nil>"
@@ -4915,8 +4972,9 @@ func (p *ResourceInput) String() string {
 }
 
 type MoveResourceInput struct {
-	ID       string  `thrift:"id,1,required" json:"id,required" path:"id,required"`
-	ParentId *string `thrift:"parentId,2,optional" form:"parentId" json:"parentId,omitempty"`
+	ID              string  `thrift:"id,1,required" json:"id,required" path:"id,required"`
+	ParentId        *string `thrift:"parentId,2,optional" form:"parentId" json:"parentId,omitempty"`
+	ExpectedVersion *string `thrift:"expectedVersion,3,optional" form:"expectedVersion" json:"expectedVersion,omitempty"`
 }
 
 func NewMoveResourceInput() *MoveResourceInput {
@@ -4939,13 +4997,27 @@ func (p *MoveResourceInput) GetParentId() (v string) {
 	return *p.ParentId
 }
 
+var MoveResourceInput_ExpectedVersion_DEFAULT string
+
+func (p *MoveResourceInput) GetExpectedVersion() (v string) {
+	if !p.IsSetExpectedVersion() {
+		return MoveResourceInput_ExpectedVersion_DEFAULT
+	}
+	return *p.ExpectedVersion
+}
+
 var fieldIDToName_MoveResourceInput = map[int16]string{
 	1: "id",
 	2: "parentId",
+	3: "expectedVersion",
 }
 
 func (p *MoveResourceInput) IsSetParentId() bool {
 	return p.ParentId != nil
+}
+
+func (p *MoveResourceInput) IsSetExpectedVersion() bool {
+	return p.ExpectedVersion != nil
 }
 
 func (p *MoveResourceInput) Read(iprot thrift.TProtocol) (err error) {
@@ -4980,6 +5052,14 @@ func (p *MoveResourceInput) Read(iprot thrift.TProtocol) (err error) {
 		case 2:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -5042,6 +5122,17 @@ func (p *MoveResourceInput) ReadField2(iprot thrift.TProtocol) error {
 	p.ParentId = _field
 	return nil
 }
+func (p *MoveResourceInput) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ExpectedVersion = _field
+	return nil
+}
 
 func (p *MoveResourceInput) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -5055,6 +5146,10 @@ func (p *MoveResourceInput) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField2(oprot); err != nil {
 			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
 			goto WriteFieldError
 		}
 	}
@@ -5109,6 +5204,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *MoveResourceInput) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetExpectedVersion() {
+		if err = oprot.WriteFieldBegin("expectedVersion", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ExpectedVersion); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
 }
 
 func (p *MoveResourceInput) String() string {

@@ -7,7 +7,13 @@ import {
 } from "@fastposter/api-client";
 import { Button, TextInput, useErrorNotice } from "@fastposter/ui";
 import { Plus } from "lucide-react";
-import { errorMessage, request } from "../../api";
+import {
+  errorMessage,
+  isGone,
+  isRevisionConflict,
+  isStaleClient,
+  request,
+} from "../../api";
 import { PAGE_SIZE, RecordPager } from "../records";
 import {
   pageAfterShrink,
@@ -132,10 +138,17 @@ export function CopyPage() {
         categoryId: copy.categoryId,
         sortOrder: copy.sortOrder,
         published: !copy.published,
+        expectedVersion: copy.version,
       });
       await cache.invalidateQueries({ queryKey: ["admin", "copies"] });
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) || isStaleClient(e)) {
+        setError("该文案已被更新或页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("文案不存在或无权访问，请刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy("");
     }

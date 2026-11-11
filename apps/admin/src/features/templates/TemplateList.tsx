@@ -25,7 +25,14 @@ import {
 } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { Download, LayoutTemplate, Plus, Upload } from "lucide-react";
-import { download, errorMessage, request } from "../../api";
+import {
+  download,
+  errorMessage,
+  isGone,
+  isRevisionConflict,
+  isStaleClient,
+  request,
+} from "../../api";
 import { PAGE_SIZE, RecordPager } from "../records";
 import {
   pageAfterShrink,
@@ -161,10 +168,17 @@ export function TemplatesPage() {
         sortOrder: resource.sortOrder,
         published: !resource.published,
         document: resource.document,
+        expectedVersion: resource.version,
       });
       await refresh();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) || isStaleClient(e)) {
+        setError("该模板已被更新或页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("模板不存在或无权访问，请刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy("");
     }

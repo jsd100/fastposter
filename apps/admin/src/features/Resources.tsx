@@ -1,5 +1,5 @@
 import { FontPreview } from "./FontPreview";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "antd";
 import {
@@ -23,7 +23,14 @@ import {
   useErrorNotice,
 } from "@fastposter/ui";
 import { Plus, ImagePlus, Type } from "lucide-react";
-import { request, errorMessage } from "../api";
+import {
+  errorMessage,
+  isGone,
+  isRevisionConflict,
+  isStaleClient,
+  reloadResource,
+  request,
+} from "../api";
 import { PAGE_SIZE, RecordPager } from "./records";
 import {
   pageAfterShrink,
@@ -109,10 +116,17 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         sortOrder: resource.sortOrder,
         published: !resource.published,
         license: resource.license,
+        expectedVersion: resource.version,
       });
       await refresh();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) || isStaleClient(e)) {
+        setError("该素材已被更新或页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("素材不存在或无权访问，请刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -350,16 +364,21 @@ function ResourceForm({
     [license, setLicense] = useState(resource?.license ?? ""),
     [file, setFile] = useState<File | null>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [conflict, setConflict] = useState<ResourceDTO | null>(null);
+  const uploadedAsset = useRef<string | undefined>(undefined);
   useErrorNotice("admin:resource-form", error || null);
   async function submit(e: FormEvent) {
     e.preventDefault();
+    await commit(resource?.version);
+  }
+  async function commit(version: string | undefined) {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
-      let assetId = resource?.asset?.id;
-      if (file) {
+      let assetId = uploadedAsset.current ?? resource?.asset?.id;
+      if (file && !uploadedAsset.current) {
         const form = new FormData();
         form.append("file", file);
         if (kind === "font") {
@@ -374,7 +393,8 @@ function ResourceForm({
             : "/api/v1/assets/images",
           form,
         );
-        assetId = uploaded.asset.id;
+        uploadedAsset.current = uploaded.asset.id;
+        assetId = uploadedAsset.current;
       }
       if (!assetId) throw Error("请选择需要上传的文件");
       await request(routes.AdminSaveResource, {
@@ -387,10 +407,29 @@ function ResourceForm({
         published,
         license,
         family: kind === "font" ? family : undefined,
+        expectedVersion: version,
       });
+      setConflict(null);
       await saved();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) && resource) {
+        const latest = await reloadResource(resource.id).catch(() => null);
+        if (latest) {
+          setConflict(latest);
+          setError(
+            "素材已被其他操作更新，草稿与已上传素材已保留。请确认后以最新版本重新提交。",
+          );
+        } else {
+          setError("素材已删除或无权访问，请关闭表单刷新页面。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
+        setError("页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("素材不存在或无权访问，请关闭表单刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -509,6 +548,31 @@ function ResourceForm({
           onChange={setPublished}
           disabled={busy}
         />
+        {conflict && (
+          <div className="inline-confirm" data-testid="version-conflict">
+            <span>
+              最新版本 {conflict.version} · {conflict.title}
+              。草稿与已上传素材已保留；确认后仅以最新版本重新提交，不会自动合并或覆盖。
+            </span>
+            <Button
+              type="button"
+              variant="primary"
+              busy={busy}
+              onClick={() => void commit(conflict.version)}
+            >
+              确认重新提交
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConflict(null);
+                setError("请刷新页面后重新编辑。");
+              }}
+            >
+              放弃修改
+            </Button>
+          </div>
+        )}
         <div className="dialog-actions">
           <Button type="button" disabled={busy} onClick={close}>
             取消

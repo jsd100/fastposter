@@ -151,8 +151,19 @@
       "family",
       "weight",
       "style",
-      "license"
+      "license",
+      "expectedVersion"
     ]
+  },
+  {
+    "name": "AdminGetResource",
+    "method": "GET",
+    "path": "/api/v1/admin/resources/:id/detail",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": []
   },
   {
     "name": "AdminDeleteResource",
@@ -173,7 +184,8 @@
     ],
     "queryFields": [],
     "bodyFields": [
-      "parentId"
+      "parentId",
+      "expectedVersion"
     ]
   },
   {

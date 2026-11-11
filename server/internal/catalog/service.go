@@ -21,6 +21,7 @@ type Filter struct {
 }
 type ResourceInput struct {
 	ID, Kind, Title, CategoryID, ParentID, AssetID, Document, Body, Family, Style, License string
+	ExpectedVersion                                                                        string
 	Weight, SortOrder                                                                      int
 	Published                                                                              bool
 }
@@ -62,6 +63,29 @@ func pagination(f Filter) (int, int, error) {
 	return f.Page, f.PageSize, nil
 }
 func catalogMissing() error { return domain.E("NOT_FOUND", "素材不存在或无权访问") }
+
+// parseExpectedVersion validates the concurrency token as a canonical
+// positive-integer decimal string. It never touches the database, so an
+// invalid token is rejected before the current version can be observed.
+func parseExpectedVersion(v string) (uint64, error) {
+	invalid := domain.E("INVALID_INPUT", "版本信息缺失或无效，请刷新页面后重试")
+	if v == "" {
+		return 0, invalid
+	}
+	for i := 0; i < len(v); i++ {
+		if v[i] < '0' || v[i] > '9' {
+			return 0, invalid
+		}
+	}
+	if v[0] == '0' {
+		return 0, invalid
+	}
+	n, e := strconv.ParseUint(v, 10, 64)
+	if e != nil {
+		return 0, invalid
+	}
+	return n, nil
+}
 
 const resourceColumns = "r.id,r.kind,r.title,r.current_version,r.category_id,r.parent_id,r.sort_order,r.published,v.asset_id,v.asset_version,v.document,v.body,v.metadata"
 
@@ -185,15 +209,37 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 	if utf8.RuneCountInString(input.Body) > 10000 || len(input.License) > 4000 {
 		return Resource{}, domain.E("INVALID_INPUT", "素材文案或授权说明过长")
 	}
+	// An existing-resource write must carry the snapshot version it saw.
+	// Creation (no ID) has no version prerequisite.
+	expected, e := func() (uint64, error) {
+		if input.ID == "" {
+			return 0, nil
+		}
+		return parseExpectedVersion(input.ExpectedVersion)
+	}()
+	if e != nil {
+		return Resource{}, e
+	}
 	tx, e := s.DB.BeginTx(ctx, nil)
 	if e != nil {
 		return Resource{}, e
 	}
 	defer tx.Rollback()
+	// For category writes take the stable tree lock before the target row,
+	// matching MoveCategory and Delete and avoiding a lock-order inversion.
+	isCategory := strings.HasSuffix(input.Kind, "-category")
+	var treeParents CategoryParents
+	if isCategory {
+		treeParents, e = LoadCategoryParents(ctx, tx, input.Kind)
+		if e != nil {
+			return Resource{}, e
+		}
+	}
 	id, version := input.ID, uint64(1)
 	if id != "" {
 		var kind string
-		e = tx.QueryRowContext(ctx, "SELECT kind,current_version FROM resources WHERE id=? AND deleted_at IS NULL FOR UPDATE", id).Scan(&kind, &version)
+		var current uint64
+		e = tx.QueryRowContext(ctx, "SELECT kind,current_version FROM resources WHERE id=? AND deleted_at IS NULL FOR UPDATE", id).Scan(&kind, &current)
 		if errors.Is(e, sql.ErrNoRows) {
 			return Resource{}, catalogMissing()
 		}
@@ -203,7 +249,10 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 		if kind != input.Kind {
 			return Resource{}, domain.E("INVALID_INPUT", "不能更改素材类型")
 		}
-		version++
+		if current != expected {
+			return Resource{}, domain.E("REVISION_CONFLICT", "资源已被其他操作更新，请刷新后重试")
+		}
+		version = current + 1
 	} else {
 		id = domain.ID()
 	}
@@ -223,8 +272,8 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 			return Resource{}, domain.E("INVALID_INPUT", "分类类型不匹配")
 		}
 	}
-	if strings.HasSuffix(input.Kind, "-category") {
-		if e = s.validateParent(ctx, tx, id, input.ParentID, input.Kind); e != nil {
+	if isCategory {
+		if e = validateParentTree(ctx, tx, treeParents, id, input.ParentID, input.Kind); e != nil {
 			return Resource{}, e
 		}
 	}
@@ -328,11 +377,11 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 	}
 	return s.Get(ctx, p, id, true)
 }
-func (s *Service) validateParent(ctx context.Context, tx *sql.Tx, id, parent, kind string) error {
-	parents, e := LoadCategoryParents(ctx, tx, kind)
-	if e != nil {
-		return e
-	}
+
+// validateParentTree checks the whole affected subtree against an already
+// locked category tree. Both Save and MoveCategory use it so classification
+// edits and standalone moves share the same depth, cycle and type rules.
+func validateParentTree(ctx context.Context, tx *sql.Tx, parents CategoryParents, id, parent, kind string) error {
 	seen := map[string]bool{id: true}
 	depth := 1
 	for parent != "" {
@@ -342,7 +391,7 @@ func (s *Service) validateParent(ctx context.Context, tx *sql.Tx, id, parent, ki
 		next, ok := parents[parent]
 		if !ok {
 			var parentKind string
-			if e = tx.QueryRowContext(ctx, "SELECT kind FROM resources WHERE id=? AND deleted_at IS NULL", parent).Scan(&parentKind); e == nil && parentKind != kind {
+			if e := tx.QueryRowContext(ctx, "SELECT kind FROM resources WHERE id=? AND deleted_at IS NULL", parent).Scan(&parentKind); e == nil && parentKind != kind {
 				return domain.E("INVALID_INPUT", "分类类型不匹配")
 			}
 			return catalogMissing()
@@ -360,6 +409,67 @@ func (s *Service) validateParent(ctx context.Context, tx *sql.Tx, id, parent, ki
 	}
 	return nil
 }
+
+// MoveCategory re-parents a copy-category in one transaction. The stable tree
+// lock is taken before the target row (same order as Delete), and the write
+// advances current_version, adds a version row inheriting the current content
+// and asset refs, and records one audit entry. The previous version stays
+// readable.
+func (s *Service) MoveCategory(ctx context.Context, p auth.Principal, id, parentID, expectedVersion string) error {
+	if e := auth.RequireAdmin(p); e != nil {
+		return e
+	}
+	id, parentID = strings.TrimSpace(id), strings.TrimSpace(parentID)
+	if id == "" || id == parentID {
+		return domain.E("INVALID_INPUT", "请选择有效的新上级分类")
+	}
+	expected, e := parseExpectedVersion(expectedVersion)
+	if e != nil {
+		return e
+	}
+	tx, e := s.DB.BeginTx(ctx, nil)
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback()
+	parents, e := LoadCategoryParents(ctx, tx, "copy-category")
+	if e != nil {
+		return e
+	}
+	var kind string
+	var current uint64
+	e = tx.QueryRowContext(ctx, "SELECT kind,current_version FROM resources WHERE id=? AND deleted_at IS NULL FOR UPDATE", id).Scan(&kind, &current)
+	if errors.Is(e, sql.ErrNoRows) {
+		return domain.E("NOT_FOUND", "分类不存在")
+	}
+	if e != nil {
+		return e
+	}
+	if kind != "copy-category" {
+		return domain.E("INVALID_INPUT", "只能移动文案分类")
+	}
+	if current != expected {
+		return domain.E("REVISION_CONFLICT", "资源已被其他操作更新，请刷新后重试")
+	}
+	if e = validateParentTree(ctx, tx, parents, id, parentID, "copy-category"); e != nil {
+		return e
+	}
+	version := current + 1
+	if _, e = tx.ExecContext(ctx, "UPDATE resources SET parent_id=?,current_version=?,updated_at=UTC_TIMESTAMP(6) WHERE id=?", nullString(parentID), version, id); e != nil {
+		return e
+	}
+	if _, e = tx.ExecContext(ctx, "INSERT INTO resource_versions(resource_id,version,asset_id,asset_version,document,body,metadata) SELECT resource_id,?,asset_id,asset_version,document,body,metadata FROM resource_versions WHERE resource_id=? AND version=?", version, id, current); e != nil {
+		return e
+	}
+	if _, e = tx.ExecContext(ctx, "INSERT IGNORE INTO asset_refs(owner_kind,owner_id,asset_id,asset_version) SELECT 'resource-version',?,asset_id,asset_version FROM asset_refs WHERE owner_kind='resource-version' AND owner_id=?", id+":"+strconv.FormatUint(version, 10), id+":"+strconv.FormatUint(current, 10)); e != nil {
+		return e
+	}
+	if _, e = tx.ExecContext(ctx, "INSERT INTO admin_audit_logs(id,actor_id,action,target_id,result) VALUES(?,?,'copy.category.move',?,'success')", domain.ID(), p.UserID, id); e != nil {
+		return e
+	}
+	return tx.Commit()
+}
+
 func (s *Service) Delete(ctx context.Context, p auth.Principal, id string) error {
 	if e := auth.RequireAdmin(p); e != nil {
 		return e

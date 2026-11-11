@@ -982,20 +982,21 @@ var fieldIDToName_ChangePasswordInput = map[int16]string{
 }
 
 type ResourceInput struct {
-	Kind       string  `thrift:"kind,1,required" frugal:"1,required,string" json:"kind"`
-	Title      string  `thrift:"title,2,required" frugal:"2,required,string" json:"title"`
-	Id         *string `thrift:"id,3,optional" frugal:"3,optional,string" json:"id,omitempty"`
-	CategoryId *string `thrift:"categoryId,4,optional" frugal:"4,optional,string" json:"categoryId,omitempty"`
-	SortOrder  *int32  `thrift:"sortOrder,5,optional" frugal:"5,optional,i32" json:"sortOrder,omitempty"`
-	Published  *bool   `thrift:"published,6,optional" frugal:"6,optional,bool" json:"published,omitempty"`
-	AssetId    *string `thrift:"assetId,7,optional" frugal:"7,optional,string" json:"assetId,omitempty"`
-	Document   *string `thrift:"document,8,optional" frugal:"8,optional,string" json:"document,omitempty"`
-	Body       *string `thrift:"body,9,optional" frugal:"9,optional,string" json:"body,omitempty"`
-	ParentId   *string `thrift:"parentId,10,optional" frugal:"10,optional,string" json:"parentId,omitempty"`
-	Family     *string `thrift:"family,11,optional" frugal:"11,optional,string" json:"family,omitempty"`
-	Weight     *int32  `thrift:"weight,12,optional" frugal:"12,optional,i32" json:"weight,omitempty"`
-	Style      *string `thrift:"style,13,optional" frugal:"13,optional,string" json:"style,omitempty"`
-	License    *string `thrift:"license,14,optional" frugal:"14,optional,string" json:"license,omitempty"`
+	Kind            string  `thrift:"kind,1,required" frugal:"1,required,string" json:"kind"`
+	Title           string  `thrift:"title,2,required" frugal:"2,required,string" json:"title"`
+	Id              *string `thrift:"id,3,optional" frugal:"3,optional,string" json:"id,omitempty"`
+	CategoryId      *string `thrift:"categoryId,4,optional" frugal:"4,optional,string" json:"categoryId,omitempty"`
+	SortOrder       *int32  `thrift:"sortOrder,5,optional" frugal:"5,optional,i32" json:"sortOrder,omitempty"`
+	Published       *bool   `thrift:"published,6,optional" frugal:"6,optional,bool" json:"published,omitempty"`
+	AssetId         *string `thrift:"assetId,7,optional" frugal:"7,optional,string" json:"assetId,omitempty"`
+	Document        *string `thrift:"document,8,optional" frugal:"8,optional,string" json:"document,omitempty"`
+	Body            *string `thrift:"body,9,optional" frugal:"9,optional,string" json:"body,omitempty"`
+	ParentId        *string `thrift:"parentId,10,optional" frugal:"10,optional,string" json:"parentId,omitempty"`
+	Family          *string `thrift:"family,11,optional" frugal:"11,optional,string" json:"family,omitempty"`
+	Weight          *int32  `thrift:"weight,12,optional" frugal:"12,optional,i32" json:"weight,omitempty"`
+	Style           *string `thrift:"style,13,optional" frugal:"13,optional,string" json:"style,omitempty"`
+	License         *string `thrift:"license,14,optional" frugal:"14,optional,string" json:"license,omitempty"`
+	ExpectedVersion *string `thrift:"expectedVersion,15,optional" frugal:"15,optional,string" json:"expectedVersion,omitempty"`
 }
 
 func NewResourceInput() *ResourceInput {
@@ -1120,6 +1121,15 @@ func (p *ResourceInput) GetLicense() (v string) {
 	}
 	return *p.License
 }
+
+var ResourceInput_ExpectedVersion_DEFAULT string
+
+func (p *ResourceInput) GetExpectedVersion() (v string) {
+	if !p.IsSetExpectedVersion() {
+		return ResourceInput_ExpectedVersion_DEFAULT
+	}
+	return *p.ExpectedVersion
+}
 func (p *ResourceInput) SetKind(val string) {
 	p.Kind = val
 }
@@ -1161,6 +1171,9 @@ func (p *ResourceInput) SetStyle(val *string) {
 }
 func (p *ResourceInput) SetLicense(val *string) {
 	p.License = val
+}
+func (p *ResourceInput) SetExpectedVersion(val *string) {
+	p.ExpectedVersion = val
 }
 
 func (p *ResourceInput) IsSetId() bool {
@@ -1211,6 +1224,10 @@ func (p *ResourceInput) IsSetLicense() bool {
 	return p.License != nil
 }
 
+func (p *ResourceInput) IsSetExpectedVersion() bool {
+	return p.ExpectedVersion != nil
+}
+
 func (p *ResourceInput) String() string {
 	if p == nil {
 		return "<nil>"
@@ -1233,11 +1250,13 @@ var fieldIDToName_ResourceInput = map[int16]string{
 	12: "weight",
 	13: "style",
 	14: "license",
+	15: "expectedVersion",
 }
 
 type MoveResourceInput struct {
-	Id       string  `thrift:"id,1,required" frugal:"1,required,string" json:"id"`
-	ParentId *string `thrift:"parentId,2,optional" frugal:"2,optional,string" json:"parentId,omitempty"`
+	Id              string  `thrift:"id,1,required" frugal:"1,required,string" json:"id"`
+	ParentId        *string `thrift:"parentId,2,optional" frugal:"2,optional,string" json:"parentId,omitempty"`
+	ExpectedVersion *string `thrift:"expectedVersion,3,optional" frugal:"3,optional,string" json:"expectedVersion,omitempty"`
 }
 
 func NewMoveResourceInput() *MoveResourceInput {
@@ -1259,15 +1278,31 @@ func (p *MoveResourceInput) GetParentId() (v string) {
 	}
 	return *p.ParentId
 }
+
+var MoveResourceInput_ExpectedVersion_DEFAULT string
+
+func (p *MoveResourceInput) GetExpectedVersion() (v string) {
+	if !p.IsSetExpectedVersion() {
+		return MoveResourceInput_ExpectedVersion_DEFAULT
+	}
+	return *p.ExpectedVersion
+}
 func (p *MoveResourceInput) SetId(val string) {
 	p.Id = val
 }
 func (p *MoveResourceInput) SetParentId(val *string) {
 	p.ParentId = val
 }
+func (p *MoveResourceInput) SetExpectedVersion(val *string) {
+	p.ExpectedVersion = val
+}
 
 func (p *MoveResourceInput) IsSetParentId() bool {
 	return p.ParentId != nil
+}
+
+func (p *MoveResourceInput) IsSetExpectedVersion() bool {
+	return p.ExpectedVersion != nil
 }
 
 func (p *MoveResourceInput) String() string {
@@ -1280,6 +1315,7 @@ func (p *MoveResourceInput) String() string {
 var fieldIDToName_MoveResourceInput = map[int16]string{
 	1: "id",
 	2: "parentId",
+	3: "expectedVersion",
 }
 
 type FontUploadInput struct {

@@ -482,3 +482,48 @@ test("published copy child without visible parent remains selectable", async ({
   ).toBeVisible();
   await adminContext.close();
 });
+
+/* B01 / Ruling 191. Renaming a category AND re-parenting it in one edit must
+   be a single atomic AdminSaveResource request (carrying parentId and the
+   snapshot version), never a move + save two-request chain. */
+test("category rename plus move sends exactly one atomic save", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  try {
+    const rootA = await createCategory(admin, "根A");
+    const rootB = await createCategory(admin, "根B");
+    await createCategory(admin, "子分类", rootA);
+
+    let saveCount = 0;
+    let moveCount = 0;
+    admin.on("request", (req) => {
+      const u = new URL(req.url());
+      if (req.method() === "POST" && u.pathname === "/api/v1/admin/resources")
+        saveCount++;
+      if (req.method() === "POST" && u.pathname.endsWith("/move")) moveCount++;
+    });
+
+    await admin.getByRole("link", { name: "文案库", exact: true }).click();
+    await expect(admin).toHaveURL(/\/admin\/copy$/);
+    await expect(
+      admin.getByLabel("编辑分类 子分类", { exact: true }),
+    ).toBeVisible();
+    await admin.getByLabel("编辑分类 子分类", { exact: true }).click();
+    const form = admin.getByRole("dialog", { name: "编辑分类" });
+    await form.getByLabel("分类名称", { exact: true }).fill("子分类改名");
+    await chooseOption(admin, "上级分类", "根B");
+
+    saveCount = 0;
+    moveCount = 0;
+    await form.getByRole("button", { name: "保存分类", exact: true }).click();
+    await expect.poll(() => saveCount).toBe(1);
+    expect(moveCount).toBe(0);
+    expect(saveCount).toBe(1);
+  } finally {
+    await adminContext.close();
+  }
+});

@@ -5,12 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fastposter/server/gen/kitex/common"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
 	"fastposter/server/internal/catalog"
+	"fastposter/server/internal/copy"
 	"fastposter/server/internal/domain"
 	"fastposter/server/internal/storage"
+	"fastposter/server/internal/testutil"
+	"fastposter/server/internal/transport"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -56,7 +61,7 @@ func TestCatalogUnpublishKeepsReferencedVersionReadable(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = c.Save(ctx, admin, catalog.ResourceInput{ID: r.ID, Kind: "background", Title: r.Title, AssetID: "bg-1", Published: false}); e != nil {
+	if _, e = c.Save(ctx, admin, catalog.ResourceInput{ID: r.ID, Kind: "background", Title: r.Title, AssetID: "bg-1", Published: false, ExpectedVersion: r.Version}); e != nil {
 		t.Fatal(e)
 	}
 	images := assets.NewService(db, p.Store, nil, t.TempDir())
@@ -240,5 +245,330 @@ func TestCatalogDeletesUnreferencedResourceVersionWithoutDeletingFile(t *testing
 	}
 	if _, e = c.Get(ctx, admin, r.ID, true); e == nil {
 		t.Fatal("deleted resource still listed")
+	}
+}
+
+// ---- B01 version precondition tests -------------------------------------
+// These drive the transport contract (the typed CatalogCall a bound HTTP
+// request becomes) rather than calling catalog.Service directly, so the
+// expectedVersion wire field is exercised end to end.
+
+func vpStr(s string) *string { return &s }
+func vpBool(b bool) *bool    { return &b }
+func vpI32(i int32) *int32   { return &i }
+
+type versionHarness struct {
+	db      *sql.DB
+	adminT  string
+	userT   string
+	adapter func(context.Context, *common.CatalogCall) (*common.RPCReply, error)
+}
+
+func newVersionHarness(t *testing.T) *versionHarness {
+	t.Helper()
+	db, cleanup := testutil.MySQL(t)
+	t.Cleanup(cleanup)
+	accounts, e := auth.NewService(db, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	ctx := context.Background()
+	if _, e = accounts.CreateAdmin(ctx, "ver-admin", "correct horse battery"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = accounts.Register(ctx, "ver-user", "correct horse battery"); e != nil {
+		t.Fatal(e)
+	}
+	a, e := accounts.Login(ctx, "ver-admin", "correct horse battery")
+	if e != nil {
+		t.Fatal(e)
+	}
+	u, e := accounts.Login(ctx, "ver-user", "correct horse battery")
+	if e != nil {
+		t.Fatal(e)
+	}
+	c := catalog.NewService(db, nil, nil)
+	return &versionHarness{
+		db:      db,
+		adminT:  a.Token,
+		userT:   u.Token,
+		adapter: transport.CatalogAdapter(accounts, c, copy.NewService(db, c)),
+	}
+}
+
+func (h *versionHarness) invoke(ctx context.Context, token, action string, in *common.ResourceInput, mv *common.MoveResourceInput, id string) (*common.RPCReply, error) {
+	c := &common.CatalogCall{Context: &common.CallContext{RequestId: "b01", SessionToken: token}, Action: action}
+	if in != nil {
+		c.Input = in
+	}
+	if mv != nil {
+		c.Move = mv
+	}
+	if id != "" {
+		c.Id = vpStr(id)
+	}
+	return h.adapter(ctx, c)
+}
+
+func requireResource(t *testing.T, r *common.RPCReply) *common.ResourceDTO {
+	t.Helper()
+	if r == nil || r.Error != nil || r.Data == nil || r.Data.Resource == nil {
+		t.Fatalf("save failed: %+v", r)
+	}
+	return r.Data.Resource
+}
+
+func (h *versionHarness) saveResource(t *testing.T, ctx context.Context, kind, title, parent string, published bool) *common.ResourceDTO {
+	t.Helper()
+	in := &common.ResourceInput{Kind: kind, Title: title, Published: vpBool(published)}
+	if parent != "" {
+		in.ParentId = vpStr(parent)
+	}
+	r, e := h.invoke(ctx, h.adminT, "AdminSaveResource", in, nil, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	return requireResource(t, r)
+}
+
+func (h *versionHarness) saveCopy(t *testing.T, ctx context.Context, title, body string, published bool) *common.ResourceDTO {
+	t.Helper()
+	r, e := h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+		Kind: "copy", Title: title, Body: vpStr(body), Published: vpBool(published),
+	}, nil, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	return requireResource(t, r)
+}
+
+func (h *versionHarness) saveCategory(t *testing.T, ctx context.Context, title, parent string, published bool) *common.ResourceDTO {
+	return h.saveResource(t, ctx, "copy-category", title, parent, published)
+}
+
+type versionSnap struct {
+	version     uint64
+	versionRows int
+	parent      string
+	title       string
+}
+
+func (h *versionHarness) snapshot(t *testing.T, id string) versionSnap {
+	t.Helper()
+	var s versionSnap
+	var parent sql.NullString
+	if e := h.db.QueryRow("SELECT current_version,parent_id,title FROM resources WHERE id=?", id).Scan(&s.version, &parent, &s.title); e != nil {
+		t.Fatal(e)
+	}
+	s.parent = parent.String
+	if e := h.db.QueryRow("SELECT COUNT(*) FROM resource_versions WHERE resource_id=?", id).Scan(&s.versionRows); e != nil {
+		t.Fatal(e)
+	}
+	return s
+}
+
+func TestCatalogSaveVersionRejectsConcurrentOverwrite(t *testing.T) {
+	h := newVersionHarness(t)
+	ctx := context.Background()
+	created := h.saveCopy(t, ctx, "初稿", "内容A", true)
+	old, e := strconv.ParseUint(created.Version, 10, 64)
+	if e != nil {
+		t.Fatal(e)
+	}
+
+	var wg sync.WaitGroup
+	replies := make([]*common.RPCReply, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			v := created.Version
+			replies[i], _ = h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+				Kind: "copy", Title: "并发标题", Id: vpStr(created.Id),
+				Body: vpStr("内容B"), Published: vpBool(true), ExpectedVersion: &v,
+			}, nil, "")
+		}(i)
+	}
+	wg.Wait()
+	success, conflict := 0, 0
+	for _, r := range replies {
+		if r == nil {
+			t.Fatal("nil reply")
+		}
+		if r.Error == nil {
+			success++
+		} else if r.Error.Code == "REVISION_CONFLICT" {
+			conflict++
+		}
+	}
+	if success != 1 || conflict != 1 {
+		t.Fatalf("concurrent overwrite: want 1 success + 1 REVISION_CONFLICT, got success=%d conflict=%d", success, conflict)
+	}
+	var current uint64
+	if e = h.db.QueryRow("SELECT current_version FROM resources WHERE id=?", created.Id).Scan(&current); e != nil {
+		t.Fatal(e)
+	}
+	if current != old+1 {
+		t.Fatalf("current_version must advance exactly once: got %d want %d", current, old+1)
+	}
+	var audits int
+	if e = h.db.QueryRow("SELECT COUNT(*) FROM admin_audit_logs WHERE target_id=? AND action='resource.save' AND result='success'", created.Id).Scan(&audits); e != nil {
+		t.Fatal(e)
+	}
+	// One creation plus exactly one winning concurrent write.
+	if audits != 2 {
+		t.Fatalf("success audits: got %d want 2 (create + one winning update)", audits)
+	}
+}
+
+func TestCatalogCategoryEditRollsBackParentAndFields(t *testing.T) {
+	h := newVersionHarness(t)
+	ctx := context.Background()
+	root := h.saveCategory(t, ctx, "根", "", true)
+	other := h.saveCategory(t, ctx, "其他", "", true)
+	child := h.saveCategory(t, ctx, "子", root.Id, true)
+
+	// A single atomic edit: fields plus parent, one snapshot version.
+	v := child.Version
+	r, e := h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+		Kind: "copy-category", Title: "子改名", Id: vpStr(child.Id),
+		ParentId: vpStr(other.Id), SortOrder: vpI32(7), Published: vpBool(false),
+		ExpectedVersion: &v,
+	}, nil, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if r.Error != nil {
+		t.Fatal("valid atomic category edit rejected", r.Error.Code, r.Error.Message)
+	}
+	after := h.snapshot(t, child.Id)
+	if after.version != 2 || after.parent != other.Id || after.title != "子改名" || after.versionRows != 2 {
+		t.Fatalf("atomic edit not applied in one transaction: %+v", after)
+	}
+
+	// Existing-resource edits with a missing / malformed / stale version must
+	// be rejected before anything is written.
+	cases := []struct {
+		name string
+		ver  *string
+		code string
+	}{
+		{"missing", nil, "INVALID_INPUT"},
+		{"empty", vpStr(""), "INVALID_INPUT"},
+		{"zero", vpStr("0"), "INVALID_INPUT"},
+		{"leading-zero", vpStr("01"), "INVALID_INPUT"},
+		{"negative", vpStr("-1"), "INVALID_INPUT"},
+		{"padded", vpStr(" 1"), "INVALID_INPUT"},
+		{"float", vpStr("1.0"), "INVALID_INPUT"},
+		{"non-numeric", vpStr("abc"), "INVALID_INPUT"},
+		{"overflow", vpStr("18446744073709551616"), "INVALID_INPUT"},
+		{"stale", vpStr("1"), "REVISION_CONFLICT"},
+	}
+	for _, tc := range cases {
+		r, e = h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+			Kind: "copy-category", Title: "试探", Id: vpStr(child.Id),
+			ParentId: vpStr(root.Id), ExpectedVersion: tc.ver,
+		}, nil, "")
+		if e != nil {
+			t.Fatal(tc.name, e)
+		}
+		if r.Error == nil || r.Error.Code != tc.code {
+			t.Fatalf("%s: want %s, got %+v", tc.name, tc.code, r.Error)
+		}
+		if got := h.snapshot(t, child.Id); got != after {
+			t.Fatalf("%s changed the resource: %+v -> %+v", tc.name, after, got)
+		}
+	}
+
+	// A field validation failure also leaves version, fields and tree intact.
+	r, e = h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+		Kind: "copy-category", Title: "  ", Id: vpStr(child.Id),
+		ExpectedVersion: vpStr("2"),
+	}, nil, "")
+	if e != nil || r.Error == nil {
+		t.Fatal("empty title should be rejected", e)
+	}
+	if got := h.snapshot(t, child.Id); got != after {
+		t.Fatalf("empty title changed the resource: %+v -> %+v", after, got)
+	}
+}
+
+func TestCatalogMoveVersionAndDepth(t *testing.T) {
+	h := newVersionHarness(t)
+	ctx := context.Background()
+	root := h.saveCategory(t, ctx, "根", "", true)
+	other := h.saveCategory(t, ctx, "其他", "", true)
+	child := h.saveCategory(t, ctx, "子", root.Id, true)
+	before := h.snapshot(t, child.Id)
+
+	// Standalone move advances the version, writes a version row and audit.
+	v := strconv.FormatUint(before.version, 10)
+	r, e := h.invoke(ctx, h.adminT, "AdminMoveResource", nil, &common.MoveResourceInput{
+		Id: child.Id, ParentId: vpStr(other.Id), ExpectedVersion: &v,
+	}, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if r.Error != nil {
+		t.Fatal("valid standalone move rejected", r.Error.Code, r.Error.Message)
+	}
+	after := h.snapshot(t, child.Id)
+	if after.version != before.version+1 || after.versionRows != before.versionRows+1 {
+		t.Fatalf("standalone move must advance version and write a version row: %+v -> %+v", before, after)
+	}
+	if after.parent != other.Id || after.title != before.title {
+		t.Fatalf("standalone move changed unrelated fields: %+v -> %+v", before, after)
+	}
+	var oldRow int
+	if e = h.db.QueryRow("SELECT COUNT(*) FROM resource_versions WHERE resource_id=? AND version=?", child.Id, before.version).Scan(&oldRow); e != nil {
+		t.Fatal(e)
+	}
+	if oldRow != 1 {
+		t.Fatal("previous version must remain readable")
+	}
+	var audits int
+	if e = h.db.QueryRow("SELECT COUNT(*) FROM admin_audit_logs WHERE target_id=? AND result='success'", child.Id).Scan(&audits); e != nil {
+		t.Fatal(e)
+	}
+	if audits != 2 {
+		t.Fatalf("move success audits: got %d want 2 (create + move)", audits)
+	}
+
+	// Failures must not advance the version or mutate the tree.
+	current := strconv.FormatUint(after.version, 10)
+	d1 := h.saveCategory(t, ctx, "深1", "", true)
+	d2 := h.saveCategory(t, ctx, "深2", d1.Id, true)
+	d3 := h.saveCategory(t, ctx, "深3", d2.Id, true)
+	d4 := h.saveCategory(t, ctx, "深4", d3.Id, true)
+	d5 := h.saveCategory(t, ctx, "深5", d4.Id, true)
+	foreign := h.saveResource(t, ctx, "background-category", "外来分类", "", true)
+
+	bad := []struct {
+		name string
+		mv   *common.MoveResourceInput
+		code string
+	}{
+		{"missing-version", &common.MoveResourceInput{Id: child.Id, ParentId: vpStr(root.Id)}, "INVALID_INPUT"},
+		{"malformed-version", &common.MoveResourceInput{Id: child.Id, ParentId: vpStr(root.Id), ExpectedVersion: vpStr("01")}, "INVALID_INPUT"},
+		{"stale-version", &common.MoveResourceInput{Id: child.Id, ParentId: vpStr(root.Id), ExpectedVersion: vpStr("1")}, "REVISION_CONFLICT"},
+		{"cycle", &common.MoveResourceInput{Id: d1.Id, ParentId: vpStr(d5.Id), ExpectedVersion: vpStr(d1.Version)}, ""},
+		{"cross-kind", &common.MoveResourceInput{Id: child.Id, ParentId: vpStr(foreign.Id), ExpectedVersion: &current}, ""},
+		{"six-levels", &common.MoveResourceInput{Id: child.Id, ParentId: vpStr(d5.Id), ExpectedVersion: &current}, ""},
+	}
+	for _, tc := range bad {
+		r, e = h.invoke(ctx, h.adminT, "AdminMoveResource", nil, tc.mv, "")
+		if e != nil {
+			t.Fatal(tc.name, e)
+		}
+		if tc.code == "" {
+			if r.Error == nil {
+				t.Fatalf("%s: expected rejection, got success", tc.name)
+			}
+		} else if r.Error == nil || r.Error.Code != tc.code {
+			t.Fatalf("%s: want %s, got %+v", tc.name, tc.code, r.Error)
+		}
+	}
+	if got := h.snapshot(t, child.Id); got != after {
+		t.Fatalf("failed moves changed the moved category: %+v -> %+v", after, got)
 	}
 }

@@ -60,3 +60,69 @@ func TestCatalogTransportRejectsUserAndMetadataExcludesDocument(t *testing.T) {
 	_ = admin
 	_ = user
 }
+
+func TestCatalogHTTPRejectsUnversionedAndNonAdminMutation(t *testing.T) {
+	h := newVersionHarness(t)
+	ctx := context.Background()
+	res := h.saveCopy(t, ctx, "草稿", "内容", true)
+
+	expectCode := func(r *common.RPCReply, e error, code string) {
+		t.Helper()
+		if e != nil {
+			t.Fatal(e)
+		}
+		if r == nil || r.Error == nil || r.Error.Code != code {
+			t.Fatalf("want %s, got %+v", code, r)
+		}
+	}
+
+	// An old payload (no expectedVersion) on an existing resource is rejected.
+	r, e := h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+		Kind: "copy", Title: "旧页面保存", Id: vpStr(res.Id), Body: vpStr("内容"), Published: vpBool(true),
+	}, nil, "")
+	expectCode(r, e, "INVALID_INPUT")
+
+	// Malformed versions are INVALID_INPUT; a well-formed but stale one conflicts.
+	for _, bad := range []string{"", "0", "01", "-1", " 1", "1.0", "abc", "18446744073709551616"} {
+		r, e = h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+			Kind: "copy", Title: "非法版本", Id: vpStr(res.Id), Body: vpStr("内容"), ExpectedVersion: vpStr(bad),
+		}, nil, "")
+		expectCode(r, e, "INVALID_INPUT")
+	}
+	r, e = h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+		Kind: "copy", Title: "过期版本", Id: vpStr(res.Id), Body: vpStr("内容"), ExpectedVersion: vpStr("999"),
+	}, nil, "")
+	expectCode(r, e, "REVISION_CONFLICT")
+
+	// Ordinary accounts are rejected first and never learn the current version.
+	r, e = h.invoke(ctx, h.userT, "AdminSaveResource", &common.ResourceInput{
+		Kind: "copy", Title: "越权", Id: vpStr(res.Id), Body: vpStr("内容"), ExpectedVersion: vpStr("1"),
+	}, nil, "")
+	expectCode(r, e, "FORBIDDEN")
+
+	// A matching version updates to the newest snapshot; the admin detail GET
+	// then reloads by ID and must reflect it, not any stale list/title.
+	r, e = h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+		Kind: "copy", Title: "最新标题", Id: vpStr(res.Id), Body: vpStr("最新内容"),
+		Published: vpBool(true), ExpectedVersion: vpStr("1"),
+	}, nil, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if r.Error != nil {
+		t.Fatal("setup update failed", r.Error.Code, r.Error.Message)
+	}
+	r, e = h.invoke(ctx, h.adminT, "AdminGetResource", nil, nil, res.Id)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if r.Error != nil {
+		t.Fatal("detail GET failed", r.Error.Code, r.Error.Message)
+	}
+	if r.Data == nil || r.Data.Resource == nil {
+		t.Fatal("detail reply has no resource")
+	}
+	if r.Data.Resource.Version != "2" || r.Data.Resource.Title != "最新标题" {
+		t.Fatalf("detail must read the latest resource by id: %+v", r.Data.Resource)
+	}
+}

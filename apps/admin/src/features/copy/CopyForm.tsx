@@ -11,7 +11,14 @@ import {
   Textarea,
   useErrorNotice,
 } from "@fastposter/ui";
-import { errorMessage, request } from "../../api";
+import {
+  errorMessage,
+  isGone,
+  isRevisionConflict,
+  isStaleClient,
+  reloadResource,
+  request,
+} from "../../api";
 import { flattenCategories } from "./CategoryTree";
 
 function descendants(rows: ResourceDTO[], id: string) {
@@ -47,7 +54,8 @@ export function CategoryForm({
     [published, setPublished] = useState(category?.published ?? true),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [confirming, setConfirming] = useState(false);
+    [confirming, setConfirming] = useState(false),
+    [conflict, setConflict] = useState<ResourceDTO | null>(null);
   useErrorNotice("admin:copy-category", error || null);
   const blocked = category
     ? descendants(categories, category.id)
@@ -57,15 +65,15 @@ export function CategoryForm({
   );
   async function submit(e: FormEvent) {
     e.preventDefault();
+    await commit(category?.version);
+  }
+  async function commit(version: string | undefined) {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
-      if (category && parent !== (category.parentId ?? ""))
-        await request(routes.AdminMoveResource, {
-          id: category.id,
-          parentId: parent || undefined,
-        });
+      // One atomic AdminSaveResource carries parentId and the snapshot
+      // version; the old AdminMoveResource + AdminSaveResource chain is gone.
       await request(routes.AdminSaveResource, {
         id: category?.id,
         kind: "copy-category",
@@ -73,10 +81,29 @@ export function CategoryForm({
         parentId: parent || undefined,
         sortOrder: sort,
         published,
+        expectedVersion: version,
       });
+      setConflict(null);
       await saved();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) && category) {
+        const latest = await reloadResource(category.id).catch(() => null);
+        if (latest) {
+          setConflict(latest);
+          setError(
+            "分类已被其他操作更新，草稿已保留。请确认后以最新版本重新提交。",
+          );
+        } else {
+          setError("分类已删除或无权访问，请关闭表单刷新页面。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
+        setError("页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("分类不存在或无权访问，请关闭表单刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -157,6 +184,31 @@ export function CategoryForm({
             </Button>
           </div>
         )}
+        {conflict && (
+          <div className="inline-confirm" data-testid="version-conflict">
+            <span>
+              最新版本 {conflict.version} · {conflict.title}
+              。草稿已保留；确认后仅以最新版本重新提交，不会自动合并或覆盖。
+            </span>
+            <Button
+              type="button"
+              variant="primary"
+              busy={busy}
+              onClick={() => void commit(conflict.version)}
+            >
+              确认重新提交
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConflict(null);
+                setError("请刷新页面后重新编辑。");
+              }}
+            >
+              放弃修改
+            </Button>
+          </div>
+        )}
         <div className="dialog-actions">
           {category && !confirming && (
             <Button
@@ -200,11 +252,15 @@ export function CopyForm({
     [published, setPublished] = useState(copy?.published ?? true),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [confirming, setConfirming] = useState(false);
+    [confirming, setConfirming] = useState(false),
+    [conflict, setConflict] = useState<ResourceDTO | null>(null);
   useErrorNotice("admin:copy-form", error || null);
   const options = flattenCategories(categories);
   async function submit(e: FormEvent) {
     e.preventDefault();
+    await commit(copy?.version);
+  }
+  async function commit(version: string | undefined) {
     if (busy) return;
     setBusy(true);
     setError("");
@@ -217,10 +273,29 @@ export function CopyForm({
         categoryId: category || undefined,
         sortOrder: sort,
         published,
+        expectedVersion: version,
       });
+      setConflict(null);
       await saved();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) && copy) {
+        const latest = await reloadResource(copy.id).catch(() => null);
+        if (latest) {
+          setConflict(latest);
+          setError(
+            "文案已被其他操作更新，草稿已保留。请确认后以最新版本重新提交。",
+          );
+        } else {
+          setError("文案已删除或无权访问，请关闭表单刷新页面。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
+        setError("页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("文案不存在或无权访问，请关闭表单刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -257,7 +332,8 @@ export function CopyForm({
         />
         <label className="form-field">
           文案正文
-          <Textarea variant="bare"
+          <Textarea
+            variant="bare"
             aria-label="文案正文"
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -310,6 +386,31 @@ export function CopyForm({
             </Button>
             <Button type="button" onClick={() => setConfirming(false)}>
               取消
+            </Button>
+          </div>
+        )}
+        {conflict && (
+          <div className="inline-confirm" data-testid="version-conflict">
+            <span>
+              最新版本 {conflict.version} · {conflict.title}
+              。草稿已保留；确认后仅以最新版本重新提交，不会自动合并或覆盖。
+            </span>
+            <Button
+              type="button"
+              variant="primary"
+              busy={busy}
+              onClick={() => void commit(conflict.version)}
+            >
+              确认重新提交
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConflict(null);
+                setError("请刷新页面后重新编辑。");
+              }}
+            >
+              放弃修改
             </Button>
           </div>
         )}

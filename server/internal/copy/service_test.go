@@ -40,34 +40,34 @@ func TestRejectCyclesAndDepthSix(t *testing.T) {
 	if _, e := s.SaveCategory(ctx, admin, catalog.ResourceInput{Title: "第六层", ParentID: c5.ID, Published: true}); !isCode(e, "INVALID_INPUT") {
 		t.Fatal("sixth level accepted", e)
 	}
-	if e := s.MoveCategory(ctx, admin, c1.ID, c5.ID); !isCode(e, "INVALID_INPUT") {
+	if e := s.MoveCategory(ctx, admin, c1.ID, c5.ID, "1"); !isCode(e, "INVALID_INPUT") {
 		t.Fatal("cycle accepted", e)
 	}
 	o1 := saveCategory(t, s, admin, "另一主题", "", true)
 	if _, e := s.SaveCategory(ctx, admin, catalog.ResourceInput{Title: "另一场景", ParentID: o1.ID, Published: true}); e != nil {
 		t.Fatal(e)
 	}
-	if e := s.MoveCategory(ctx, admin, o1.ID, c5.ID); !isCode(e, "INVALID_INPUT") {
+	if e := s.MoveCategory(ctx, admin, o1.ID, c5.ID, "1"); !isCode(e, "INVALID_INPUT") {
 		t.Fatal("subtree exceeding five levels accepted", e)
 	}
 	newRoot := saveCategory(t, s, admin, "新根", "", true)
-	if _, e := s.SaveCategory(ctx, admin, catalog.ResourceInput{ID: c1.ID, Title: "主题", ParentID: newRoot.ID, Published: true}); !isCode(e, "INVALID_INPUT") {
+	if _, e := s.SaveCategory(ctx, admin, catalog.ResourceInput{ID: c1.ID, Title: "主题", ParentID: newRoot.ID, Published: true, ExpectedVersion: "1"}); !isCode(e, "INVALID_INPUT") {
 		t.Fatal("generic category save bypassed the five-level limit", e)
 	}
-	if _, e := s.SaveCategory(ctx, admin, catalog.ResourceInput{ID: c1.ID, Title: "主题", Published: true}); e != nil {
+	if _, e := s.SaveCategory(ctx, admin, catalog.ResourceInput{ID: c1.ID, Title: "主题", Published: true, ExpectedVersion: "1"}); e != nil {
 		t.Fatal("unchanged depth was rejected", e)
 	}
-	if e := s.MoveCategory(ctx, admin, c5.ID, c3.ID); e != nil {
+	if e := s.MoveCategory(ctx, admin, c5.ID, c3.ID, "1"); e != nil {
 		t.Fatal("valid re-parent rejected", e)
 	}
 	moved, e := s.Catalog.Get(ctx, admin, c5.ID, true)
 	if e != nil || moved.ParentID != c3.ID {
 		t.Fatal("category not moved", e)
 	}
-	if e = s.MoveCategory(ctx, user, c5.ID, ""); !isCode(e, "FORBIDDEN") {
+	if e = s.MoveCategory(ctx, user, c5.ID, "", "2"); !isCode(e, "FORBIDDEN") {
 		t.Fatal("ordinary user moved category", e)
 	}
-	if e = s.MoveCategory(ctx, admin, c5.ID, "missing-parent"); !isCode(e, "NOT_FOUND") {
+	if e = s.MoveCategory(ctx, admin, c5.ID, "missing-parent", "2"); !isCode(e, "NOT_FOUND") {
 		t.Fatal("missing parent accepted", e)
 	}
 }
