@@ -12,6 +12,7 @@ import {
   isGone,
   isRevisionConflict,
   isStaleClient,
+  reloadResource,
   request,
 } from "../../api";
 import { PAGE_SIZE, RecordPager } from "../records";
@@ -35,7 +36,11 @@ export function CopyPage() {
     } | null>(null),
     [editingCopy, setEditingCopy] = useState<ResourceDTO | "new" | null>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState("");
+    [busy, setBusy] = useState(""),
+    [conflict, setConflict] = useState<{
+      resource: ResourceDTO;
+      published: boolean;
+    } | null>(null);
   const categories = useQuery({
     queryKey: ["admin", "copy-categories"],
     queryFn: () =>
@@ -127,6 +132,15 @@ export function CopyPage() {
     ]);
   };
   async function toggle(copy: ResourceDTO) {
+    await commitToggle(copy, !copy.published, copy.version);
+  }
+  // The pending publication state is kept across a conflict; only an explicit
+  // confirmation may send a second POST, and it reuses the newest version.
+  async function commitToggle(
+    copy: ResourceDTO,
+    published: boolean,
+    expectedVersion: string,
+  ) {
     setBusy(copy.id);
     setError("");
     try {
@@ -137,15 +151,28 @@ export function CopyPage() {
         body: copy.body,
         categoryId: copy.categoryId,
         sortOrder: copy.sortOrder,
-        published: !copy.published,
-        expectedVersion: copy.version,
+        published,
+        expectedVersion,
       });
+      setConflict(null);
       await cache.invalidateQueries({ queryKey: ["admin", "copies"] });
     } catch (e) {
-      if (isRevisionConflict(e) || isStaleClient(e)) {
+      if (isRevisionConflict(e)) {
+        const latest = await reloadResource(copy.id).catch(() => null);
+        if (latest) {
+          setConflict({ resource: latest, published });
+          setError(
+            "该文案已被其他操作更新，请确认后以最新版本重新提交这个发布动作。",
+          );
+        } else {
+          setError("无法重载该文案，请刷新页面后重试。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
         setError("该文案已被更新或页面版本过旧，请刷新页面后重试。");
       } else if (isGone(e)) {
         setError("文案不存在或无权访问，请刷新页面。");
+        setConflict(null);
       } else {
         setError(errorMessage(e));
       }
@@ -171,6 +198,38 @@ export function CopyPage() {
           新建文案
         </Button>
       </div>
+      {conflict && (
+        <div className="inline-confirm" data-testid="version-conflict">
+          <span>
+            最新版本 {conflict.resource.version} · {conflict.resource.title}（
+            {conflict.resource.published ? "已发布" : "已下架"}）。
+            请确认后以最新版本重新提交
+            {conflict.published ? "发布" : "下架"}
+            动作，不会自动合并或覆盖。
+          </span>
+          <Button
+            variant="primary"
+            busy={busy !== ""}
+            onClick={() =>
+              void commitToggle(
+                conflict.resource,
+                conflict.published,
+                conflict.resource.version,
+              )
+            }
+          >
+            确认重新提交
+          </Button>
+          <Button
+            onClick={() => {
+              setConflict(null);
+              setError("");
+            }}
+          >
+            取消
+          </Button>
+        </div>
+      )}
       <div className="copy-layout">
         <CategoryTree
           categories={categoryRows}

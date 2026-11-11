@@ -527,3 +527,127 @@ test("category rename plus move sends exactly one atomic save", async ({
     await adminContext.close();
   }
 });
+
+/* B01 fix round / Rulings 199-202. The quick copy publish toggle
+   (CopyPage.tsx) has the same recovery contract: reload the newest resource
+   by ID through AdminGetResource, show it, wait for an explicit confirmation,
+   then resubmit the pending publication action with latest.version. */
+test("quick copy publish conflict reloads newest version before confirmed resubmit", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  try {
+    const id = "fix-copy-conflict";
+    const resource = (version: string, published: boolean, title: string) => ({
+      id,
+      kind: "copy",
+      title,
+      body: "文案内容",
+      version,
+      published,
+      sortOrder: 0,
+      categoryId: "",
+    });
+    let postCount = 0;
+    let succeeded = false;
+    const bodies: Array<Record<string, unknown>> = [];
+
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/fix-copy-conflict\/detail$/,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-fix",
+            resource: resource("7", false, "服务端最新文案"),
+          }),
+        }),
+    );
+    await admin.route(/\/api\/v1\/admin\/resources$/, (route) => {
+      postCount++;
+      bodies.push(route.request().postDataJSON() as Record<string, unknown>);
+      if (postCount === 1)
+        return route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            code: "REVISION_CONFLICT",
+            message: "资源已被其他操作更新，请刷新后重试",
+            requestId: "e2e-fix",
+          }),
+        });
+      succeeded = true;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-fix",
+          resource: resource("8", true, "服务端最新文案"),
+        }),
+      });
+    });
+    await admin.route(/\/api\/v1\/admin\/resources\/copy\?/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-fix",
+          resources: [
+            resource(
+              succeeded ? "8" : "1",
+              succeeded,
+              succeeded ? "服务端最新文案" : "修复测试文案",
+            ),
+          ],
+          total: 1,
+        }),
+      }),
+    );
+    await admin.route(/\/api\/v1\/admin\/resources\/copy-category\?/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-fix",
+          resources: [],
+          total: 0,
+        }),
+      }),
+    );
+
+    await admin.getByRole("link", { name: "文案库", exact: true }).click();
+    await expect(admin).toHaveURL(/\/admin\/copy$/);
+    const card = admin.getByTestId("copy-card");
+    await expect(card).toHaveCount(1);
+    await card.getByRole("button", { name: "发布", exact: true }).click();
+
+    await expect.poll(() => postCount).toBe(1);
+    expect(bodies[0].expectedVersion).toBe("1");
+
+    const conflict = admin.getByTestId("version-conflict");
+    await expect(conflict).toBeVisible();
+    await expect(conflict).toContainText("7");
+    await expect(conflict).toContainText("服务端最新文案");
+
+    const confirm = admin.getByRole("button", {
+      name: "确认重新提交",
+      exact: true,
+    });
+    await expect(confirm).toBeVisible();
+    await expect.poll(() => postCount).toBe(1);
+
+    await confirm.click();
+    await expect.poll(() => postCount).toBe(2);
+    expect(bodies[1].expectedVersion).toBe("7");
+    expect(bodies[1].published).toBe(true);
+
+    await expect(admin.getByTestId("version-conflict")).toHaveCount(0);
+    await expect(admin.getByTestId("copy-card")).toContainText("已发布");
+  } finally {
+    await adminContext.close();
+  }
+});

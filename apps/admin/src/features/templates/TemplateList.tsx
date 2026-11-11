@@ -31,6 +31,7 @@ import {
   isGone,
   isRevisionConflict,
   isStaleClient,
+  reloadResource,
   request,
 } from "../../api";
 import { PAGE_SIZE, RecordPager } from "../records";
@@ -57,7 +58,11 @@ export function TemplatesPage() {
     [categoryTitle, setCategoryTitle] = useState(""),
     [importFile, setImportFile] = useState<File | null>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState("");
+    [busy, setBusy] = useState(""),
+    [conflict, setConflict] = useState<{
+      resource: ResourceDTO;
+      published: boolean;
+    } | null>(null);
   const viewIdentity = adminPageIdentity(["template", page, keyword, category]);
   const q = useQuery({
     queryKey: ["admin", "resources", "template", page, keyword, category],
@@ -157,6 +162,15 @@ export function TemplatesPage() {
   const refresh = () =>
     cache.invalidateQueries({ queryKey: ["admin", "resources", "template"] });
   async function toggle(resource: ResourceDTO) {
+    await commitToggle(resource, !resource.published, resource.version);
+  }
+  // The pending publication state is kept across a conflict; only an explicit
+  // confirmation may send a second POST, and it reuses the newest version.
+  async function commitToggle(
+    resource: ResourceDTO,
+    published: boolean,
+    expectedVersion: string,
+  ) {
     setBusy(resource.id);
     setError("");
     try {
@@ -166,16 +180,29 @@ export function TemplatesPage() {
         title: resource.title,
         categoryId: resource.categoryId,
         sortOrder: resource.sortOrder,
-        published: !resource.published,
+        published,
         document: resource.document,
-        expectedVersion: resource.version,
+        expectedVersion,
       });
+      setConflict(null);
       await refresh();
     } catch (e) {
-      if (isRevisionConflict(e) || isStaleClient(e)) {
+      if (isRevisionConflict(e)) {
+        const latest = await reloadResource(resource.id).catch(() => null);
+        if (latest) {
+          setConflict({ resource: latest, published });
+          setError(
+            "该模板已被其他操作更新，请确认后以最新版本重新提交这个发布动作。",
+          );
+        } else {
+          setError("无法重载该模板，请刷新页面后重试。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
         setError("该模板已被更新或页面版本过旧，请刷新页面后重试。");
       } else if (isGone(e)) {
         setError("模板不存在或无权访问，请刷新页面。");
+        setConflict(null);
       } else {
         setError(errorMessage(e));
       }
@@ -297,6 +324,38 @@ export function TemplatesPage() {
         <div data-testid="category-error" className="picker-failed">
           <Status tone="error">分类加载失败，请重新加载</Status>
           <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
+      {conflict && (
+        <div className="inline-confirm" data-testid="version-conflict">
+          <span>
+            最新版本 {conflict.resource.version} · {conflict.resource.title}（
+            {conflict.resource.published ? "已发布" : "已下架"}）。
+            请确认后以最新版本重新提交
+            {conflict.published ? "发布" : "下架"}
+            动作，不会自动合并或覆盖。
+          </span>
+          <Button
+            variant="primary"
+            busy={busy !== ""}
+            onClick={() =>
+              void commitToggle(
+                conflict.resource,
+                conflict.published,
+                conflict.resource.version,
+              )
+            }
+          >
+            确认重新提交
+          </Button>
+          <Button
+            onClick={() => {
+              setConflict(null);
+              setError("");
+            }}
+          >
+            取消
+          </Button>
         </div>
       )}
       <div className="admin-resource-grid">

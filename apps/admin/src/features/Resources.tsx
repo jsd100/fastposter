@@ -45,6 +45,10 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
     [editing, setEditing] = useState<ResourceDTO | "new" | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [conflict, setConflict] = useState<{
+      resource: ResourceDTO;
+      published: boolean;
+    } | null>(null),
     [newCategory, setNewCategory] = useState(false),
     [categoryTitle, setCategoryTitle] = useState("");
   const viewIdentity = adminPageIdentity([kind, page, keyword, category]);
@@ -104,6 +108,15 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
   });
   useErrorNotice("admin:resource-action", error || null);
   async function publish(resource: ResourceDTO) {
+    await commitPublish(resource, !resource.published, resource.version);
+  }
+  // The pending publication state is kept across a conflict; only an explicit
+  // confirmation may send a second POST, and it reuses the newest version.
+  async function commitPublish(
+    resource: ResourceDTO,
+    published: boolean,
+    expectedVersion: string,
+  ) {
     setBusy(true);
     setError("");
     try {
@@ -114,16 +127,29 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         assetId: resource.asset?.id,
         categoryId: resource.categoryId,
         sortOrder: resource.sortOrder,
-        published: !resource.published,
+        published,
         license: resource.license,
-        expectedVersion: resource.version,
+        expectedVersion,
       });
+      setConflict(null);
       await refresh();
     } catch (e) {
-      if (isRevisionConflict(e) || isStaleClient(e)) {
+      if (isRevisionConflict(e)) {
+        const latest = await reloadResource(resource.id).catch(() => null);
+        if (latest) {
+          setConflict({ resource: latest, published });
+          setError(
+            "该素材已被其他操作更新，请确认后以最新版本重新提交这个发布动作。",
+          );
+        } else {
+          setError("无法重载该素材，请刷新页面后重试。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
         setError("该素材已被更新或页面版本过旧，请刷新页面后重试。");
       } else if (isGone(e)) {
         setError("素材不存在或无权访问，请刷新页面。");
+        setConflict(null);
       } else {
         setError(errorMessage(e));
       }
@@ -195,6 +221,38 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         <div data-testid="category-error" className="picker-failed">
           <Status tone="error">分类加载失败，请重新加载</Status>
           <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
+      {conflict && (
+        <div className="inline-confirm" data-testid="version-conflict">
+          <span>
+            最新版本 {conflict.resource.version} · {conflict.resource.title}（
+            {conflict.resource.published ? "已发布" : "已下架"}）。
+            请确认后以最新版本重新提交
+            {conflict.published ? "发布" : "下架"}
+            动作，不会自动合并或覆盖。
+          </span>
+          <Button
+            variant="primary"
+            busy={busy}
+            onClick={() =>
+              void commitPublish(
+                conflict.resource,
+                conflict.published,
+                conflict.resource.version,
+              )
+            }
+          >
+            确认重新提交
+          </Button>
+          <Button
+            onClick={() => {
+              setConflict(null);
+              setError("");
+            }}
+          >
+            取消
+          </Button>
         </div>
       )}
       <div

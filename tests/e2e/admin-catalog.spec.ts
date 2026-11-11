@@ -423,3 +423,155 @@ test("admin catalog reads every category page before showing the tree", async ({
     await context.close();
   }
 });
+
+/* B01 fix round / Rulings 199-202. A quick publish toggle (Resources.tsx)
+   must recover a REVISION_CONFLICT by reloading the newest resource through
+   AdminGetResource and waiting for an explicit confirmation before a second
+   POST. No automatic resend, no silent merge. */
+test("quick publish conflict reloads newest resource and waits for explicit confirmation", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const context = await browser.newContext();
+  const admin = await context.newPage();
+  await admin.goto("http://127.0.0.1:15174/admin/login");
+  await admin.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+  await admin
+    .getByLabel("密码", { exact: true })
+    .fill("fastposter-test-only-password");
+  await admin
+    .getByRole("button", { name: "登录管理后台", exact: true })
+    .click();
+  await expect(admin).toHaveURL(/\/admin\/overview$/);
+  try {
+    const id = "fix-bg-conflict";
+    const resource = (version: string, published: boolean, title: string) => ({
+      id,
+      kind: "background",
+      title,
+      version,
+      published,
+      sortOrder: 0,
+      categoryId: "",
+      asset: {
+        id: "fix-bg-asset",
+        version: "1",
+        kind: "image",
+        name: "bg",
+        width: 1200,
+        height: 800,
+        size: "1",
+        sha256: "x",
+        previewUrl: "",
+      },
+    });
+    let postCount = 0;
+    let succeeded = false;
+    const bodies: Array<Record<string, unknown>> = [];
+
+    // The admin detail route returns the newest server-side snapshot.
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/fix-bg-conflict\/detail$/,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-fix",
+            resource: resource("7", false, "服务端最新背景"),
+          }),
+        }),
+    );
+    // First POST -> 409; a second POST only happens after explicit confirm.
+    await admin.route(/\/api\/v1\/admin\/resources$/, (route) => {
+      postCount++;
+      bodies.push(route.request().postDataJSON() as Record<string, unknown>);
+      if (postCount === 1)
+        return route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            code: "REVISION_CONFLICT",
+            message: "资源已被其他操作更新，请刷新后重试",
+            requestId: "e2e-fix",
+          }),
+        });
+      succeeded = true;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-fix",
+          resource: resource("8", true, "服务端最新背景"),
+        }),
+      });
+    });
+    // Synthetic list; after the confirmed success it reflects the new state.
+    await admin.route(/\/api\/v1\/admin\/resources\/background\?/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-fix",
+          resources: [
+            resource(
+              succeeded ? "8" : "1",
+              succeeded,
+              succeeded ? "服务端最新背景" : "修复测试背景",
+            ),
+          ],
+          total: 1,
+        }),
+      }),
+    );
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/background-category\?/,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-fix",
+            resources: [],
+            total: 0,
+          }),
+        }),
+    );
+
+    await admin.getByRole("link", { name: "背景库", exact: true }).click();
+    await expect(admin).toHaveURL(/\/admin\/backgrounds$/);
+    const card = admin.getByTestId("resource-card");
+    await expect(card).toHaveCount(1);
+    await card.getByRole("button", { name: "发布", exact: true }).click();
+
+    // (a) 409 must NOT trigger an automatic second POST.
+    await expect.poll(() => postCount).toBe(1);
+    expect(bodies[0].expectedVersion).toBe("1");
+
+    // (b) visible conflict state showing the newest version/state/title.
+    const conflict = admin.getByTestId("version-conflict");
+    await expect(conflict).toBeVisible();
+    await expect(conflict).toContainText("7");
+    await expect(conflict).toContainText("服务端最新背景");
+
+    // (c) explicit confirmation affordance; still no auto resend.
+    const confirm = admin.getByRole("button", {
+      name: "确认重新提交",
+      exact: true,
+    });
+    await expect(confirm).toBeVisible();
+    await expect.poll(() => postCount).toBe(1);
+
+    // (d) only the confirmation sends the second POST, with latest.version.
+    await confirm.click();
+    await expect.poll(() => postCount).toBe(2);
+    expect(bodies[1].expectedVersion).toBe("7");
+    expect(bodies[1].published).toBe(true);
+
+    // (e) success clears the conflict state and refreshes the list.
+    await expect(admin.getByTestId("version-conflict")).toHaveCount(0);
+    await expect(admin.getByTestId("resource-card")).toContainText("已发布");
+  } finally {
+    await context.close();
+  }
+});
