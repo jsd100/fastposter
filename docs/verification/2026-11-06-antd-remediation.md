@@ -458,7 +458,7 @@ renderer: PASS 1 entry chunk(s), 35 source(s)
 ```yaml
 batch: B
 status: IN_PROGRESS
-authorization: "2026-11-11 用户明确选择『授权 B 批，从 B01 开始』；2026-11-12 用户回复『继续』逐任务授权 B02；按单任务惯例每次仅授权一个任务"
+authorization: "2026-11-11 用户明确选择『授权 B 批，从 B01 开始』；2026-11-12 用户回复『继续』逐任务授权 B02，同日再次回复『继续』逐任务授权 B03；按单任务惯例每次仅授权一个任务"
 execution_mode: subagent-driven-development (fresh implementer + independent task reviewer + controller final verification per task)
 workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
 branch: feat/fastposter
@@ -473,7 +473,7 @@ b02_status: COMPLETE
 b03: COMPLETE
 b02_b03: "B02 COMPLETE / B03 COMPLETE"
 spec_ids: [FP-11]
-blockers: ["A10.4 Chrome 157.0.8103.51 vs locked 156.0.8078.48 / Node v22.22.2 vs 24.21.0 — fixed PNG sample pixel comparison and 3 pre-existing PNG export cases remain BLOCKED; not retried in B01 or B02", "B03.3 A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases require a matching Chrome 156.0.8078.48 / Node 24.21.0 environment; B batch stays IN_PROGRESS and the batch-level verdict is deferred to that re-run"]
+blockers: ["A10.4 Chrome 157.0.8103.51 vs locked 156.0.8078.48 / Node v22.22.2 vs 24.21.0 — fixed PNG sample pixel comparison and 3 pre-existing PNG export cases remain BLOCKED; not retried in B01, B02 or B03", "B03.3 A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases require a matching Chrome 156.0.8078.48 / Node 24.21.0 environment; B batch stays IN_PROGRESS and the batch-level verdict is deferred to that re-run"]
 deferred_minors: 8
 next_step: "B01/B02/B03 COMPLETE. B batch stays IN_PROGRESS: re-run the A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases in a matching Chrome 156 / Node 24 environment, then re-review the batch-level verdict. A batch remains IN_PROGRESS on the same A10.4 blocker."
 ```
@@ -598,3 +598,17 @@ next_step: "B01/B02/B03 COMPLETE. B batch stays IN_PROGRESS: re-run the A10.4 fi
 #### 批次状态裁定（Ruling 273）
 
 A10.4 固定导出样本像素对比与 3 个既有 PNG 导出用例仍需匹配 Chrome `156.0.8078.48` / Node `24.21.0` 环境，B03.3 无法完整闭合；#11–#14 的失败均为环境 SKIP / 运行时 shim / Chrome 版本不匹配，**无产品 RED**，但也不足以构成批次级充分证据。按 Ruling 273：**B 批保持 `status: IN_PROGRESS`，不把批次标为已验证**；B03 任务标 `COMPLETE`。A 批 front matter 不动，`last_verified_commit: "4d4f8e7"` 保持不变（B03 无产品代码，A05–A10 惯例），`deferred_minors: 8` 不变；`next_step` 写明匹配环境补跑后才能复议该结论。旧证据一律标为历史、未作为新结果（FP-14 `:166`）。控制器独立评审与终验后另做文档提交。
+
+#### B03 控制器独立终验与终裁（2026-11-12，Rulings 279-290）
+
+**恢复与交付**：用户 2026-11-12「请接着之前中断的任务继续执行」→ 从 B03 实现者 `DONE_WITH_CONCERNS` 的中断点恢复，只做独立评审、控制器终验与文档收官，未重做任何已完成任务。实现者单一聚焦提交 `958126f docs: record catalog write compatibility and verification`（4 文件 / +168/-6），`git diff-tree --name-status` = 4 `M`，恰为 Ruling 268 白名单；零产品 / IDL / 生成物 / 测试文件改动；提交后工作区仍只有 10 个顶层 `??` 用户资产，索引干净。
+
+**独立任务评审**：首个评审 worker 在推理模型上运行 24 分 11 秒未产出评审文件，控制器按 A10 Ruling 171 的先例停止该 worker、以默认模型重派同一三份输入与检查清单，评审独立性未受损（Ruling 279）。重派评审完整读取 brief、`task-B03-report.md` §1–§12 与 53,836 字节评审包 `review-5c08a80..958126f.diff`，未跑测试、未改文件、未做 git 写操作。结论 **Spec ✅ / Task quality Approved**，**0 Critical / 0 Important / 4 Minor / 2 ⚠️ / 2 non-issue**；17 组 B03.1 逐字事实与四步 B03.2 回滚在 `AGENTS.md` 与 `README.md` 成对全覆盖，422/409/400/403 从未混写，`migrate -direction down` 仅以禁止式出现，报告数字与证据日志逐数吻合、提交后日志为真实重跑，文档事实与 `admin.thrift:17-18` / `hertz.go:93-115` / `generated.ts:455-462` 一致（Ruling 280）。**无需修复轮**（SDD：Minor 不进入循环）。
+
+**逐项裁定**：F1（B 状态块 `authorization` 仍只记 B02 授权）与 F2（`blockers` 首项仍写「not retried in B01 or B02」）由本次控制器文档提交补记 B03 授权与「B01, B02 or B03」措辞闭合，保留历史 Chrome `.51` 值不动（Ruling 281/282）。F3（PNG 用例在 Playwright 字面日志为 `failed`、汇总表记为「环境 SKIP」）裁定为**已披露的强制重分类**：字面计数 `3 passed / 2 failed` 保留在原表，分类按 Ruling 271/273 为环境 SKIP，非产品 RED、不写 PASS、不重跑、不改产品（Ruling 283）。F4（E2E 证据在提交前取得）由控制器在最终 HEAD 独立复跑 10 组全绿 + 提交后 12 条确定性命令全 0 闭合；B03 零产品改动使两次产品状态逐字相同（Ruling 284）。⚠️ F5 由控制器实测闭合：DSN / 凭据日志扫描 **0 命中**（唯一宽松正则命中是 Hertz 路由日志里的 `:id`），4 份权威文档大小 `36016 / 31748 / 14324 / 28568` 与报告一致、mtime 为 11-05/11-06、全部 UNTRACKED 且从未修改（Ruling 285）。⚠️ F6 由控制器逐日志核对闭合：10 个控制器 E2E 日志各含 `1 passed` 与 `EXIT_CODE: 0`（Ruling 286）。F7（`set -euo pipefail` 改为逐条捕获退出码）与 F8（Chrome `.51` 与 `.78` 并存）均为 non-issue：前者是 Ruling 271「每条记录 exit」的必要兑现，后者是不同测量时点且新章节已显式区分（Ruling 287/288）。**B 批延迟 Minor 仍为 8 项**，A 批 67 项未触碰（Ruling 289）。
+
+**控制器独立终验（最终 HEAD，24/24 命令 exit 0，2m42s，`/tmp/fp-b03-ctrl/`）**：`pnpm contracts:check`（generated contracts match the Thrift IDL）、`pnpm typecheck`、`pnpm test` **32 文件 / 218 用例**、`pnpm verify` **turbo 8/8**、`go test ./internal/...`、`pnpm test:server`、Go 定向 `--all-server` **5 PASS / 0 FAIL**、全量集成 **62 PASS / 8 环境 SKIP / 0 FAIL**、`pnpm --filter @fastposter/renderer build`（119 modules）、独立三入口 `vite build --manifest --sourcemap`（web 3798 / admin 3792 / renderer 119 modules）、`node tools/check-entry-boundary.mjs` **web PASS 2/764、admin PASS 6/749、renderer PASS 1/35**、`git diff --check`。控制器最终 E2E **10 个互斥 `-g` 组、10 例全绿、0 FAIL、无 0 用例组**：B 批 4（快捷发布冲突恢复、分类原子保存、copy 发布冲突、copy 过期发布）+ A01/A05/A07/A08/A09 跨任务回归 6。
+
+**环境与诚实口径**：本机 Chrome `157.0.8103.78` / Node `v22.22.2` 与锁定 `156.0.8078.48` / `24.21.0` 不符；A10.4 固定导出样本像素对比与 3 个既有 PNG 导出用例（`admin-catalog.spec.ts:11` / `:111`、`templates.spec.ts:274`）继续 `BLOCKED` / 环境 SKIP，控制器未重试、未写成 PASS、未计产品 RED。`pnpm test:server` 的集成包 `ok (cached)` 不作 MySQL 通过依据，真实断言只由两次 `python3 tools/test-integration.py` 覆盖。
+
+**B03 完成（Ruling 290）**：B03 **COMPLETE**；B 批保持 `IN_PROGRESS`、**不标 `VERIFIED`**，唯一剩余门槛是在匹配 Chrome 156 / Node 24 环境补跑 A10.4 与 3 个 PNG 用例后复议。`last_verified_commit` 沿用 `4d4f8e7`，A 批 `IN_PROGRESS` 与 `last_verified_commit: 4610e25` 不动。B 计划 `:39-43` 仅 B01/B02/B03，**无 B04**；两批均 `IN_PROGRESS` 时不派 whole-branch final review、不删除 `.superpowers/sdd/...` 工作区、不触发 finishing-a-development-branch（Ruling 276）。
