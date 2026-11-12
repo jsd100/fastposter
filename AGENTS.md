@@ -87,3 +87,52 @@ PR 应说明问题、变更后的行为、关联 issue，以及实际执行的�
 ## 配置与数据安全
 
 `.env.local` 仅用于本机，禁止提交凭据、私有作品和数据库备份。`APP_DATA_DIR` 相对仓库根解析，所有服务必须共享同一绝对数据目录。管理员密码使用交互输入或 `-password-stdin`，不要写入命令行参数。生产 HTTPS 配置需设置 `COOKIE_SECURE=true` 和实际的 `APP_ORIGINS`；备份恢复按 `deploy/backup.md` 操作。
+
+## B 批 · 后台资源写入边界、升级兼容与回滚（FP-11）
+
+本节是 B 批（FP-11 后台资源写入边界）交付的维护契约，逐字重述 B01/B02 已落地的前后端契约、部署兼容单元与回滚规则。`AGENTS.md` 与 `README.md` 的「Ant Design …（A 批迁移后，FP-12）」章节仍为 A 批逐字契约，本节不改写；四份权威规范/计划仍是本机未跟踪输入（路径与基线 `124b4ea` 见 `docs/verification/2026-11-06-antd-remediation.md`），新检出依据本节、`AGENTS.md`、`README.md`、`deploy/toolchain.lock.json` 与验收入口即可复现，不依赖忽略目录作为唯一交接来源。
+
+- **适用批次**：A 批 = FP-12 / FP-13 / FP-14 的 antd 迁移后修正；B 批 = FP-11 后台资源写入边界（B01 保存与分类移动版本前提、B02 独立发布意图）。B 批无 B04；B03 是纯文档与最终门槛任务，零产品代码、零 IDL、零生成物、零测试文件改动。
+
+### 两条管理员路由与精确错误码
+
+- **管理员详情**：`GET /api/v1/admin/resources/:id/detail` → `AdminGetResource`（`IDRequest → ResourceReply`），仅管理员可调用；资源缺失或已删除返回 `NOT_FOUND`，供冲突恢复按 ID 重载最新资源。
+- **独立发布意图**：`POST /api/v1/admin/resources/:id/publication` → `AdminPublishResource`，请求体**只有** `published` 与 `expectedVersion`，`id` 取自 path，返回 `ResourceReply`。
+- **版本前提格式**：`expectedVersion` 为正整数规范十进制字符串（避免 JavaScript number 丢失精度）；创建资源无版本前提。
+- **精确错误码映射（勿混写）**：
+  - `expectedVersion` 缺失 / 空值 / 格式非法 → `INVALID_INPUT` / HTTP **422**，并提示「刷新旧页面」。
+  - `expectedVersion` 合法但过期 → `REVISION_CONFLICT` / HTTP **409**（先于状态比较，故目标状态相同仍冲突）。
+  - `published` 缺失或为 JSON `null` → `BAD_REQUEST` / HTTP **400**，且**零写入**。
+  - 普通用户 → `FORBIDDEN` / HTTP **403**，且不回显当前版本（先鉴权、不泄露版本）。
+- **表单与快捷开关**：4 个编辑表单继续走 `AdminSaveResource` 并保留发布复选框（可原子保存内容与发布状态）；3 处列表 / 卡片快捷发布 toggle 改走新发布路由，只提交发布意图与版本前提，不携带内容快照。
+- **保存 / 移动 / 发布事务**：版本前提在事务行锁内核对；锁、校验、行更新、新版本行、依赖引用与审计处于同一事务。过期或失败没有成功审计、没有部分写入；未授权先按既有错误返回，现有资源不可见或已删除时沿用服务端权限校验。
+
+### 冲突恢复链（前台）
+
+- 冲突时**保留草稿与已上传素材引用**，按 ID 经 `AdminGetResource` 重载最新资源，展示最新版本号 / 发布状态 / 标题。
+- 仅在管理员**明确「确认重新提交」**后，才以 `latest.version` 重新提交；提供「取消」。
+- **禁止**自动重发、静默合并、自动覆盖、吞掉冲突；资源被删除或失去权限时终止重试。重复点击与迟到响应只作用于同一管理员、目标与操作。
+
+### 无 schema 迁移与兼容单元
+
+- B01 / B02 提交**未改动 `server/migrations`**，现有数据与版本行向前兼容，**没有 schema 迁移**，因此没有 down-migration 步骤。
+- 交付的兼容单元包含**同一代码版本**的核心服务、网关、管理站与生成 API 客户端；审核部署必须按同一版本整组切换网关、核心与管理站，开发中间提交不得单独部署（Global Constraints）。
+- 启动更新前确认旧实例**无法继续通过旧服务写入**；重新打开管理员工作台以取得新前端。**若独立前端或旧服务不能同步切换，冻结管理写入直到整组就绪**。
+- **B 批执行完成不代表自动部署**；B 批仍 `IN_PROGRESS`，A10.4 阻塞项继续有效。
+
+### 真实验证环境与验证命令
+
+- 本机实测：Chrome `157.0.8103.78`、Node `v22.22.2`、Go `go1.27.2 darwin/arm64`、pnpm `11.25.0`、Python `3.13.12`；`deploy/toolchain.lock.json` 锁定 Chrome `156.0.8078.48` / Node `24.21.0`。（A10 的 FP-12 逐字章节与 B01/B02 章节记为 `157.0.8103.51`，系各任务开工时实测；B03 最终门槛复测为 `157.0.8103.78`，均与锁定值不符，A10.4 阻塞继续有效。）
+- 真实 MySQL 断言**只走** `python3 tools/test-integration.py` 与 `fastposter_test_*` 临时库；直接 `go test ./server/tests/integration` 不读 `.env.local` 会 SKIP，不能算通过。固定导出样本像素对比与 3 个既有 PNG 导出用例须在匹配 Chrome 156 / Node 24 环境补跑，当前 `BLOCKED` / 环境 SKIP。
+- 最终门槛（B03.3）：`pnpm verify`、`go test ./internal/...`、`pnpm test:server`、两次 `python3 tools/test-integration.py`、`pnpm --filter @fastposter/renderer build`、逐 spec E2E、`git diff --check`，按 `AGENTS.md` 定向格式化；`GOPROXY=off GOSUMDB=off`，Playwright 预构建 renderer 后逐 spec 起新测试栈。
+
+### 回滚规则（逐字）
+
+1. **先停止管理写入**。
+2. **整组回退**（核心服务、网关、管理站与生成客户端作为一个单元），不单独回退某一个服务。
+3. **核对当前资源版本与资产引用**。
+4. **再恢复写入**。
+
+- 回退到旧服务会**失去本批并发保护**：必须记录该风险，并明确是否需要继续保持写入冻结。
+- 回滚**不修改已提交的资源版本、不删除数据**。
+- 无 schema 迁移意味着**没有 down-migration 步骤**，不得建议 `migrate -direction down`。
