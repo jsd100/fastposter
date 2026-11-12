@@ -1318,6 +1318,62 @@ var fieldIDToName_MoveResourceInput = map[int16]string{
 	3: "expectedVersion",
 }
 
+type PublishResourceInput struct {
+	Id              string `thrift:"id,1,required" frugal:"1,required,string" json:"id"`
+	Published       *bool  `thrift:"published,2,optional" frugal:"2,optional,bool" json:"published,omitempty"`
+	ExpectedVersion string `thrift:"expectedVersion,3,required" frugal:"3,required,string" json:"expectedVersion"`
+}
+
+func NewPublishResourceInput() *PublishResourceInput {
+	return &PublishResourceInput{}
+}
+
+func (p *PublishResourceInput) InitDefault() {
+}
+
+func (p *PublishResourceInput) GetId() (v string) {
+	return p.Id
+}
+
+var PublishResourceInput_Published_DEFAULT bool
+
+func (p *PublishResourceInput) GetPublished() (v bool) {
+	if !p.IsSetPublished() {
+		return PublishResourceInput_Published_DEFAULT
+	}
+	return *p.Published
+}
+
+func (p *PublishResourceInput) GetExpectedVersion() (v string) {
+	return p.ExpectedVersion
+}
+func (p *PublishResourceInput) SetId(val string) {
+	p.Id = val
+}
+func (p *PublishResourceInput) SetPublished(val *bool) {
+	p.Published = val
+}
+func (p *PublishResourceInput) SetExpectedVersion(val string) {
+	p.ExpectedVersion = val
+}
+
+func (p *PublishResourceInput) IsSetPublished() bool {
+	return p.Published != nil
+}
+
+func (p *PublishResourceInput) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PublishResourceInput(%+v)", *p)
+}
+
+var fieldIDToName_PublishResourceInput = map[int16]string{
+	1: "id",
+	2: "published",
+	3: "expectedVersion",
+}
+
 type FontUploadInput struct {
 	Family  string  `thrift:"family,1,required" frugal:"1,required,string" json:"family"`
 	Weight  int32   `thrift:"weight,2,required" frugal:"2,required,i32" json:"weight"`

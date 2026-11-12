@@ -53,18 +53,21 @@ func (s *Service) SaveCopy(ctx context.Context, p auth.Principal, input catalog.
 	return s.Catalog.Save(ctx, p, input)
 }
 
-func (s *Service) Publish(ctx context.Context, p auth.Principal, id string) error {
-	return s.setPublished(ctx, p, id, true)
+func (s *Service) Publish(ctx context.Context, p auth.Principal, id string, expectedVersion string) error {
+	return s.setPublished(ctx, p, id, true, expectedVersion)
 }
 
-func (s *Service) Unpublish(ctx context.Context, p auth.Principal, id string) error {
-	return s.setPublished(ctx, p, id, false)
+func (s *Service) Unpublish(ctx context.Context, p auth.Principal, id string, expectedVersion string) error {
+	return s.setPublished(ctx, p, id, false, expectedVersion)
 }
 
-func (s *Service) setPublished(ctx context.Context, p auth.Principal, id string, published bool) error {
+func (s *Service) setPublished(ctx context.Context, p auth.Principal, id string, published bool, expectedVersion string) error {
 	if e := auth.RequireAdmin(p); e != nil {
 		return e
 	}
+	// Get is used only for the immutable kind guard; the version prerequisite
+	// comes from the caller, never from r.Version (no pre-transaction version
+	// read, no post-commit re-read).
 	r, e := s.Catalog.Get(ctx, p, id, true)
 	if e != nil {
 		return e
@@ -72,7 +75,7 @@ func (s *Service) setPublished(ctx context.Context, p auth.Principal, id string,
 	if r.Kind != "copy" && r.Kind != "copy-category" {
 		return domain.E("INVALID_INPUT", "不是文案或文案分类")
 	}
-	_, e = s.Catalog.Save(ctx, p, catalog.ResourceInput{ID: r.ID, Kind: r.Kind, Title: r.Title, CategoryID: r.CategoryID, ParentID: r.ParentID, SortOrder: r.SortOrder, Published: published, Body: r.Body, ExpectedVersion: r.Version})
+	_, e = s.Catalog.SetPublished(ctx, p, id, published, expectedVersion)
 	return e
 }
 

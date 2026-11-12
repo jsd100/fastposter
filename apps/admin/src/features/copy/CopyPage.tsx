@@ -144,13 +144,10 @@ export function CopyPage() {
     setBusy(copy.id);
     setError("");
     try {
-      await request(routes.AdminSaveResource, {
+      // B02: a versioned publication intent carries only the target state and
+      // the expected version; the server keeps its own newer copy body.
+      await request(routes.AdminPublishResource, {
         id: copy.id,
-        kind: "copy",
-        title: copy.title,
-        body: copy.body,
-        categoryId: copy.categoryId,
-        sortOrder: copy.sortOrder,
         published,
         expectedVersion,
       });

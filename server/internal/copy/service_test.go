@@ -94,19 +94,21 @@ func TestUnpublishedCopyHidden(t *testing.T) {
 	if _, e = s.Catalog.Get(ctx, user, hidden.ID, false); !isCode(e, "NOT_FOUND") {
 		t.Fatal("unpublished copy readable", e)
 	}
-	if e = s.Unpublish(ctx, admin, published.ID); e != nil {
+	// Each state change advances the version by one; the version prerequisite
+	// is passed explicitly, matching the versioned publication intent.
+	if e = s.Unpublish(ctx, admin, published.ID, "1"); e != nil {
 		t.Fatal(e)
 	}
 	if _, total, e = s.ListEntries(ctx, user, category.ID, "", 1, 24, false); e != nil || total != 0 {
 		t.Fatal("unpublication did not hide copy", total, e)
 	}
-	if e = s.Publish(ctx, admin, published.ID); e != nil {
+	if e = s.Publish(ctx, admin, published.ID, "2"); e != nil {
 		t.Fatal(e)
 	}
 	if _, total, e = s.ListEntries(ctx, user, category.ID, "公开", 1, 24, false); e != nil || total != 1 {
 		t.Fatal("search did not find republished copy", total, e)
 	}
-	if e = s.Unpublish(ctx, admin, category.ID); e != nil {
+	if e = s.Unpublish(ctx, admin, category.ID, "1"); e != nil {
 		t.Fatal(e)
 	}
 	categories, e := s.ListCategories(ctx, user, false)
@@ -116,7 +118,7 @@ func TestUnpublishedCopyHidden(t *testing.T) {
 	if _, e = s.SaveCopy(ctx, user, catalog.ResourceInput{Title: "伪造", Body: "伪造正文", Published: true}); !isCode(e, "FORBIDDEN") {
 		t.Fatal("ordinary user created copy", e)
 	}
-	if e = s.Publish(ctx, user, published.ID); !isCode(e, "FORBIDDEN") {
+	if e = s.Publish(ctx, user, published.ID, "3"); !isCode(e, "FORBIDDEN") {
 		t.Fatal("ordinary user published copy", e)
 	}
 }

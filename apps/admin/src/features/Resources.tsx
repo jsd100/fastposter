@@ -120,15 +120,12 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
     setBusy(true);
     setError("");
     try {
-      await request(routes.AdminSaveResource, {
+      // B02: a versioned publication intent carries only the target state and
+      // the expected version. The server copies content from the locked
+      // current version row, so no client-side snapshot is submitted.
+      await request(routes.AdminPublishResource, {
         id: resource.id,
-        kind,
-        title: resource.title,
-        assetId: resource.asset?.id,
-        categoryId: resource.categoryId,
-        sortOrder: resource.sortOrder,
         published,
-        license: resource.license,
         expectedVersion,
       });
       setConflict(null);

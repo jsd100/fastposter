@@ -317,6 +317,11 @@ export interface MoveResourceInput {
   parentId?: string;
   expectedVersion?: string;
 }
+export interface PublishResourceInput {
+  id: string;
+  published?: boolean;
+  expectedVersion: string;
+}
 export interface FontUploadInput {
   family: string;
   weight: number;
@@ -447,6 +452,14 @@ export const routes = {
     queryFields: [],
     bodyFields: [],
   } as Route<IDRequest, ResourceReply>,
+  AdminPublishResource: {
+    name: "AdminPublishResource",
+    method: "POST",
+    path: "/api/v1/admin/resources/:id/publication",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: ["published", "expectedVersion"],
+  } as Route<PublishResourceInput, ResourceReply>,
   AdminDeleteResource: {
     name: "AdminDeleteResource",
     method: "DELETE",

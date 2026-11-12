@@ -92,6 +92,8 @@ func (g *Gateway) originAllowed(r *app.RequestContext) bool {
 func notReadyReply(c *common.CallContext) *common.RPCReply { reply, _ := notReady(c); return reply }
 func errorStatus(code string) int {
 	switch code {
+	case "BAD_REQUEST":
+		return 400
 	case "AUTH_REQUIRED", "INVALID_CREDENTIALS":
 		return 401
 	case "FORBIDDEN", "PASSWORD_CHANGE_REQUIRED":

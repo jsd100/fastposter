@@ -174,14 +174,11 @@ export function TemplatesPage() {
     setBusy(resource.id);
     setError("");
     try {
-      await request(routes.AdminSaveResource, {
+      // B02: a versioned publication intent carries only the target state and
+      // the expected version; the server keeps its own newer document.
+      await request(routes.AdminPublishResource, {
         id: resource.id,
-        kind: "template",
-        title: resource.title,
-        categoryId: resource.categoryId,
-        sortOrder: resource.sortOrder,
         published,
-        document: resource.document,
         expectedVersion,
       });
       setConflict(null);

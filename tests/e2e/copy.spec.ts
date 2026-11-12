@@ -278,16 +278,21 @@ test("copy list returns to the previous page after its last row disappears", asy
         }),
       });
     });
-    // The publish toggle (AdminSaveResource POST) is the action that triggers
-    // the copies refetch; it models the shrink without a copy delete endpoint.
-    await admin.route(/\/api\/v1\/admin\/resources$/, (route) => {
-      shrunk = true;
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ requestId: "e2e-a08", resource: row(25) }),
-      });
-    });
+    // B02: the quick publish toggle now POSTs a publication intent to the
+    // dedicated route. Intercepting it still models the shrink (and triggers
+    // the copies refetch) without a copy delete endpoint. All A08 pagination
+    // assertions below are unchanged.
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/a08-copy-25\/publication$/,
+      (route) => {
+        shrunk = true;
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ requestId: "e2e-a08", resource: row(25) }),
+        });
+      },
+    );
 
     const listPages: string[] = [];
     admin.on("request", (req) => {
@@ -567,29 +572,34 @@ test("quick copy publish conflict reloads newest version before confirmed resubm
           }),
         }),
     );
-    await admin.route(/\/api\/v1\/admin\/resources$/, (route) => {
-      postCount++;
-      bodies.push(route.request().postDataJSON() as Record<string, unknown>);
-      if (postCount === 1)
+    // B02: the quick copy toggle now uses the dedicated publication route;
+    // its body is a publication intent only (published + expectedVersion).
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/fix-copy-conflict\/publication$/,
+      (route) => {
+        postCount++;
+        bodies.push(route.request().postDataJSON() as Record<string, unknown>);
+        if (postCount === 1)
+          return route.fulfill({
+            status: 409,
+            contentType: "application/json",
+            body: JSON.stringify({
+              code: "REVISION_CONFLICT",
+              message: "资源已被其他操作更新，请刷新后重试",
+              requestId: "e2e-fix",
+            }),
+          });
+        succeeded = true;
         return route.fulfill({
-          status: 409,
+          status: 200,
           contentType: "application/json",
           body: JSON.stringify({
-            code: "REVISION_CONFLICT",
-            message: "资源已被其他操作更新，请刷新后重试",
             requestId: "e2e-fix",
+            resource: resource("8", true, "服务端最新文案"),
           }),
         });
-      succeeded = true;
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          requestId: "e2e-fix",
-          resource: resource("8", true, "服务端最新文案"),
-        }),
-      });
-    });
+      },
+    );
     await admin.route(/\/api\/v1\/admin\/resources\/copy\?/, (route) =>
       route.fulfill({
         status: 200,
@@ -627,6 +637,11 @@ test("quick copy publish conflict reloads newest version before confirmed resubm
 
     await expect.poll(() => postCount).toBe(1);
     expect(bodies[0].expectedVersion).toBe("1");
+    // B02: the body is a publication intent only; no kind/title/body/id.
+    expect(Object.keys(bodies[0]).sort()).toEqual([
+      "expectedVersion",
+      "published",
+    ]);
 
     const conflict = admin.getByTestId("version-conflict");
     await expect(conflict).toBeVisible();
@@ -644,6 +659,164 @@ test("quick copy publish conflict reloads newest version before confirmed resubm
     await expect.poll(() => postCount).toBe(2);
     expect(bodies[1].expectedVersion).toBe("7");
     expect(bodies[1].published).toBe(true);
+    // B02: the confirmed resubmit is also a publication intent only.
+    expect(Object.keys(bodies[1]).sort()).toEqual([
+      "expectedVersion",
+      "published",
+    ]);
+
+    await expect(admin.getByTestId("version-conflict")).toHaveCount(0);
+    await expect(admin.getByTestId("copy-card")).toContainText("已发布");
+  } finally {
+    await adminContext.close();
+  }
+});
+
+/* B02.1. A stale publication intent must not overwrite the server's newer
+   resource: after a 409 the page reloads by ID, shows the newest content and
+   waits for an explicit confirmation before a second POST. Every POST is a
+   publication intent carrying only published + expectedVersion, so the
+   client's older title/body snapshot is never sent back to the server. */
+test("stale publication preserves newer resource and requires confirmation", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await loginAdmin(admin);
+  try {
+    const id = "b02-copy-conflict";
+    const resource = (
+      version: string,
+      published: boolean,
+      title: string,
+      body: string,
+    ) => ({
+      id,
+      kind: "copy",
+      title,
+      body,
+      version,
+      published,
+      sortOrder: 0,
+      categoryId: "",
+    });
+    let postCount = 0;
+    let succeeded = false;
+    const bodies: Array<Record<string, unknown>> = [];
+
+    // The admin detail route returns the server's NEWER document; the stale
+    // client snapshot must never overwrite it with an old body/title.
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/b02-copy-conflict\/detail$/,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-b02",
+            resource: resource("7", false, "服务端最新文案", "服务端最新正文"),
+          }),
+        }),
+    );
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/b02-copy-conflict\/publication$/,
+      (route) => {
+        postCount++;
+        bodies.push(route.request().postDataJSON() as Record<string, unknown>);
+        if (postCount === 1)
+          return route.fulfill({
+            status: 409,
+            contentType: "application/json",
+            body: JSON.stringify({
+              code: "REVISION_CONFLICT",
+              message: "资源已被其他操作更新，请刷新后重试",
+              requestId: "e2e-b02",
+            }),
+          });
+        succeeded = true;
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-b02",
+            resource: resource("8", true, "服务端最新文案", "服务端最新正文"),
+          }),
+        });
+      },
+    );
+    await admin.route(/\/api\/v1\/admin\/resources\/copy\?/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-b02",
+          resources: [
+            resource(
+              succeeded ? "8" : "1",
+              succeeded,
+              succeeded ? "服务端最新文案" : "旧文案标题",
+              succeeded ? "服务端最新正文" : "旧文案正文",
+            ),
+          ],
+          total: 1,
+        }),
+      }),
+    );
+    await admin.route(/\/api\/v1\/admin\/resources\/copy-category\?/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-b02",
+          resources: [],
+          total: 0,
+        }),
+      }),
+    );
+
+    await admin.getByRole("link", { name: "文案库", exact: true }).click();
+    await expect(admin).toHaveURL(/\/admin\/copy$/);
+    const card = admin.getByTestId("copy-card");
+    await expect(card).toHaveCount(1);
+    await card.getByRole("button", { name: "发布", exact: true }).click();
+
+    // 409: exactly one POST, no automatic retry.
+    await expect.poll(() => postCount).toBe(1);
+    expect(bodies[0].expectedVersion).toBe("1");
+    expect(bodies[0].published).toBe(true);
+    // The intent carries NOTHING from the client's stale snapshot.
+    expect(Object.keys(bodies[0]).sort()).toEqual([
+      "expectedVersion",
+      "published",
+    ]);
+    for (const stale of ["id", "kind", "title", "body", "document"]) {
+      expect(bodies[0][stale]).toBeUndefined();
+    }
+
+    const conflict = admin.getByTestId("version-conflict");
+    await expect(conflict).toBeVisible();
+    await expect(conflict).toContainText("7");
+    await expect(conflict).toContainText("服务端最新文案");
+    await expect.poll(() => postCount).toBe(1);
+
+    const confirm = admin.getByRole("button", {
+      name: "确认重新提交",
+      exact: true,
+    });
+    await expect(confirm).toBeVisible();
+    await confirm.click();
+    await expect.poll(() => postCount).toBe(2);
+    expect(bodies[1].expectedVersion).toBe("7");
+    expect(bodies[1].published).toBe(true);
+    // The confirmed resubmit is also a publication intent only.
+    expect(Object.keys(bodies[1]).sort()).toEqual([
+      "expectedVersion",
+      "published",
+    ]);
+    for (const stale of ["id", "kind", "title", "body", "document"]) {
+      expect(bodies[1][stale]).toBeUndefined();
+    }
 
     await expect(admin.getByTestId("version-conflict")).toHaveCount(0);
     await expect(admin.getByTestId("copy-card")).toContainText("已发布");

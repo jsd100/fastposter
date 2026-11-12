@@ -372,10 +372,17 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 	if _, e = tx.ExecContext(ctx, "INSERT INTO admin_audit_logs(id,actor_id,action,target_id,result) VALUES(?,?,?,?,'success')", domain.ID(), p.UserID, "resource.save", id); e != nil {
 		return Resource{}, e
 	}
+	// Read the response from this transaction's own snapshot so the echoed
+	// version is the one this write created, not another concurrent commit.
+	r, e := scanResource(tx.QueryRowContext(ctx,
+		"SELECT "+resourceColumns+" FROM resources r JOIN resource_versions v ON v.resource_id=r.id AND v.version=r.current_version WHERE r.id=?", id))
+	if e != nil {
+		return Resource{}, e
+	}
 	if e = tx.Commit(); e != nil {
 		return Resource{}, e
 	}
-	return s.Get(ctx, p, id, true)
+	return r, nil
 }
 
 // validateParentTree checks the whole affected subtree against an already

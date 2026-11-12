@@ -482,30 +482,36 @@ test("quick publish conflict reloads newest resource and waits for explicit conf
           }),
         }),
     );
-    // First POST -> 409; a second POST only happens after explicit confirm.
-    await admin.route(/\/api\/v1\/admin\/resources$/, (route) => {
-      postCount++;
-      bodies.push(route.request().postDataJSON() as Record<string, unknown>);
-      if (postCount === 1)
+    // B02: the quick toggle now uses the dedicated publication route. The
+    // first POST -> 409; a second POST only happens after explicit confirm.
+    // The request body must be a publication intent only (published +
+    // expectedVersion); id is in the path.
+    await admin.route(
+      /\/api\/v1\/admin\/resources\/fix-bg-conflict\/publication$/,
+      (route) => {
+        postCount++;
+        bodies.push(route.request().postDataJSON() as Record<string, unknown>);
+        if (postCount === 1)
+          return route.fulfill({
+            status: 409,
+            contentType: "application/json",
+            body: JSON.stringify({
+              code: "REVISION_CONFLICT",
+              message: "资源已被其他操作更新，请刷新后重试",
+              requestId: "e2e-fix",
+            }),
+          });
+        succeeded = true;
         return route.fulfill({
-          status: 409,
+          status: 200,
           contentType: "application/json",
           body: JSON.stringify({
-            code: "REVISION_CONFLICT",
-            message: "资源已被其他操作更新，请刷新后重试",
             requestId: "e2e-fix",
+            resource: resource("8", true, "服务端最新背景"),
           }),
         });
-      succeeded = true;
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          requestId: "e2e-fix",
-          resource: resource("8", true, "服务端最新背景"),
-        }),
-      });
-    });
+      },
+    );
     // Synthetic list; after the confirmed success it reflects the new state.
     await admin.route(/\/api\/v1\/admin\/resources\/background\?/, (route) =>
       route.fulfill({
@@ -547,6 +553,12 @@ test("quick publish conflict reloads newest resource and waits for explicit conf
     // (a) 409 must NOT trigger an automatic second POST.
     await expect.poll(() => postCount).toBe(1);
     expect(bodies[0].expectedVersion).toBe("1");
+    // B02: the body is a publication intent only; no kind/title/assetId/
+    // document/body/id may be sent (the server keeps its own newer content).
+    expect(Object.keys(bodies[0]).sort()).toEqual([
+      "expectedVersion",
+      "published",
+    ]);
 
     // (b) visible conflict state showing the newest version/state/title.
     const conflict = admin.getByTestId("version-conflict");
@@ -567,6 +579,11 @@ test("quick publish conflict reloads newest resource and waits for explicit conf
     await expect.poll(() => postCount).toBe(2);
     expect(bodies[1].expectedVersion).toBe("7");
     expect(bodies[1].published).toBe(true);
+    // B02: the confirmed resubmit is also a publication intent only.
+    expect(Object.keys(bodies[1]).sort()).toEqual([
+      "expectedVersion",
+      "published",
+    ]);
 
     // (e) success clears the conflict state and refreshes the list.
     await expect(admin.getByTestId("version-conflict")).toHaveCount(0);

@@ -66,7 +66,7 @@ func CatalogAdapter(accounts *auth.Service, service *catalog.Service, copies *co
 			}
 			return response(c, nil, service.CheckFonts(ctx, p, call.FontCheck.Document)), nil
 		}
-		admin := call.Action == "AdminResources" || call.Action == "AdminSaveResource" || call.Action == "AdminDeleteResource" || call.Action == "AdminMoveResource" || call.Action == "AdminGetResource"
+		admin := call.Action == "AdminResources" || call.Action == "AdminSaveResource" || call.Action == "AdminDeleteResource" || call.Action == "AdminMoveResource" || call.Action == "AdminGetResource" || call.Action == "AdminPublishResource"
 		if admin {
 			if e = auth.RequireAdmin(p); e != nil {
 				return response(c, nil, e), nil
@@ -115,6 +115,22 @@ func CatalogAdapter(accounts *auth.Service, service *catalog.Service, copies *co
 			return response(c, nil, copies.MoveCategory(ctx, p, call.Move.GetId(), call.Move.GetParentId(), call.Move.GetExpectedVersion())), nil
 		case "AdminGetResource":
 			row, e := service.Get(ctx, p, call.GetId(), true)
+			reply := response(c, nil, e)
+			if e == nil {
+				reply.Data.Resource, e = publicResource(ctx, service, p, row)
+				if e != nil {
+					return response(c, nil, e), nil
+				}
+			}
+			return reply, nil
+		case "AdminPublishResource":
+			pub := call.Publication
+			// IsSetPublished (not GetPublished) distinguishes a missing / null
+			// field from an explicit published:false. No write on this path.
+			if pub == nil || !pub.IsSetPublished() {
+				return response(c, nil, domain.E("BAD_REQUEST", "缺少发布状态")), nil
+			}
+			row, e := service.SetPublished(ctx, p, pub.GetId(), *pub.Published, pub.GetExpectedVersion())
 			reply := response(c, nil, e)
 			if e == nil {
 				reply.Data.Resource, e = publicResource(ctx, service, p, row)
