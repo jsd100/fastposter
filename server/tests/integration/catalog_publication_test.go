@@ -13,6 +13,7 @@ import (
 	"fastposter/server/internal/transport"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -379,4 +380,75 @@ func TestCatalogPublicationHTTPContract(t *testing.T) {
 		t.Fatalf("same-state version = %s, want 3", v)
 	}
 	assertUnchanged()
+}
+
+// TestCatalogSaveEchoesTransactionSnapshotVersion closes B01 W2 (Ruling 225 /
+// brief §3.5): Save now returns an in-transaction snapshot instead of a
+// post-commit s.Get. A concurrent AdminSaveResource winner must echo exactly
+// the version its own transaction created (old+1), never a version that a
+// second concurrent write could have produced (old+2). The loser must be
+// REVISION_CONFLICT. This is a regression guard: on the current code it is
+// GREEN; reverting Save to a post-commit read is what it is meant to catch.
+func TestCatalogSaveEchoesTransactionSnapshotVersion(t *testing.T) {
+	h := newVersionHarness(t)
+	ctx := context.Background()
+	created := h.saveCopy(t, ctx, "初稿", "内容A", true)
+	old, e := strconv.ParseUint(created.Version, 10, 64)
+	if e != nil {
+		t.Fatal(e)
+	}
+	ownVersion := strconv.FormatUint(old+1, 10)
+	otherVersion := strconv.FormatUint(old+2, 10)
+
+	var wg sync.WaitGroup
+	replies := make([]*common.RPCReply, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			v := created.Version
+			replies[i], _ = h.invoke(ctx, h.adminT, "AdminSaveResource", &common.ResourceInput{
+				Kind: "copy", Title: "并发标题", Id: vpStr(created.Id),
+				Body: vpStr("内容B"), Published: vpBool(true), ExpectedVersion: &v,
+			}, nil, "")
+		}(i)
+	}
+	wg.Wait()
+
+	success, conflict := 0, 0
+	winner := ""
+	for _, r := range replies {
+		if r == nil {
+			t.Fatal("nil reply")
+		}
+		if r.Error == nil {
+			success++
+			// The assertion Ruling 225 asks for: the echoed version is read
+			// from the winning transaction's own snapshot, not from a later
+			// SELECT that could observe another write.
+			winner = requireResource(t, r).Version
+		} else if r.Error.Code == "REVISION_CONFLICT" {
+			conflict++
+		}
+	}
+	if success != 1 || conflict != 1 {
+		t.Fatalf("concurrent save: want 1 success + 1 REVISION_CONFLICT, got success=%d conflict=%d", success, conflict)
+	}
+	if winner != ownVersion || winner == otherVersion {
+		t.Fatalf("echoed version %q must be this transaction's %q and not another concurrent write's %q", winner, ownVersion, otherVersion)
+	}
+	var current uint64
+	if e = h.db.QueryRow("SELECT current_version FROM resources WHERE id=?", created.Id).Scan(&current); e != nil {
+		t.Fatal(e)
+	}
+	if current != old+1 {
+		t.Fatalf("current_version = %d, want %d (exactly one winning write)", current, old+1)
+	}
+	var audits int
+	if e = h.db.QueryRow("SELECT COUNT(*) FROM admin_audit_logs WHERE target_id=? AND action='resource.save' AND result='success'", created.Id).Scan(&audits); e != nil {
+		t.Fatal(e)
+	}
+	if audits != 2 {
+		t.Fatalf("success audits = %d, want 2 (creation + one winning update)", audits)
+	}
 }
