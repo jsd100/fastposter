@@ -458,20 +458,24 @@ renderer: PASS 1 entry chunk(s), 35 source(s)
 ```yaml
 batch: B
 status: IN_PROGRESS
-authorization: "2026-11-11 用户明确选择『授权 B 批，从 B01 开始』；按单任务惯例本次仅授权 B01"
+authorization: "2026-11-11 用户明确选择『授权 B 批，从 B01 开始』；2026-11-12 用户回复『继续』逐任务授权 B02；按单任务惯例每次仅授权一个任务"
 execution_mode: subagent-driven-development (fresh implementer + independent task reviewer + controller final verification per task)
 workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
 branch: feat/fastposter
 baseline: "9a0efbf" (A10 controller final verification)
+b01_baseline: "9a0efbf"
+b02_baseline: "be986a9"
 review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
-last_verified_commit: "c437757"
-task: B01
+last_verified_commit: "4d4f8e7"
+task: B02
 b01_status: COMPLETE
-b02_b03: NOT_AUTHORIZED
+b02_status: COMPLETE
+b03: NOT_AUTHORIZED
+b02_b03: "B02 COMPLETE / B03 NOT_AUTHORIZED"
 spec_ids: [FP-11]
-blockers: ["A10.4 Chrome 157.0.8103.51 vs locked 156.0.8078.48 / Node v22.22.2 vs 24.21.0 — fixed PNG sample pixel comparison and 3 pre-existing PNG export cases remain BLOCKED; not retried in B01", "B02/B03 NOT_AUTHORIZED — no further IDL or business-code work without another explicit user go-ahead"]
-deferred_minors: 4
-next_step: "B01 COMPLETE. Await an explicit user go-ahead before B02; A batch remains IN_PROGRESS pending the A10.4 Chrome-156 / Node-24 re-run."
+blockers: ["A10.4 Chrome 157.0.8103.51 vs locked 156.0.8078.48 / Node v22.22.2 vs 24.21.0 — fixed PNG sample pixel comparison and 3 pre-existing PNG export cases remain BLOCKED; not retried in B01 or B02", "B03 NOT_AUTHORIZED — no further IDL or business-code work without another explicit user go-ahead"]
+deferred_minors: 8
+next_step: "B01/B02 COMPLETE. Await an explicit user go-ahead before B03; A batch remains IN_PROGRESS pending the A10.4 Chrome-156 / Node-24 re-run."
 ```
 
 ### B01 使保存和分类移动共享版本前提 — COMPLETE
@@ -502,3 +506,31 @@ next_step: "B01 COMPLETE. Await an explicit user go-ahead before B02; A batch re
 **部署兼容提示（B01 范围内）**：无 schema 迁移；`expectedVersion` 为可选 wire 字段，旧客户端缺少该字段的已有资源更新会被安全拒绝并提示刷新。B 计划 Global Constraints 要求核心服务、网关、管理站与生成客户端作为同一兼容单元切换；完整维护文档、回滚规则与 B03.3 最终门槛属 **B03（`NOT_AUTHORIZED`）**，本节不代替其交付，也不宣称 B 批 `VERIFIED`。
 
 **B01 完成（Ruling 213）**：B 批仍 `IN_PROGRESS`，`last_verified_commit: c437757`；B02 / B03 保持 `NOT_AUTHORIZED`，需用户再次明确授权方可改动 IDL 与业务代码。A 批状态与阻塞项保持 A10 终验原样。
+
+### B02 独立发布意图并保留版本引用 — COMPLETE
+
+**提交（2 个聚焦提交，父链 `be986a9 → 07cd237 → 4d4f8e7`）**
+
+- `07cd237 feat(catalog): publish resources with versioned intent` — **25 files / +1804/-83**：3 个 IDL、**9 个生成产物**、新增 `server/internal/catalog/publication.go`、6 个服务端文件、3 个 admin TSX、新增 `server/tests/integration/catalog_publication_test.go`、2 个 E2E spec。
+- `4d4f8e7 test(catalog): cover save snapshot echo and publication HTTP 400 contract` — 修复轮，**2 个测试文件 / +288/-0**（新增 `server/internal/transport/publication_http_test.go`），**零产品代码改动**。
+- 仅显式路径 `git add`，未用 `git add -A`；10 个顶层未跟踪用户资产全程未修改、未暂存；提交后索引干净。
+
+**需求映射（FP-11 / B02.1–B02.5）**：新增 `PublishResourceInput`（字段 1 `required string id (api.path="id")`、2 `optional bool published (api.body="published")`、3 `required string expectedVersion (api.body="expectedVersion")`），`CatalogCall` 追加字段 8 `optional requests.PublishResourceInput publication`，新增 `AdminPublishResource POST /api/v1/admin/resources/:id/publication` 返回 `ResourceReply`；`pnpm contracts:generate` 产出并随 IDL 提交 **9 个生成产物**（B01 的 7 个 + 首次变动的 `kitex/common/calls.go`、`k-calls.go`），`contracts:check` sha256 一致。生成的 `bodyFields` 恰为 `["published","expectedVersion"]`，`id` 走 path。B02.1 的「缺字段或 null 返回 400」经控制器 Ruling 220 裁定专指 `published`：新增 `BAD_REQUEST → 400` 分支（不改既有映射），缺 `expectedVersion` 仍为 `INVALID_INPUT`/422 + 刷新提示。服务新增 `SetPublished(ctx, p, id, published, expectedVersion) (Resource, error)`，三重管理员设防（adapter 白名单、服务内 `RequireAdmin` 先于版本解析、copy 测试 FORBIDDEN），普通用户持合法版本也 403 且不回显版本。
+
+**事务语义**：auth → `parseExpectedVersion` → `BeginTx` → 行 `FOR UPDATE` → 版本不等即 `REVISION_CONFLICT`/409（**先于**状态比较，故过期且目标状态相同仍冲突）→ 状态已相同则**成功零写入**（无新版本行、无审计、无 UPDATE，响应版本为事务内当前快照）。状态不同时在同一事务内按稳定顺序 `LockAssetVersions`、从已锁定的当前版本行 `INSERT … SELECT` 复制 title/元数据/资产版本/document/body、复制 `resource` 与 `resource-version` 两种 `asset_refs`、更新 `published`/`current_version`、写一条 `resource.publish` 审计；任何失败整体回滚。服务端不消费任何客户端内容快照。**B01 W2 闭合**：`service.go:375-385` 的提交后 `s.Get` 与新的 `SetPublished` 均改为事务内 `scanResource` 快照，写路径无提交后重读。
+
+**前端与 E2E**：三处列表/卡片快捷 toggle 改走新路由，body 只有 `{id, published, expectedVersion}`；完整保留 B01 的 pending 目标态、`reloadResource`（`AdminGetResource`）、`data-testid="version-conflict"` 最新版本/状态/标题、「确认重新提交」+「取消」、`isGone` 终止与 `isStaleClient` 刷新提示。4 个编辑表单仍走 `AdminSaveResource` + 发布复选框，`TemplateEditor.tsx` / `CopyForm.tsx` 未改。copy 服务 `Publish`/`Unpublish` 扩签名并委托 `SetPublished`，保留 `RequireAdmin` 与 `copy`/`copy-category` 限定。**B01 两条冲突 E2E 是改写而非删除**（POST mock 换到 `/:id/publication`），保留全部断言语义并新增 body-only 断言；新增具名用例 `stale publication preserves newer resource and requires confirmation`。
+
+**真实 RED → GREEN**：`pnpm contracts:generate` 前新测试引用新符号无法编译，如实标为 interface absence、不计 RED。生成后、服务实现前，3 个 Go 集成测试在真实 `fastposter_test_*` MySQL 上出现 3 个 `--- FAIL`（`INVALID_INPUT 未知素材操作`，`FAIL … 2.512s`），两条 E2E 出现 `Expected: 1 / Received: 0`（快捷 toggle 未 POST 到新路由）——均为真实行为失败，非构建错误、DSN SKIP、注册限流或 Chrome-157 PNG 失败。修复后 Go 定向 3 PASS、E2E 20 例全绿。实现期 A08 分页旧路由 mock 曾 1 failed（`Expected: true / Received: false`），提交前连带改写并复跑 4 passed，如实记录。契约优先任务无法用 `git apply -R` 做纯基线重跑（B01 Ruling 203/W6 的结构差异）。
+
+**控制器独立终验（最终 HEAD `4d4f8e7`，全部 exit 0）**：`pnpm contracts:check`、`pnpm typecheck`、`pnpm test` **32 文件 / 218 用例**、`pnpm verify` **turbo 8/8**、Go 定向 `--all-server` **5 PASS**（transport 1 + integration 4）、全量集成 PASS `ok … 27.033s`、`pnpm test:server`、`go test ./internal/...`、手写 5 文件 `prettier --check`、`gofmt -l` 空、`git diff --check`。控制器最终 E2E **12 组 / 20 例 / 0 FAIL**，逐 spec 独立临时栈、互斥 `-g` 分组：B02 改写/新增发布用例 3、B01 原子保存 1、A08/A09 admin-catalog 2、copy 3、templates 3、A01 缩减动效 1、A05 创建重试 1、A07 加载态 2、A08 项目分页/改名冲突 2、A09 重置令牌 1、A09 五层文案树 1。日志 `/tmp/fp-b02-ctrl-*.log` 与 `/tmp/fp-b02-fix-ctrl-*.log`。
+
+**独立评审与裁定**：任务级评审 **Spec ✅ / Changes requested**，0 Critical / 3 Important / 3 Minor / 8 ⚠️。控制器把 I-1（新测试文件未在报告登记为边界扩展）降为 Minor 一并修，确认 I-2（`Save` 快照改动缺回归测试）与 I-3（400 分支缺 HTTP 层测试）为 Important，进入修复轮 1/1。定向复评审 **9/9 ADDRESSED、I-1/I-2/I-3 全部 ADDRESSED、无新增 Critical/Important、无越界**；修复轮新增并发 `AdminSaveResource` 回显版本回归测试与真实 HTTP 层 400/null 测试，均如实标为**回归守卫（基线 GREEN）**，未伪造 RED。8 个 ⚠️ 全部由控制器证据审计或跨任务 E2E 回归闭合；B02.5 的「已引用背景下架后仍可用 / 过期应用模板」由 Go 集成测试覆盖，对应 E2E 属 A10.4 环境 SKIP。
+
+**延迟 Minor（B 批共 8 项）**：B01 的 M1（`api.ts:20` 中文消息正则）、M2（`service.go` 锁序注释）、B-M3（单一 `conflict` state 未按 id 索引）、B-M4（确认按钮防重依赖共享 `<Button busy>`）——后两项在 B02.4 复评，路由变化未改变并发形态、每次 POST 仍各用自身版本、无数据串台，继续延迟；B02 新增 B-M5（`publication.go` `resource` owner 自复制 no-op）、B-M6（无故障注入回滚测试，已有 `defer tx.Rollback()` 与 stale/NOT_FOUND `assertUnchanged`）、B-M7（`bind.go` query 覆盖 `published` 的既有框架行为，无鉴权/版本泄露）、B-M8（I-2 回归守卫对「退回提交后重读」的区分力有限；无提交后重读已由两轮评审静态核实，更强的区分需产品内插桩，超出本任务边界）。A 批 67 项延迟 Minor 未触碰。
+
+**环境与 SKIP**：Chrome `157.0.8103.51` / Node `v22.22.2` 与锁定 `156.0.8078.48` / `24.21.0` 不符；3 个既有 PNG 导出用例（`admin-catalog.spec.ts:11`、`:111`、`templates.spec.ts:274`）沿用 A10.4 环境 SKIP，未写成 PASS、未算 B02 回归；A10.4 固定导出样本像素对比未重试。`pnpm test:server` 中 `server/tests/integration` 因直接 `go test` 不读 `.env.local` 而 SKIP，真实 MySQL 断言由 `python3 tools/test-integration.py` 覆盖，已单列。
+
+**部署兼容提示（B02 范围内）**：无 schema 迁移；新 `expectedVersion` 为 `required` 但运行时由 `parseExpectedVersion` 兜底；旧客户端发布仍走全量 `AdminSaveResource`，不受新路由影响。核心服务、网关、管理站与生成客户端仍须按同一兼容单元切换。完整维护文档、回滚规则与 B03.3 最终门槛属 **B03（`NOT_AUTHORIZED`）**，本节不代替其交付，也不宣称 B 批 `VERIFIED`。
+
+**B02 完成（Ruling 265）**：B 批仍 `IN_PROGRESS`，`last_verified_commit: 4d4f8e7`；**B03 保持 `NOT_AUTHORIZED`**，需用户再次明确授权方可改动 IDL 与业务代码。A 批状态与 A10.4 阻塞项保持 A10 终验原样。
