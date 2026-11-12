@@ -24,7 +24,7 @@ review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
 execution_baseline: "71257c3"
 last_verified_commit: "4610e25" (A09 fix verification; unchanged by A10 — no product code changes)
 task: A10
-next_step: "A10 done and controller-final-verified; A batch stays IN_PROGRESS. Only remaining blocker: re-run A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases in a matching Chrome 156 / Node 24 environment, then re-review VERIFIED. The post-helper-fix full screenshot spec was re-run by the controller (10 passed / exit 0, 37 PNGs), so that shim concern is CLOSED. B batch needs a separate authorization (B03.3)."
+next_step: "A10 done and controller-final-verified; A batch stays IN_PROGRESS. Only remaining blocker: re-run A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases in a matching Chrome 156 / Node 24 environment, then re-review VERIFIED. The post-helper-fix full screenshot spec was re-run by the controller (10 passed / exit 0, 37 PNGs), so that shim concern is CLOSED. B batch was separately authorized on 2026-11-11 and B01 is complete (see the B section); B02/B03 still require a further explicit go-ahead."
 spec_ids: [FP-12, FP-13, FP-14]
 actual_paths: ["apps/admin/src/main.tsx", "apps/admin/src/AdminLayout.tsx", "apps/admin/src/features/Metadata.tsx", "apps/admin/src/features/Resources.tsx", "apps/admin/src/features/copy/CategoryTree.tsx", "apps/admin/src/features/copy/CopyPage.tsx", "apps/admin/src/features/templates/TemplateEditor.tsx", "apps/admin/src/features/templates/TemplateList.tsx", "apps/web/src/features/catalog/BackgroundPicker.tsx", "apps/web/src/features/catalog/CopyPicker.tsx", "apps/web/src/features/templates/TemplatePicker.tsx", "packages/api-client/src/catalog-pages.ts", "packages/api-client/src/catalog-pages.test.ts", "packages/api-client/src/index.ts", "tests/e2e/admin-catalog.spec.ts", "tests/e2e/admin-layout.spec.ts", "tests/e2e/copy.spec.ts", "tests/e2e/templates.spec.ts", "apps/web/src/features/projects/ProjectsPage.tsx", "apps/web/src/features/projects/collection-position.ts", "apps/web/src/features/projects/collection-position.test.ts", "apps/web/src/features/projects/useProjectDeletion.ts", "apps/admin/src/features/Metadata.tsx", "apps/admin/src/features/Resources.tsx", "apps/admin/src/features/templates/TemplateList.tsx", "apps/admin/src/features/copy/CopyPage.tsx", "apps/admin/src/features/projects/pagination.ts", "apps/admin/src/features/projects/pagination.test.ts", "tests/e2e/projects.spec.ts", "tests/e2e/admin-catalog.spec.ts", "tests/e2e/templates.spec.ts", "tests/e2e/copy.spec.ts", "AGENTS.md", "README.md", "deploy/toolchain.lock.json", "docs/verification/2026-11-06-antd-remediation.md", "tests/e2e/ui-baseline.spec.ts"]
 red: ["A09 RED（真实基线 8c900f2）: R3 admin-layout 3 failed / 1 passed —— 延迟重置后 dialog 不可见、5xx 与网络中断无「结果未确认」；R4 copy 2 failed —— Expected: \"1:100|2:100\" / Received: \"1:100\"、缺可见子级 option；R5 admin-catalog 与 R6 templates 各 1 failed（只读首页）。R1 Cannot find module 与 R2 TS2307 如实标为接口缺失、不计产品行为 RED；known reset failure 基线即 GREEN 标为 regression guard", "A09 修复轮 RED（真实未修复产品代码 51d6651）: admin-layout -g reset result survives brand link and browser history navigation 2 failed，两条均在导航后 getByRole(dialog) element(s) not found（:696 / :715），证明 brand 与 popstate 会卸载令牌 UI", "A08 E2E RED（真实基线 01f2f6e）: 第 2 页 500 后错误块消失、页码弹回第 1 页（projects.spec.ts:603，控制器纯基线复核为 :605，Expected visible / element(s) not found）；改名冲突无冲突 UI（:814，控制器复核 :808）；后台背景/模板/文案第 2 页删末行后空态锁死、无 page=1 请求（Expected true / Received false）；契约单测 4 个新符号 is not a function", "A08 控制器独立基线复核：837 行产品补丁 git apply -R（REVERSE_CHECK_OK / REVERSE_APPLIED），两个关键 RED 在纯基线产品代码上 exit 1，恢复后 HEAD 579c771、索引与工作树干净", "A08 诚实记录：deleting final second-page row returns to page one 在基线即 GREEN，标为回归守卫而非红灯", "A10: no product RED claimed — five-width guards are baseline-GREEN regression guards on 3b61d53 (Ruling 169); GOPROXY-off empty Go cache, proxy 502 and runtime shim failures are explicitly excluded as environment blockers"]
@@ -35,7 +35,7 @@ blockers: ["Chrome 157.0.8103.51 vs locked 156.0.8078.48, Node v22.22.2 vs 24.21
 open_verification_items: ["A09 Ruling 145：tests/e2e/admin-layout.spec.ts 文件顶层 test.use({trace:'off', screenshot:'off'}) —— Playwright 不允许 describe/test 级设置，属获批偏差；A10 须在验证矩阵记录，且不得声称该 spec 的 4 个既有用例拥有视觉失败证据", "A09 新增 4 项 Minor 延迟（累计 66 项）：M-1 loadCatalogPages 用原始累加而非去重累加判断停止（结果等价）、M-2 unknown 态未纳入 locked 可被 Escape 关闭、brand E2E 未断言 navBlocked 可见提示且无法区分双层守卫、§11.2 未逐字记录产品代码回退命令（RED 日志实体已反证）", "A09 3 个既有 PNG 导出用例 SKIP：admin-catalog.spec.ts:11/:111、templates.spec.ts:274，由 git apply -R 纯基线对照（12 个 tracked 产品文件、HEAD/索引未变、dev server 实时编译）证明先于本任务；属 Chrome 157 vs 锁定 156，A10 须在匹配环境重跑；A09 不因此标为完全 VERIFIED", "A09 /tmp/fp-a09-red-*、/tmp/fp-a09-green-*、/tmp/fp-a09-fix-*、/tmp/fp-a09-ctrl-* 证据待 A10 汇总落盘；本轮无新增环境 SKIP，所有新增 E2E 均 PNG-safe", "A08 Ruling 121：apps/admin/src/features/projects/ProjectDeletionQueue.tsx 的 pageAfterShrink 仍只判 q.data、缺成功门禁（清单外未改）。A10 须补门禁 + 第 2 页 500 失败注入 E2E；3 条既有缩页回归在 A08 终验仍全绿", "A08 Ruling 117：FP-09「或发现版本变化」由 SaveProject 409 REVISION_CONFLICT 响应式触发，未做提交前主动 GetProject 探测（FP-12 明确列表摘要契约非本轮所需）。A10 的 FP-09 验收矩阵须写明「版本变化经 409 检测」", "A08 评审 6 项 Minor 延迟（累计 62 项）：4 处同构 admin 校正 useEffect 建议抽 useAdminPageCorrection hook（优先候选）、fetchStatus 类型过宽、resultIdentity 近恒真比较、删除队列与 4 个后台门禁无失败注入 E2E、baseline-GREEN 缩页用例、两处 waitForTimeout", "A08 新增 /tmp/fp-a08-* 测试证据待 A10 汇总落盘；本轮无新增环境 SKIP，所有新增 E2E 均 PNG-safe", "Chrome 157 vs 锁定 156：export.spec.ts 2 个 + editor-fonts.spec.ts 2 个 PNG 导出用例标 SKIP，A10 须在匹配环境重跑；A03 不因此标为完全 VERIFIED", "A05 环境 SKIP：templates.spec.ts 的 administrator publishes a template… 在 line 350 导出步骤失败；A05 基线对照证明先于 A05", "A06 新增/复核共 5 处 PNG 导出 SKIP：admin-catalog.spec.ts:100（实现者基线对照）、admin-catalog.spec.ts:242、full-flow.spec.ts:201、image-upload.spec.ts:67、templates.spec.ts:350；后四处由控制器用 456 行产品补丁 git apply -R 做纯基线对照，均在完全相同行失败，证明先于 A06、非产品回归。A10 须在 Chrome 156 重跑；A06 不因此标为完全 VERIFIED", "A06 评审 ⚠️：FP-13 FP-05 行的「没有素材 / 分页错误 / 重新选择」无 A06 新增断言，A10 矩阵补；「返回来源」/空目录/飞行中舍弃分支同样无断言（Ruling 72/74）", "FP-05 「替换背景」可见确认按钮文案按 Ruling 63 未实现（保留「选用 X」旧契约以维护 full-flow / admin-catalog 回归），按 FP-14 写回规格，A10/后续任务评估", "A06 评审 8 项 Minor + A01-A05 累计 45 项 Minor（共 53 项）推迟全分支评审；其中 clearInvalid 未 refetch q.data 导致改版后重选可能重复同一错误、须改筛选或重开选择器恢复，列为全分支评审优先候选（Ruling 75）", "FP-13 「注入上传失败」由既有 notifications.spec.ts 回归用例覆盖并重跑通过，无 A05 新增最小失败用例（Ruling 57），A10 矩阵复核", "A04 三张视觉证据 PNG 位于 /tmp/fp-a04-evidence/，A10 须落到受控路径；A05/A06/A07 的 /tmp/fp-a0*-* 测试证据同样需 A10 汇总", "A07 修复轮新增环境 SKIP：admin-catalog.spec.ts:242 下载原尺寸 PNG；实现者用 git apply -R 纯基线对照证明在 795da03 同一行同样失败（RESTORE 一致、HEAD/索引未变），前置 ResourcesPage 断言全过，非产品 RED，A10 重跑", "A07 评审 3 项 Minor 延迟（累计 56 项）：目录「文案」等待未断言、· admin 第二步三条近恒真断言已按 Ruling 95 标注为 regression guard、Ruling 85 字面张力已由 Ruling 90 澄清", "A07 全入口清点第 27 行（Resources.tsx 首屏网格 Skeleton）与五类状态 antd 组件表已写入报告 §11.6，A10 汇总 FP-02 验收矩阵时引用", "Ruling 90：Ruling 85 的字面要求「把进度说明切到 Button busy」与 TemplatePicker 实际 DOM 结构不符，控制器裁定保留现状；若后续要物理移入按钮内部，属独立小修", "A10 controller final verification: A10.4 fixed PNG sample pixel comparison and Chrome-156 PNG re-runs remain BLOCKED (Ruling 160); A10 M2 deferred Minor (three new widths lack independent settings/loading/failure screenshots, accepted under Ruling 162 discretion); deferred Minor total 66+1=67; FP-14 write-backs and Ruling 121 ProjectDeletionQueue gap remain open; B batch NOT_AUTHORIZED"]
 ```
 
-B 批状态：`NOT_AUTHORIZED`（FP-11 涉及 IDL、生成代码与服务端事务，需用户单独授权；A 批不处理）。
+B 批状态：`AUTHORIZED (2026-11-11 用户明确选择『授权 B 批，从 B01 开始』)`；B01 已完成并经控制器终验，详见下方「B 批 · 任务分区」。按单任务惯例 B02/B03 仍为 `NOT_AUTHORIZED`，需再次明确授权；FP-11 涉及 IDL、生成代码与服务端事务。
 
 ## 环境记录（A 批开工时实测）
 
@@ -450,3 +450,55 @@ renderer: PASS 1 entry chunk(s), 35 source(s)
 - README「24 种预设色」与实际 116 种不一致 —— **A10.2 已核对并处置**：`packages/poster-editor/src/panels/color-presets.ts` 实测 `grep -c "value:"` = **116** 个预设色条目；`README.md` 功能段已由「24 种预设文字颜色」更正为「116 种」并注明定义文件。此项闭合。
 - 入口边界检查与包体追踪保持手动证据，不接入 `pnpm verify`（FP-12 明确延后为架构议题）。
 - `AGENTS.md`、`README.md`、`deploy/toolchain.lock.json` 的 antd 版本与边界说明 —— **A10.2 已补齐**：`AGENTS.md` 新增「Ant Design 前端约定（A 批迁移后，FP-12）」、`README.md` 新增「Ant Design 界面契约与视觉证据」、`deploy/toolchain.lock.json` 补 `selected.antd = "6.7.0"` 与 `chromePath` / `chromeEnvironmentNote`；12 项主题逐字值见本记录「A10.2 维护契约逐字重述」。此项闭合。
+
+## B 批 · 任务分区
+
+本节由 B01 按 B 计划 :15「在同一个 `docs/verification/2026-11-06-antd-remediation.md` 中单列 B」创建（控制器 Ruling 184）。A 批 front matter 的 `status`、`blockers`、`open_verification_items` 等键保持 A10 终验时的历史状态：其中「B batch NOT_AUTHORIZED (B03.3 threshold)」等表述是 A10 时点记录，已由本节状态块取代；**A10.4 的 Chrome-156 / Node-24 阻塞项继续有效**，A 批仍为 `IN_PROGRESS`、`last_verified_commit: 4610e25`。逐任务流水、评审包与裁定见忽略目录 `.superpowers/sdd/2026-11-06-antd-remediation-b-implementation/`（仅本机证据，不入库）。
+
+```yaml
+batch: B
+status: IN_PROGRESS
+authorization: "2026-11-11 用户明确选择『授权 B 批，从 B01 开始』；按单任务惯例本次仅授权 B01"
+execution_mode: subagent-driven-development (fresh implementer + independent task reviewer + controller final verification per task)
+workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
+branch: feat/fastposter
+baseline: "9a0efbf" (A10 controller final verification)
+review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
+last_verified_commit: "c437757"
+task: B01
+b01_status: COMPLETE
+b02_b03: NOT_AUTHORIZED
+spec_ids: [FP-11]
+blockers: ["A10.4 Chrome 157.0.8103.51 vs locked 156.0.8078.48 / Node v22.22.2 vs 24.21.0 — fixed PNG sample pixel comparison and 3 pre-existing PNG export cases remain BLOCKED; not retried in B01", "B02/B03 NOT_AUTHORIZED — no further IDL or business-code work without another explicit user go-ahead"]
+deferred_minors: 4
+next_step: "B01 COMPLETE. Await an explicit user go-ahead before B02; A batch remains IN_PROGRESS pending the A10.4 Chrome-156 / Node-24 re-run."
+```
+
+### B01 使保存和分类移动共享版本前提 — COMPLETE
+
+**提交（2 个单一聚焦的产品提交）**
+
+| commit    | 消息                                                                | 规模                                                                  |
+| --------- | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `05644d3` | `fix(catalog): enforce versions on resource and category writes`    | 24 files / +1554/-161：2 IDL、7 生成产物、5 Go、6 admin 前端、4 测试  |
+| `c437757` | `fix(admin): recover quick publish conflicts with confirmed reload` | 5 files / +463/-11：3 admin TSX + 2 E2E spec（评审 Important 修复轮） |
+
+父链 `9a0efbf → 05644d3 → c437757`，未改写历史、未 amend；仅显式路径 `git add`，10 个顶层未跟踪用户资产全程未修改、未暂存。
+
+**需求映射（FP-11 / B01.1–B01.6）**：`ResourceInput` 字段 15 与 `MoveResourceInput` 字段 3 新增 `optional string expectedVersion (api.body="expectedVersion")`；`pnpm contracts:generate` 产出并随 IDL 提交全部 7 个生成产物，`contracts:check` sha256 一致。版本前提为正整数规范十进制字符串，已有资源更新缺失/空/非法 → `INVALID_INPUT` + 刷新提示，合法但过期 → `REVISION_CONFLICT` / 409；先鉴权、不泄露版本，比较在事务行锁内完成，锁/校验/行更新/版本行/引用/审计同一事务，无成功审计或部分写入。**无绕过路径**：创建无版本要求，内部 copy 发布包装同样携带 `ExpectedVersion: r.Version`。统一 `catalog.MoveCategory(ctx, p, id, parentID, expectedVersion string) error`，copy 服务委托，独立移动也 bump `current_version` 并写版本行与审计。新增管理员详情 `AdminGetResource GET /api/v1/admin/resources/:id/detail`（`IDRequest → ResourceReply`，仅管理员，缺失/已删除 → `NOT_FOUND`），供冲突按 ID 重载。分类表单把「先 move 再 save」两请求链收敛为一次原子 `AdminSaveResource`。
+
+**冲突恢复**：4 个编辑表单 + 3 个列表/卡片快捷 toggle 共 7 条恢复链，均保留 pending 目标状态，冲突时按 ID 重载最新资源、显示新版本号/发布状态/标题，提供明确「确认重新提交」与「取消」，确认后以 `latest.version` 再提交；无自动重发、无静默合并或覆盖；`isGone`/失权终止重试，`isStaleClient` 保留刷新提示，成功后清除冲突态并刷新列表。快捷发布 B01 阶段仍走保存路由并携带同一快照版本，独立发布意图属 B02。
+
+**真实 RED → GREEN**：MySQL 预检 `TestMigrationRoundTripAndEmojiJSON` PASS；4 个新增 Go 集成测试在真实 `fastposter_test_*` 库上取得并发覆盖/父级与字段回滚/移动版本与深度/HTTP 拒绝的行为红灯，修复后 **4 PASS**；`--all-server` 回归 **12 PASS**、全量集成 **58 PASS / 8 环境 SKIP**、`go test ./internal/...` 通过、`pnpm test:server` 17 `ok`。修复轮另在 `05644d3` 未修复产品代码上注入 409，两条 E2E 各 `1 failed`（`getByTestId('version-conflict')` 不可见，:553 / :634）为真实产品红灯，非构建/注册限流/DSN SKIP/PNG 失败。
+
+**控制器独立终验（全部 exit 0）**：`pnpm contracts:check`、`pnpm typecheck`、`pnpm test` **32 文件 / 218 用例**、`pnpm verify` **turbo 8/8**、Go 定向 **4 PASS**；`git diff --check`、5 个修复文件 `prettier --check` 通过。主提交终验 E2E **9 组 / 12 用例 / 0 FAIL**；修复轮终验 **11 组 / 18 用例**，其中 `admin-existing` 组首次 2 例因临时栈 `127.0.0.1:15174` `ERR_CONNECTION_REFUSED` 失败（环境性，未计 RED/GREEN），控制器在独立新栈补跑 **2 passed / exit 0** 后闭合为 **18 / 0 FAIL**。后台脚本汇总 `exit 0` 未被当作绿灯证据，逐组日志另存 `/tmp/fp-b01-fix-ctrl-*.log`。
+
+**独立评审与裁定**：任务级评审 **Spec ✅ / Task quality Approved**，0 Critical / 0 Important / 2 Minor / 6 ⚠️。控制器把 W1「快捷 toggle 缺冲突恢复链」升级为 **Important**（Ruling 199：Ruling 191、B01.5 :55、FP-11 :130 的恢复契约均未限定表单），触发修复轮 1/1。定向复评审（首次派发 502，重试成功）**9/9 ADDRESSED、I-1 ADDRESSED、无新增 Critical/Important、无越界**。W2（提交后 `s.Get` 重读）按 B02.3 归属接受，W3 覆盖按字面最小要求接受，W4 由本节闭合，W5 `api.ts` 为获批准的最小边界扩展，W6 契约优先任务的 RED 不可 `git apply -R` 复现属结构差异、非伪造。
+
+**延迟 Minor（B 批共 4 项）**：M1 `apps/admin/src/api.ts:20` 依赖中文消息正则判定 stale client；M2 `server/internal/catalog/service.go` 锁序注释与 `Delete` 实现不符（行为无锁序倒置）；B-M3 单一 `conflict` state 未按资源 id 索引，并发冲突只能展示一个（每次 POST 仍各用自身版本，无数据串台）；B-M4 确认按钮防重依赖共享 `<Button busy>`，存在理论上的渲染前双击窗口。B-M3 / B-M4 交 B02.4 快捷发布重写评估。A 批 67 项延迟 Minor 未触碰。
+
+**环境与 SKIP**：本机 Chrome `157.0.8103.51`、Node `v22.22.2` 与锁定 `156.0.8078.48` / `24.21.0` 不符；3 个既有 PNG 导出用例（`admin-catalog.spec.ts:11` / `:111`、`templates.spec.ts:274`）沿用环境 SKIP，未写成 PASS、未算 B01 回归；A10.4 固定导出样本像素对比未重试。`pnpm test:server` 中 `server/tests/integration` 因直接 `go test` 不读 `.env.local` 而 SKIP，真实 MySQL 断言由 `python3 tools/test-integration.py` 覆盖，已单列。
+
+**部署兼容提示（B01 范围内）**：无 schema 迁移；`expectedVersion` 为可选 wire 字段，旧客户端缺少该字段的已有资源更新会被安全拒绝并提示刷新。B 计划 Global Constraints 要求核心服务、网关、管理站与生成客户端作为同一兼容单元切换；完整维护文档、回滚规则与 B03.3 最终门槛属 **B03（`NOT_AUTHORIZED`）**，本节不代替其交付，也不宣称 B 批 `VERIFIED`。
+
+**B01 完成（Ruling 213）**：B 批仍 `IN_PROGRESS`，`last_verified_commit: c437757`；B02 / B03 保持 `NOT_AUTHORIZED`，需用户再次明确授权方可改动 IDL 与业务代码。A 批状态与阻塞项保持 A10 终验原样。
