@@ -249,18 +249,19 @@ curl --fail --max-time 10 http://127.0.0.1:8080/api/v1/health
 
 Go 服务、迁移、管理员及运维命令自动读取该文件；同名进程环境变量优先于文件值。
 
-| 配置项                      | 默认值／示例                                           | 说明                                               |
-| --------------------------- | ------------------------------------------------------ | -------------------------------------------------- |
-| `MYSQL_DSN`                 | 无默认值，必填                                         | 业务库连接；建议保留示例中的时间与字符集参数       |
-| `APP_DATA_DIR`              | `var/data`                                             | 相对仓库根目录解析，三个 Go 服务须共享同一绝对目录 |
-| `GATEWAY_ADDR`              | `127.0.0.1:8080`                                       | HTTP API 监听地址                                  |
-| `CORE_ADDR`                 | `127.0.0.1:8888`                                       | 核心 RPC 监听与客户端连接地址                      |
-| `CHROME_PATH`               | macOS Google Chrome 路径                               | Chrome/Chromium 可执行文件                         |
-| `MAGICK_PATH`               | `magick`                                               | ImageMagick 7 可执行文件                           |
-| `REDIS_ADDR`                | 未设置时为空                                           | 可选限流服务；示例文件默认填了本机 6379            |
-| `COOKIE_SECURE`             | `false`                                                | HTTPS 对外服务应设为 `true`                        |
-| `APP_ORIGINS`               | 本机 5173、5174、8080 的 localhost 与 127.0.0.1 origin | 允许的前端来源，多个值用逗号分隔，不包含路径       |
-| `FASTPOSTER_TEST_MYSQL_DSN` | 可选，库名必须以 `fastposter_test_` 开头               | 测试启动器使用，不是业务库连接                     |
+| 配置项                      | 默认值／示例                                           | 说明                                                                                                            |
+| --------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `MYSQL_DSN`                 | 无默认值，必填                                         | 业务库连接；建议保留示例中的时间与字符集参数                                                                    |
+| `APP_DATA_DIR`              | `var/data`                                             | 相对仓库根目录解析，三个 Go 服务须共享同一绝对目录                                                              |
+| `GATEWAY_ADDR`              | `127.0.0.1:8080`                                       | HTTP API 监听地址                                                                                               |
+| `CORE_ADDR`                 | `127.0.0.1:8888`                                       | 核心 RPC 监听与客户端连接地址                                                                                   |
+| `CHROME_PATH`               | macOS Google Chrome 路径                               | Chrome/Chromium 可执行文件；Playwright、服务端配置、导出 worker 与 Go 渲染用例统一读取                          |
+| `FASTPOSTER_CHROME_SANDBOX` | 未设置                                                 | 设为精确值 `1` 时导出 worker 恢复 Chrome 进程沙箱；受限宿主保持未设置（默认无进程沙箱，见「导出渲染宿主编排」） |
+| `MAGICK_PATH`               | `magick`                                               | ImageMagick 7 可执行文件                                                                                        |
+| `REDIS_ADDR`                | 未设置时为空                                           | 可选限流服务；示例文件默认填了本机 6379                                                                         |
+| `COOKIE_SECURE`             | `false`                                                | HTTPS 对外服务应设为 `true`                                                                                     |
+| `APP_ORIGINS`               | 本机 5173、5174、8080 的 localhost 与 127.0.0.1 origin | 允许的前端来源，多个值用逗号分隔，不包含路径                                                                    |
+| `FASTPOSTER_TEST_MYSQL_DSN` | 可选，库名必须以 `fastposter_test_` 开头               | 测试启动器使用，不是业务库连接                                                                                  |
 
 `APP_DATA_DIR` 会在启动时按需创建，运行账号须能写入。不要将它设为文件系统根目录，也不要直接把该目录作为公开静态资源目录。配置修改后需要重启相应服务。
 
@@ -434,7 +435,7 @@ FASTPOSTER_TEST_MYSQL_DSN=fastposter_test:CHANGE_ME_TO_A_TEST_PASSWORD@tcp(127.0
 CHROME_PATH=/usr/bin/chromium pnpm test:e2e
 ```
 
-该环境变量控制 Playwright 启动的浏览器。当前测试栈及部分 Go 渲染用例仍使用 macOS 默认 Chrome 路径，并且图片处理测试直接调用 `magick`；非 macOS 环境运行整套浏览器／渲染测试前需检查相应测试入口，不能仅凭配置了服务端 `CHROME_PATH` 就认定整套测试可跨平台运行。
+该环境变量统一控制 Playwright 启动的浏览器、服务端配置、导出 worker，以及 4 个 Go 集成 fixture 的 `chromePath()`（EXPORT-DIAG，2026-11-13）；未设置时回退到 macOS 默认路径。图片处理测试直接调用 `magick`；非 macOS 环境运行整套浏览器／渲染测试前仍需检查相应测试入口，不能仅凭配置了服务端 `CHROME_PATH` 就认定整套测试可跨平台运行。受限容器／沙箱宿主若出现 `sandbox initialization failed` 导致导出 job 变为 `RENDER_FAILED`，见下方「导出渲染宿主编排」与验收入口 EXPORT-DIAG 章节。
 
 需要单独执行实际 Chrome 渲染与大尺寸容量用例时，先构建 renderer，再通过测试启动器传递开关：
 
@@ -477,7 +478,7 @@ pnpm contracts:check
 - **五档尺寸与四个断点**：1440×1000 / 1024×768 / 768×1024 / 390×844 / 320×700；编辑器断点 ≥1200px、881–1199px、681–880px、≤680px。`tests/e2e/ui-baseline.spec.ts` 的 `five-width layout guards` 默认可运行，断言 `document.documentElement.scrollWidth <= innerWidth`、选区可见、关键操作可达。
 - **截图与导出采样开关**：`FP_UI_BASELINE=1 FP_UI_BASELINE_OUT=/绝对路径/screenshots pnpm test:e2e tests/e2e/ui-baseline.spec.ts`（`OUT` 不要指向 `test-results/`，Playwright 会清空）；`FP_EXPORT_BASELINE_PATH=/绝对路径/sample.png pnpm test:e2e tests/e2e/export.spec.ts -g 'flushes latest edits and previews the exact native PNG'` 把下载字节写到指定位置（`tests/e2e/export.spec.ts:41-42`）。
 - **逐文件独立临时测试栈与预构建 renderer**：每个 spec 独立临时栈、`GOPROXY=off GOSUMDB=off`、`--output <证据目录>/results/<suite>`，单文件注册限流时按互斥 `-g` 分栈；测试前 `pnpm --filter @fastposter/renderer build`。
-- **Chrome 设置方式**：Playwright 取 `CHROME_PATH`（`playwright.config.ts:12-15`，默认 macOS 路径）；`deploy/toolchain.lock.json` 锁定 `156.0.8078.48`，本机实测 `157.0.8103.51`、Node `v22.22.2` ≠ `24.21.0`。固定导出样本像素对比须在匹配 Chrome 156 / Node 24 环境完成，当前环境标 `BLOCKED`（见验收入口 A10.4）。
+- **Chrome 设置方式**：Playwright 取 `CHROME_PATH`（`playwright.config.ts:12-15`，默认 macOS 路径）；服务端配置、导出 worker 与 Go 渲染 fixture 同样读取该变量。`deploy/toolchain.lock.json` 锁定 `156.0.8078.48`（官方 feed 无该精确版本，最近可得 CfT `156.0.8078.47`），本机实测 `157.0.8103.78`、Node `v22.22.2` ≠ `24.21.0`。**导出渲染的前提是宿主允许 Chrome 子进程初始化沙箱**，不是版本匹配（EXPORT-DIAG 对照实验证明）。固定导出样本像素对比已于 2026-11-13 在修正后的契约下真实完成（`AE = 0 (0)`、两侧字节相同），见验收入口「A10.4-R / EXPORT-DIAG」；旧的 `BLOCKED` 表述属历史记录。
 - **`pnpm verify` 实际组成**：`contracts:check → typecheck → test → build`，不含 Go 与 E2E。
 
 ## 常见问题
@@ -509,7 +510,7 @@ pnpm contracts:check
 
 运行 `go run ./tools/doctor -check render`，确认 ImageMagick 与 Chrome 可执行。查看启动终端中的 worker 日志，确认 worker 正在运行，且 `apps/renderer/dist` 已构建。手动启动 worker 前要先构建 renderer；修改 renderer 后需要重新构建。
 
-同时检查 `APP_DATA_DIR` 是否可写、磁盘空间是否充足。图片输入本身也须符合格式要求；浏览器能显示某张图片不代表它一定符合标准化限制。健康接口通过不代表导出 worker 已完成真实渲染验证。
+同时检查 `APP_DATA_DIR` 是否可写、磁盘空间是否充足。图片输入本身也须符合格式要求；浏览器能显示某张图片不代表它一定符合标准化限制。健康接口通过不代表导出 worker 已完成真实渲染验证。若 worker 日志出现 `sandbox initialization failed: Operation not permitted` / `GPU process isn't usable. Goodbye.` / `signal: trace/BPT trap`，这是**宿主不允许 Chrome 子进程初始化沙箱**，不是 Chrome 版本问题：保持 `FASTPOSTER_CHROME_SANDBOX` 未设置（默认追加 `--no-sandbox`）即可恢复导出；在能初始化沙箱的加固宿主上应显式设为 `1` 以恢复进程隔离。详见 `AGENTS.md` 的「导出渲染宿主编排与运维开关」。
 
 ### GitHub SSH 连接卡住
 
@@ -633,12 +634,12 @@ go run ./server/cmd/maintenance backup
 - B01 / B02 提交**未改动 `server/migrations`**，现有数据与版本行向前兼容，**没有 schema 迁移**，因此没有 down-migration 步骤。
 - 交付的兼容单元包含**同一代码版本**的核心服务、网关、管理站与生成 API 客户端；审核部署必须按同一版本整组切换网关、核心与管理站，开发中间提交不得单独部署（Global Constraints）。
 - 启动更新前确认旧实例**无法继续通过旧服务写入**；重新打开管理员工作台以取得新前端。**若独立前端或旧服务不能同步切换，冻结管理写入直到整组就绪**。
-- **B 批执行完成不代表自动部署**；B 批仍 `IN_PROGRESS`，A10.4 阻塞项继续有效。
+- **执行完成不代表自动部署**：A、B 两批已于 2026-11-13 经控制器复议改为 `VERIFIED`，A10.4 阻塞项按修正后的宿主沙箱契约闭合（固定样本像素对比 `AE = 0 (0)`、Node 22 与锁定 Node 24 全量 E2E、最终门槛 14/14）；详见验收入口「批次级复议裁定」。**当前仍未部署**，delayed Minor 与 open verification items 归未来全分支评审。
 
 ### 真实验证环境与验证命令
 
-- 本机实测：Chrome `157.0.8103.78`、Node `v22.22.2`、Go `go1.27.2 darwin/arm64`、pnpm `11.25.0`、Python `3.13.12`；`deploy/toolchain.lock.json` 锁定 Chrome `156.0.8078.48` / Node `24.21.0`。（A10 的 FP-12 逐字章节与 B01/B02 章节记为 `157.0.8103.51`，系各任务开工时实测；B03 最终门槛复测为 `157.0.8103.78`，均与锁定值不符，A10.4 阻塞继续有效。）
-- 真实 MySQL 断言**只走** `python3 tools/test-integration.py` 与 `fastposter_test_*` 临时库；直接 `go test ./server/tests/integration` 不读 `.env.local` 会 SKIP，不能算通过。固定导出样本像素对比与 3 个既有 PNG 导出用例须在匹配 Chrome 156 / Node 24 环境补跑，当前 `BLOCKED` / 环境 SKIP。
+- 本机实测：Chrome `157.0.8103.78`、Node `v22.22.2`、Go `go1.27.2 darwin/arm64`、pnpm `11.25.0`、Python `3.13.12`；`deploy/toolchain.lock.json` 锁定 Chrome `156.0.8078.48` / Node `24.21.0`。（A10 的 FP-12 逐字章节与 B01/B02 章节记为 `157.0.8103.51`，系各任务开工时实测；B03 最终门槛复测为 `157.0.8103.78`，均与锁定值不符。**2026-11-13 归因订正（EXPORT-DIAG）**：官方 CfT `156.0.8078.47` 不带 `--no-sandbox` 时同样 SIGTRAP，证明版本差异不是导出失败根因；根因是宿主 Chrome 子进程沙箱初始化失败，A10.4 阻塞已按修正后的契约闭合。）
+- 真实 MySQL 断言**只走** `python3 tools/test-integration.py` 与 `fastposter_test_*` 临时库；直接 `go test ./server/tests/integration` 不读 `.env.local` 会 SKIP，不能算通过。固定导出样本像素对比已于 2026-11-13 在修正后的契约下真实完成（基线 `124b4ea` 与 HEAD 两侧独立采样，`AE = 0 (0)`、字节相同），3 个既有 PNG 用例在 EXPORT-DIAG 真实 `1 passed`；本段的旧 `BLOCKED` / 环境 SKIP 表述属 B03 时点历史，以验收入口「EXPORT-DIAG / A10.4-R」为准。
 - 最终门槛（B03.3）：`pnpm verify`、`go test ./internal/...`、`pnpm test:server`、两次 `python3 tools/test-integration.py`、`pnpm --filter @fastposter/renderer build`、逐 spec E2E、`git diff --check`，按 `AGENTS.md` 定向格式化；`GOPROXY=off GOSUMDB=off`，Playwright 预构建 renderer 后逐 spec 起新测试栈。
 
 ### 回滚规则（逐字）
@@ -651,3 +652,9 @@ go run ./server/cmd/maintenance backup
 - 回退到旧服务会**失去本批并发保护**：必须记录该风险，并明确是否需要继续保持写入冻结。
 - 回滚**不修改已提交的资源版本、不删除数据**。
 - 无 schema 迁移意味着**没有 down-migration 步骤**，不得建议 `migrate -direction down`。
+
+### 导出渲染宿主编排与运维开关（EXPORT-DIAG，2026-11-13）
+
+- `FASTPOSTER_CHROME_SANDBOX=1`（精确值）恢复 Chrome 进程沙箱；未设置时导出 worker 默认追加 `--no-sandbox` 以适配受限宿主。**默认无进程沙箱是明确的安全取舍**：CSP 与回环限制不替代 OS 进程隔离，多租户／非本机部署须重新评估并显式加固。受限宿主设 `=1` 会 SIGTRAP、导出不可用。
+- 导出失败的根因是宿主 `sandbox initialization failed`，与 Chrome 版本无关（官方 CfT `156.0.8078.47` 无该 flag 时同样崩溃）。`ef29768` / `55ccf59` 为最小修复，无 IDL、无生成物、无 schema 迁移，仍按本批整组兼容单元与上述四步回滚执行。
+- 完整开关语义、安全代价、验证证据与验收结论见 `AGENTS.md` 同名小节及 `docs/verification/2026-11-06-antd-remediation.md` 的「EXPORT-DIAG / A10.4-R」。

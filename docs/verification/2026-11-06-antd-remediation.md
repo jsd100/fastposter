@@ -15,27 +15,27 @@
 
 ```yaml
 batch: A
-status: IN_PROGRESS
-authorization: "2026-11-06 用户：深度分析后继续该任务；并转述前序建议『先执行 A 批，逐任务独立评审』"
+status: VERIFIED
+authorization: "2026-11-06 用户：深度分析后继续该任务；并转述前序建议『先执行 A 批，逐任务独立评审』；2026-11-13 用户『继续执行 未执行清单 内容』授权 A10.4 再基线化与批次级复议（Rulings 312-316）"
 execution_mode: subagent-driven-development (fresh implementer + task reviewer per task)
 workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
 branch: feat/fastposter
 review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
 execution_baseline: "71257c3"
-last_verified_commit: "4610e25" (A09 fix verification; unchanged by A10 — no product code changes)
+last_verified_commit: "55ccf59" (2026-11-13 controller final gate on HEAD 55ccf59; A batch's own last product commit remains 4610e25 — A10 had no product code changes, the new value reflects the verified HEAD including EXPORT-DIAG)
 task: A10
-next_step: "A10 done and controller-final-verified; A batch stays IN_PROGRESS. Only remaining blocker: re-run A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases in a matching Chrome 156 / Node 24 environment, then re-review VERIFIED. The post-helper-fix full screenshot spec was re-run by the controller (10 passed / exit 0, 37 PNGs), so that shim concern is CLOSED. B batch was separately authorized on 2026-11-11 and B01 is complete (see the B section); B02/B03 still require a further explicit go-ahead."
+next_step: "A10 done and controller-final-verified; A batch stays IN_PROGRESS. Only remaining blocker: re-run A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases in a matching Chrome 156 / Node 24 environment, then re-review VERIFIED. The post-helper-fix full screenshot spec was re-run by the controller (10 passed / exit 0, 37 PNGs), so that shim concern is CLOSED. B batch was separately authorized on 2026-11-11 and B01 is complete (see the B section); B02/B03 still require a further explicit go-ahead. [A10-era wording retained for provenance: B02/B03 were in fact authorized and COMPLETE on 2026-11-12. The Chrome-156 attribution in this line was disproved on 2026-11-13 — root cause is host Chrome sandbox initialization; see A10.4-R and the EXPORT-DIAG section.] 2026-11-13 RECONCILIATION: the batch verdict was re-reviewed and set to VERIFIED after A10.4-R, the full E2E matrix, the locked Node 24 regression and a 14/14 final gate — see the last section of this document."
 spec_ids: [FP-12, FP-13, FP-14]
 actual_paths: ["apps/admin/src/main.tsx", "apps/admin/src/AdminLayout.tsx", "apps/admin/src/features/Metadata.tsx", "apps/admin/src/features/Resources.tsx", "apps/admin/src/features/copy/CategoryTree.tsx", "apps/admin/src/features/copy/CopyPage.tsx", "apps/admin/src/features/templates/TemplateEditor.tsx", "apps/admin/src/features/templates/TemplateList.tsx", "apps/web/src/features/catalog/BackgroundPicker.tsx", "apps/web/src/features/catalog/CopyPicker.tsx", "apps/web/src/features/templates/TemplatePicker.tsx", "packages/api-client/src/catalog-pages.ts", "packages/api-client/src/catalog-pages.test.ts", "packages/api-client/src/index.ts", "tests/e2e/admin-catalog.spec.ts", "tests/e2e/admin-layout.spec.ts", "tests/e2e/copy.spec.ts", "tests/e2e/templates.spec.ts", "apps/web/src/features/projects/ProjectsPage.tsx", "apps/web/src/features/projects/collection-position.ts", "apps/web/src/features/projects/collection-position.test.ts", "apps/web/src/features/projects/useProjectDeletion.ts", "apps/admin/src/features/Metadata.tsx", "apps/admin/src/features/Resources.tsx", "apps/admin/src/features/templates/TemplateList.tsx", "apps/admin/src/features/copy/CopyPage.tsx", "apps/admin/src/features/projects/pagination.ts", "apps/admin/src/features/projects/pagination.test.ts", "tests/e2e/projects.spec.ts", "tests/e2e/admin-catalog.spec.ts", "tests/e2e/templates.spec.ts", "tests/e2e/copy.spec.ts", "AGENTS.md", "README.md", "deploy/toolchain.lock.json", "docs/verification/2026-11-06-antd-remediation.md", "tests/e2e/ui-baseline.spec.ts"]
 red: ["A09 RED（真实基线 8c900f2）: R3 admin-layout 3 failed / 1 passed —— 延迟重置后 dialog 不可见、5xx 与网络中断无「结果未确认」；R4 copy 2 failed —— Expected: \"1:100|2:100\" / Received: \"1:100\"、缺可见子级 option；R5 admin-catalog 与 R6 templates 各 1 failed（只读首页）。R1 Cannot find module 与 R2 TS2307 如实标为接口缺失、不计产品行为 RED；known reset failure 基线即 GREEN 标为 regression guard", "A09 修复轮 RED（真实未修复产品代码 51d6651）: admin-layout -g reset result survives brand link and browser history navigation 2 failed，两条均在导航后 getByRole(dialog) element(s) not found（:696 / :715），证明 brand 与 popstate 会卸载令牌 UI", "A08 E2E RED（真实基线 01f2f6e）: 第 2 页 500 后错误块消失、页码弹回第 1 页（projects.spec.ts:603，控制器纯基线复核为 :605，Expected visible / element(s) not found）；改名冲突无冲突 UI（:814，控制器复核 :808）；后台背景/模板/文案第 2 页删末行后空态锁死、无 page=1 请求（Expected true / Received false）；契约单测 4 个新符号 is not a function", "A08 控制器独立基线复核：837 行产品补丁 git apply -R（REVERSE_CHECK_OK / REVERSE_APPLIED），两个关键 RED 在纯基线产品代码上 exit 1，恢复后 HEAD 579c771、索引与工作树干净", "A08 诚实记录：deleting final second-page row returns to page one 在基线即 GREEN，标为回归守卫而非红灯", "A10: no product RED claimed — five-width guards are baseline-GREEN regression guards on 3b61d53 (Ruling 169); GOPROXY-off empty Go cache, proxy 502 and runtime shim failures are explicitly excluded as environment blockers"]
 green: ["A09 控制器独立复跑（HEAD 4610e25）: pnpm typecheck exit 0、pnpm test 32 文件 / 218 用例 exit 0、catalog-pages.test.ts 9/9 exit 0", "A09 控制器终验 28 个 E2E 全部 exit 0：新增/相关 14（brand+popstate 2、三条命名、失败与结果不明 3、admin-layout 既有 4、后台完整树 1、模板失败重试 1）+ A01-A08 跨任务回归 14，各命令独立临时栈、GOPROXY=off GOSUMDB=off、--output /tmp/fp-a09-ctrl-*、互斥 -g 分栈", "A09 实现者提交前：renderer build、typecheck、218/218、9/9、4 栈新增 E2E 8 passed、四个 spec 的 12 个非 PNG 既有用例全 GREEN、Prettier 全 18 文件合规", "209/209 单测（31 文件）", "pnpm typecheck exit 0", "聚焦 vitest 3 文件 / 18 tests", "Prettier --check 全通过", "5 栈 E2E 9 passed（3 命名 + 3 后台缩页 + 3 既有缩页回归）", "控制器独立复跑 18 个 E2E 全部 exit 0（9 验收/回归 + 9 跨任务回归）", "A10 controller final verification (HEAD 80badcc): contracts:check / typecheck / pnpm test 218-218 / pnpm build turbo 8-8 all exit 0; five-width guards 5 passed (16.4s); full FP_UI_BASELINE=1 ui-baseline spec 10 passed / exit 0 with 37 PNGs; 3 login-throttle cases re-run under mutually exclusive -g stacks all exit 0; A01/A05/A07/A08 cross-task regressions 6 cases all exit 0; git apply -R pure-baseline comparison on 3b61d53 product state reproduces the PNG failure at the same assertion (exit 1), proving it predates A10"]
 decisions: ["Ruling 124-140 A09 单任务授权/基线 8c900f2/严格文件边界/会话容器置于 main.tsx/Dialog onClose 守卫与 closable/导航 preventDefault 与会话失效例外/令牌生命周期/结果不明分类/复制与完成/合成令牌与隐私证据/loadCatalogPages 精确规格/全调用点与不公布残缺树/公开根提升与后台不完整/E2E 分配与请求序列/RED 诚实与 PNG-safe/62 项 Minor 延迟/A05-A08 携带项/验证集与聚焦提交", "Ruling 141-149 A09 评审裁定：I-1 brand 与 popstate 绕过导航锁定确认为 Important，Ruling 128 澄清为机制描述、FP-10 spec 优先；修复策略为结构性保持 UsersPage 挂载 + brand 守卫，不改 packages/ui；M-1/M-2 延迟；Ruling 145 批准 test.use 文件级偏差；W-3/W-4/W-5/W-6 闭合；W-7 由控制器终验闭合", "Ruling 150-155 A09 终裁：定向复评审 8/8 ADDRESSED、I-1 ADDRESSED、无新 Critical/Important、无越界，修复轮 1 闭合；两个 ⚠️ 裁为 Minor 延迟；累计 66 项 Minor；A09 完成（两产品提交 51d6651 + 4610e25）", "Ruling 9 移除 matchMedia 运行时订阅", "Ruling 17-21 A02 修复轮裁定", "Ruling 23 PNG 导出 SKIP", "Ruling 24-30 A03 修复轮裁定", "Ruling 31 429 中断后按原节奏续跑 A04", "Ruling 34-42 A04 修复轮裁定", "Ruling 44 「继续」仅授权 A05", "Ruling 45-53 A05 边界/失败分类/诚实标准裁定", "Ruling 54-55 A05 DONE_WITH_CONCERNS 处置", "Ruling 56-60 A05 评审 ⚠️ 逐项裁定与 Minor 延迟", "Ruling 61 两条消息合并授权 A06 且中断无中间状态", "Ruling 62-68 A06 基线/文件边界/替换模式契约/携带项裁定", "Ruling 69-74 A06 评审 6 项 ⚠️ 逐项裁定", "Ruling 75 A06 8 项 Minor 延迟", "Ruling 76-89 A07 单任务授权/基线/替换范围/antd Button loading 英文播报矛盾/reduced-motion/业务边界/清点/环境 SKIP/诚实标准", "Ruling 90-101 A07 评审裁定、修复轮、终验与完成", "Ruling 102-116 A08 单任务授权/基线 01f2f6e/严格文件边界/沿用纯函数/成功与查询身份门禁/失败保留本页与重试/后台四列表补齐与清单外 gap/改名冲突完整状态机/三条命名 E2E 与请求序列/PNG-safe/RED 诚实/56 项 Minor 延迟/A05-A09 携带项/验证集", "Ruling 117 FP-09「发现版本变化」按 409 REVISION_CONFLICT 响应式处理，A10 矩阵须注明", "Ruling 118-120 三项 ⚠️ 由控制器终验与 git apply -R 纯基线复核闭合", "Ruling 121 admin ProjectDeletionQueue.tsx 成功门禁缺口确认转 A10", "Ruling 122 A08 6 项 Minor 延迟（累计 62 项）", "Ruling 123 A08 完成（无修复轮、无新增环境 SKIP）", "Ruling 171-182 A10 controller final adjudication: independent review Spec OK / Approved with 0 Critical / 0 Important / 3 Minor / 3 cross-task warnings; W1 W2 W3 all CLOSED by controller measurement; M1 documentation error corrected; M2 deferred Minor; M3 judged accurate; A batch stays IN_PROGRESS (Ruling 160)"]
 artifacts: [".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A09-brief.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A09-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-8c900f2..51d6651.diff", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-51d6651..4610e25.diff", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A08-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A08-brief.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-01f2f6e..579c771.diff", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A10-brief.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/task-A10-report.md", ".superpowers/sdd/2026-11-06-antd-remediation-a-implementation/review-3b61d53..80badcc.diff"]
-blockers: ["Chrome 157.0.8103.51 vs locked 156.0.8078.48, Node v22.22.2 vs 24.21.0 — A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases (admin-catalog.spec.ts:11/:111, templates.spec.ts:274) are BLOCKED (Ruling 160)", "First per-spec E2E pass (empty /tmp/fastposter-gomod + GOPROXY=off + proxy 502) ran 0 cases; cache warmed via goproxy.cn and the full 19-spec suite re-ran 139 cases / 125 passed / 14 failed (11 Chrome-157 PNG exports + 3 single-stack login-state URL timeouts, all SKIP/BLOCKED, not A10 regressions)", "B batch NOT_AUTHORIZED (B03.3 threshold); A batch IN_PROGRESS — re-review VERIFIED only after a matching Chrome 156 / Node 24 re-run"]
+blockers: ["[A10-era historical — superseded 2026-11-13] Chrome 157.0.8103.51 vs locked 156.0.8078.48, Node v22.22.2 vs 24.21.0 — A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases (admin-catalog.spec.ts:11/:111, templates.spec.ts:274) were BLOCKED (Ruling 160). The version-mismatch attribution was disproved: both Chrome 157.0.8103.78 and official CfT 156.0.8078.47 abort with the same host sandbox-initialization failure without --no-sandbox. A10.4 has since been executed under the corrected contract (A10.4-R); these blockers are CLOSED, not merely re-labelled.", "First per-spec E2E pass (empty /tmp/fastposter-gomod + GOPROXY=off + proxy 502) ran 0 cases; cache warmed via goproxy.cn and the full 19-spec suite re-ran 139 cases / 125 passed / 14 failed (11 Chrome-157 PNG exports + 3 single-stack login-state URL timeouts, all SKIP/BLOCKED, not A10 regressions)", "[A10-era historical — superseded] B batch NOT_AUTHORIZED (B03.3 threshold); A batch IN_PROGRESS — re-review VERIFIED only after a matching Chrome 156 / Node 24 re-run. B01/B02/B03 were authorized and completed 2026-11-11/12; the Chrome-156 precondition was replaced by the corrected host-sandbox contract on 2026-11-13 (EXPORT-DIAG)."]
 open_verification_items: ["A09 Ruling 145：tests/e2e/admin-layout.spec.ts 文件顶层 test.use({trace:'off', screenshot:'off'}) —— Playwright 不允许 describe/test 级设置，属获批偏差；A10 须在验证矩阵记录，且不得声称该 spec 的 4 个既有用例拥有视觉失败证据", "A09 新增 4 项 Minor 延迟（累计 66 项）：M-1 loadCatalogPages 用原始累加而非去重累加判断停止（结果等价）、M-2 unknown 态未纳入 locked 可被 Escape 关闭、brand E2E 未断言 navBlocked 可见提示且无法区分双层守卫、§11.2 未逐字记录产品代码回退命令（RED 日志实体已反证）", "A09 3 个既有 PNG 导出用例 SKIP：admin-catalog.spec.ts:11/:111、templates.spec.ts:274，由 git apply -R 纯基线对照（12 个 tracked 产品文件、HEAD/索引未变、dev server 实时编译）证明先于本任务；属 Chrome 157 vs 锁定 156，A10 须在匹配环境重跑；A09 不因此标为完全 VERIFIED", "A09 /tmp/fp-a09-red-*、/tmp/fp-a09-green-*、/tmp/fp-a09-fix-*、/tmp/fp-a09-ctrl-* 证据待 A10 汇总落盘；本轮无新增环境 SKIP，所有新增 E2E 均 PNG-safe", "A08 Ruling 121：apps/admin/src/features/projects/ProjectDeletionQueue.tsx 的 pageAfterShrink 仍只判 q.data、缺成功门禁（清单外未改）。A10 须补门禁 + 第 2 页 500 失败注入 E2E；3 条既有缩页回归在 A08 终验仍全绿", "A08 Ruling 117：FP-09「或发现版本变化」由 SaveProject 409 REVISION_CONFLICT 响应式触发，未做提交前主动 GetProject 探测（FP-12 明确列表摘要契约非本轮所需）。A10 的 FP-09 验收矩阵须写明「版本变化经 409 检测」", "A08 评审 6 项 Minor 延迟（累计 62 项）：4 处同构 admin 校正 useEffect 建议抽 useAdminPageCorrection hook（优先候选）、fetchStatus 类型过宽、resultIdentity 近恒真比较、删除队列与 4 个后台门禁无失败注入 E2E、baseline-GREEN 缩页用例、两处 waitForTimeout", "A08 新增 /tmp/fp-a08-* 测试证据待 A10 汇总落盘；本轮无新增环境 SKIP，所有新增 E2E 均 PNG-safe", "Chrome 157 vs 锁定 156：export.spec.ts 2 个 + editor-fonts.spec.ts 2 个 PNG 导出用例标 SKIP，A10 须在匹配环境重跑；A03 不因此标为完全 VERIFIED", "A05 环境 SKIP：templates.spec.ts 的 administrator publishes a template… 在 line 350 导出步骤失败；A05 基线对照证明先于 A05", "A06 新增/复核共 5 处 PNG 导出 SKIP：admin-catalog.spec.ts:100（实现者基线对照）、admin-catalog.spec.ts:242、full-flow.spec.ts:201、image-upload.spec.ts:67、templates.spec.ts:350；后四处由控制器用 456 行产品补丁 git apply -R 做纯基线对照，均在完全相同行失败，证明先于 A06、非产品回归。A10 须在 Chrome 156 重跑；A06 不因此标为完全 VERIFIED", "A06 评审 ⚠️：FP-13 FP-05 行的「没有素材 / 分页错误 / 重新选择」无 A06 新增断言，A10 矩阵补；「返回来源」/空目录/飞行中舍弃分支同样无断言（Ruling 72/74）", "FP-05 「替换背景」可见确认按钮文案按 Ruling 63 未实现（保留「选用 X」旧契约以维护 full-flow / admin-catalog 回归），按 FP-14 写回规格，A10/后续任务评估", "A06 评审 8 项 Minor + A01-A05 累计 45 项 Minor（共 53 项）推迟全分支评审；其中 clearInvalid 未 refetch q.data 导致改版后重选可能重复同一错误、须改筛选或重开选择器恢复，列为全分支评审优先候选（Ruling 75）", "FP-13 「注入上传失败」由既有 notifications.spec.ts 回归用例覆盖并重跑通过，无 A05 新增最小失败用例（Ruling 57），A10 矩阵复核", "A04 三张视觉证据 PNG 位于 /tmp/fp-a04-evidence/，A10 须落到受控路径；A05/A06/A07 的 /tmp/fp-a0*-* 测试证据同样需 A10 汇总", "A07 修复轮新增环境 SKIP：admin-catalog.spec.ts:242 下载原尺寸 PNG；实现者用 git apply -R 纯基线对照证明在 795da03 同一行同样失败（RESTORE 一致、HEAD/索引未变），前置 ResourcesPage 断言全过，非产品 RED，A10 重跑", "A07 评审 3 项 Minor 延迟（累计 56 项）：目录「文案」等待未断言、· admin 第二步三条近恒真断言已按 Ruling 95 标注为 regression guard、Ruling 85 字面张力已由 Ruling 90 澄清", "A07 全入口清点第 27 行（Resources.tsx 首屏网格 Skeleton）与五类状态 antd 组件表已写入报告 §11.6，A10 汇总 FP-02 验收矩阵时引用", "Ruling 90：Ruling 85 的字面要求「把进度说明切到 Button busy」与 TemplatePicker 实际 DOM 结构不符，控制器裁定保留现状；若后续要物理移入按钮内部，属独立小修", "A10 controller final verification: A10.4 fixed PNG sample pixel comparison and Chrome-156 PNG re-runs remain BLOCKED (Ruling 160); A10 M2 deferred Minor (three new widths lack independent settings/loading/failure screenshots, accepted under Ruling 162 discretion); deferred Minor total 66+1=67; FP-14 write-backs and Ruling 121 ProjectDeletionQueue gap remain open; B batch NOT_AUTHORIZED"]
 ```
 
-B 批状态：`AUTHORIZED (2026-11-11 用户明确选择『授权 B 批，从 B01 开始』)`；B01 已完成并经控制器终验，详见下方「B 批 · 任务分区」。按单任务惯例 B02/B03 仍为 `NOT_AUTHORIZED`，需再次明确授权；FP-11 涉及 IDL、生成代码与服务端事务。
+B 批状态（**A10 时点历史，保留原文以存证**）：`AUTHORIZED (2026-11-11 用户明确选择『授权 B 批，从 B01 开始』)`；B01 已完成并经控制器终验，详见下方「B 批 · 任务分区」。按单任务惯例 B02/B03 仍为 `NOT_AUTHORIZED`，需再次明确授权；FP-11 涉及 IDL、生成代码与服务端事务。**订正（2026-11-13）**：B02/B03 已于 2026-11-12 分别获用户「继续」授权并 `COMPLETE`，B 批三个任务全部完成，详见「B 批 · 任务分区」；A10.4 的 Chrome-156 归因亦已订正，见文末「EXPORT-DIAG」章节与 A10.4-R。
 
 ## 环境记录（A 批开工时实测）
 
@@ -326,9 +326,11 @@ renderer: PASS 1 entry chunk(s), 35 source(s)
 
 固定导出样本 PNG 本轮 `BLOCKED` 未生成，故无该样本尺寸/SHA-256；不得引用历史 `docs/verification/2026-11-05-antd-migration.md:415` 的 `f36c78f9…` 当本轮结果。
 
-#### A10.4 固定导出样本像素对比与 Chrome-156 PNG 重跑 — BLOCKED
+#### A10.4 固定导出样本像素对比与 Chrome-156 PNG 重跑 — BLOCKED（A10 时点历史，归因已订正）
 
-- **环境缺口（Ruling 160）**：本机实测 Chrome `157.0.8103.51` ≠ `deploy/toolchain.lock.json:8` 锁定 `156.0.8078.48`；Node `v22.22.2` ≠ 锁定 `24.21.0`；Chrome 156 可执行文件不存在。固定导出样本像素对比与基线 `124b4ea` 单独临时工作区采样**无法在匹配环境完成** → 标 **`BLOCKED`**。本轮**未执行** `magick compare`、**未伪造**输出、**未引用**历史 `docs/verification/2026-11-05-antd-migration.md:415` 的 `0 (0)` 当本轮结果。
+> **2026-11-13 订正（Rulings 313/314）**：本节完整保留 A10 当时的 `BLOCKED` 结论以存证，但其归因「Chrome 157 vs 锁定 156」**事实错误**。真实根因是宿主不允许 Chrome 子进程初始化沙箱（`sandbox initialization failed: Operation not permitted` → `GPU process isn't usable. Goodbye.` → `signal: trace/BPT trap`）；官方 CfT `156.0.8078.47` 在不带 `--no-sandbox` 时逐字复现同一失败，因此「换 Chrome 156」既非根因也非充分条件。修正后的契约与 **本轮真实执行结果** 见紧随的 **A10.4-R** 与文末 **EXPORT-DIAG** 章节。
+
+- **环境缺口（Ruling 160，历史记录）**：本机实测 Chrome `157.0.8103.51` ≠ `deploy/toolchain.lock.json:8` 锁定 `156.0.8078.48`；Node `v22.22.2` ≠ 锁定 `24.21.0`；Chrome 156 可执行文件不存在。固定导出样本像素对比与基线 `124b4ea` 单独临时工作区采样**无法在匹配环境完成** → 标 **`BLOCKED`**。本轮**未执行** `magick compare`、**未伪造**输出、**未引用**历史 `docs/verification/2026-11-05-antd-migration.md:415` 的 `0 (0)` 当本轮结果。
 - **完整复现命令**（待匹配环境）：
 
   ```sh
@@ -342,7 +344,38 @@ renderer: PASS 1 entry chunk(s), 35 source(s)
 
   环境前提：Chrome `156.0.8078.48` 可执行文件（`CHROME_PATH`）、Node `24.21.0`、ImageMagick `7.1.2-34`、同一合成文档与字体、两边各自构建的 renderer、同一运行参数；记录尺寸与 SHA-256。
 - **3 个既有 PNG 导出用例**（`admin-catalog.spec.ts:11/:111`、`templates.spec.ts:274`）的 Chrome-156 重跑同样标 `BLOCKED`；缓存修复后本轮已在 Chrome 157 下**实际执行**这些用例（连同其余 8 个「下载原尺寸 PNG」用例共 11 个 `toBeVisible` 超时，见 A10.3 补记），但因匹配环境缺失无法重跑，标 `BLOCKED`。A03–A09 已用 `git apply -R` 产品补丁**纯基线对照**（不改 HEAD/索引）证明这些失败先于各任务；A10 另以 `git diff --name-only`（仅 5 文件、零产品代码）、9 个失败 spec 的 `git diff HEAD -- <spec>` 全 0 行、`git apply --check -R evidence/a10-changes.patch` **exit 0**（可逆、check-only）证明先于 A10、不计为 A10 产品回归。本轮**未**做产品补丁的实际反向重跑（不建 worktree / 不改 HEAD 索引 / 不改产品代码）。
-- 导出样本 PNG 本轮**未生成**，故无尺寸/SHA-256；代表性截图的尺寸与 SHA-256 见「A10.3 补记」与「证据目录与隐私」。
+- 导出样本 PNG 本轮**未生成**，故无尺寸/SHA-256；代表性截图的尺寸与 SHA-256 见「A10.3 补记」与「证据目录与隐私」。（以上为 A10 时点记录；2026-11-13 的 A10.4-R 已真实生成两侧样本并记录尺寸/SHA-256。）
+
+#### A10.4-R 固定导出样本像素对比（新契约，2026-11-13）— PASS
+
+**授权与契约**：用户 2026-11-13「继续执行 未执行清单 内容」显式授权治理项 reconciliation 与 A10.4 再基线化，控制器以 Rulings 312–316 记录：解除 Rulings 295/306 的文档禁改限制、订正归因、把验收前提从「匹配精确 Chrome `156.0.8078.48`」改为「同一官方 CfT `156.0.8078.47` + 两侧均带 `chromedp.NoSandbox` + 同一合成文档/字体/ImageMagick」。`156.0.8078.48` 在官方 Chrome-for-Testing feed 中 **0 条**，不可得，如实记为环境缺口而非产品缺陷；`.47` 为同通道最近版本。
+
+**基线侧构造（不建 linked worktree、不改 HEAD/索引/工作区）**：`git archive 124b4ea | tar -x -C /tmp/fp-a104-20261113/baseline`，复制 `.env.local`，把 `node_modules`（根与 7 个工作区包）从跨目录符号链接改为真实目录（内部条目仍为 pnpm 相对链接），设 `PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false` 供 pnpm 在临时根目录运行。**唯一产品代码差异**为 `server/internal/exports/renderer.go` 一行环境适配补丁：
+
+```diff
+-opts = append(opts, chromedp.ExecPath(r.ChromePath), chromedp.Flag("hide-scrollbars", true), chromedp.Flag("force-color-profile", "srgb"))
++opts = append(opts, chromedp.ExecPath(r.ChromePath), chromedp.NoSandbox, chromedp.Flag("hide-scrollbars", true), chromedp.Flag("force-color-profile", "srgb"))
+```
+
+该补丁只改 Chrome 启动参数、不触碰渲染逻辑；没有它基线侧在本宿主上无法启动 Chrome。两侧各自 `pnpm --filter @fastposter/renderer build`，产物同为 `dist/assets/index-tKLq5HrC.js`（119 modules），证明 renderer 前端源码在 `124b4ea` 与 HEAD 之间未变。
+
+**本轮真实命令与结果**（`CHROME_PATH` 指向 CfT `156.0.8078.47`，`GOPROXY=off GOSUMDB=off`，`FASTPOSTER_CHROME_SANDBOX` 未设置，每次独立临时栈）：
+
+| 侧                            | 命令                                                                                                                                                                                                                       | 结果                        | 样本                   |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ---------------------- |
+| 基线 `124b4ea` + 环境适配补丁 | `FP_EXPORT_BASELINE_PATH=/tmp/fp-a104-20261113/samples/baseline.png pnpm test:e2e tests/e2e/export.spec.ts -g 'flushes latest edits and previews the exact native PNG available for download' --output …/results/baseline` | `1 passed (14.4s)` / exit 0 | `baseline.png` 56419 B |
+| 当前 HEAD `55ccf59`           | 同上，路径 `samples/current.png`、`--output …/results/head`                                                                                                                                                                | `1 passed (10.8s)` / exit 0 | `current.png` 56419 B  |
+
+```text
+magick compare -metric AE baseline.png current.png null:   → 0 (0)   exit 0
+cmp baseline.png current.png                              → identical
+shasum -a 256: 两图均 f36c78f99c2d354c6dd2c4ee8f02cc645ee4988c9b03701c6af227d674c19e85
+identify:      两图均 PNG 1200x1600 8-bit sRGB 56419B
+```
+
+**版本无关性交叉验证**：把 `CHROME_PATH` 改为本机系统 Chrome `157.0.8103.78`，在 HEAD 侧以同样用例复采 `current-chrome157.png` → `1 passed (9.4s)` / exit 0；SHA-256 仍为 `f36c78f9…`，`magick compare -metric AE` 对 `baseline.png` 仍为 `0 (0)`。CfT 156 与系统 Chrome 157 产出**字节相同**的固定样本，实验上排除「Chrome 版本差异导致像素变化」，也反向印证 Ruling 313 的宿主沙箱归因。
+
+**诚实口径**：`docs/verification/2026-11-05-antd-migration.md:415` 的历史 `0 (0)` 与 `f36c78f9…` **未被当作本轮证据**；本轮独立采样后数值恰与历史一致，属真实复现而非引用。精确 `156.0.8078.48` 仍不可得，但既有 blocker 的因果关系已被推翻，故不再构成验收阻塞。A10.4 在新契约下判 **`PASS`**；3 个既有 PNG 用例在 EXPORT-DIAG 已真实 PASS，其余用例与全量矩阵见文末 EXPORT-DIAG 章节。
 
 #### A10.5 FP-13 验收矩阵（FP-01 … FP-10、FP-12 共 11 行）
 
@@ -453,12 +486,12 @@ renderer: PASS 1 entry chunk(s), 35 source(s)
 
 ## B 批 · 任务分区
 
-本节由 B01 按 B 计划 :15「在同一个 `docs/verification/2026-11-06-antd-remediation.md` 中单列 B」创建（控制器 Ruling 184）。A 批 front matter 的 `status`、`blockers`、`open_verification_items` 等键保持 A10 终验时的历史状态：其中「B batch NOT_AUTHORIZED (B03.3 threshold)」等表述是 A10 时点记录，已由本节状态块取代；**A10.4 的 Chrome-156 / Node-24 阻塞项继续有效**，A 批仍为 `IN_PROGRESS`、`last_verified_commit: 4610e25`。逐任务流水、评审包与裁定见忽略目录 `.superpowers/sdd/2026-11-06-antd-remediation-b-implementation/`（仅本机证据，不入库）。
+本节由 B01 按 B 计划 :15「在同一个 `docs/verification/2026-11-06-antd-remediation.md` 中单列 B」创建（控制器 Ruling 184）。**2026-11-13 状态更新（Rulings 312-320）**：下方 YAML 与 A 批 front matter 均为**当前结论**（两批 `VERIFIED`，`blockers` 已清空）；A10、B01、B02、B03 各章节内「`IN_PROGRESS`」「`NOT_AUTHORIZED`」「A10.4 `BLOCKED`」等表述是各任务完成时点的历史结论，按「区分历史验证与当前结果」原则保留、不改写，一律以本状态块与文末「批次级复议」章节为准。A10.4 的 Chrome-156 归因已被推翻（根因是宿主 Chrome 子进程沙箱初始化失败），固定样本像素对比、全量 E2E 矩阵与锁定 Node 24 回归均已真实执行。逐任务流水、评审包与裁定见忽略目录 `.superpowers/sdd/2026-11-06-antd-remediation-b-implementation/`（仅本机证据，不入库）。
 
 ```yaml
 batch: B
-status: IN_PROGRESS
-authorization: "2026-11-11 用户明确选择『授权 B 批，从 B01 开始』；2026-11-12 用户回复『继续』逐任务授权 B02，同日再次回复『继续』逐任务授权 B03；按单任务惯例每次仅授权一个任务"
+status: VERIFIED
+authorization: "2026-11-11 用户明确选择『授权 B 批，从 B01 开始』；2026-11-12 用户回复『继续』逐任务授权 B02，同日再次回复『继续』逐任务授权 B03；按单任务惯例每次仅授权一个任务；2026-11-13 用户选择『授权诊断导出链路』完成 EXPORT-DIAG，同日『继续执行 未执行清单 内容』授权全部治理项与批次级复议（Rulings 312-316）"
 execution_mode: subagent-driven-development (fresh implementer + independent task reviewer + controller final verification per task)
 workspace: "/Users/aaa/acode/FastPoster" (in-place, no linked worktree)
 branch: feat/fastposter
@@ -466,16 +499,17 @@ baseline: "9a0efbf" (A10 controller final verification)
 b01_baseline: "9a0efbf"
 b02_baseline: "be986a9"
 review_baseline: "124b4ea5d2dc7b1b58183749a393a3c4759fe47b"
-last_verified_commit: "4d4f8e7"
-task: B03
+last_verified_commit: "55ccf59" (2026-11-13 controller final gate; EXPORT-DIAG product commits ef29768 + 55ccf59; B03 had no product code and the previous value 4d4f8e7 is historical)
+task: B03 (COMPLETE); 2026-11-13 reconciliation batch — no B04 exists
 b01_status: COMPLETE
 b02_status: COMPLETE
 b03: COMPLETE
 b02_b03: "B02 COMPLETE / B03 COMPLETE"
+export_diag: COMPLETE
 spec_ids: [FP-11]
-blockers: ["A10.4 Chrome 157.0.8103.51 vs locked 156.0.8078.48 / Node v22.22.2 vs 24.21.0 — fixed PNG sample pixel comparison and 3 pre-existing PNG export cases remain BLOCKED; not retried in B01, B02 or B03", "B03.3 A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases require a matching Chrome 156.0.8078.48 / Node 24.21.0 environment; B batch stays IN_PROGRESS and the batch-level verdict is deferred to that re-run"]
+blockers: []
 deferred_minors: 8
-next_step: "B01/B02/B03 COMPLETE. B batch stays IN_PROGRESS: re-run the A10.4 fixed PNG sample pixel comparison and the 3 pre-existing PNG export cases in a matching Chrome 156 / Node 24 environment, then re-review the batch-level verdict. A batch remains IN_PROGRESS on the same A10.4 blocker."
+next_step: "Both batches VERIFIED by controller re-review on 2026-11-13 (Rulings 317-320). completion != deployment: no deployment, no whole-branch final review, no finishing-a-development-branch (Ruling 276). Remaining deferred Minor and open_verification_items are non-blocking and belong to a future whole-branch review."
 ```
 
 ### B01 使保存和分类移动共享版本前提 — COMPLETE
@@ -612,3 +646,107 @@ A10.4 固定导出样本像素对比与 3 个既有 PNG 导出用例仍需匹配
 **环境与诚实口径**：本机 Chrome `157.0.8103.78` / Node `v22.22.2` 与锁定 `156.0.8078.48` / `24.21.0` 不符；A10.4 固定导出样本像素对比与 3 个既有 PNG 导出用例（`admin-catalog.spec.ts:11` / `:111`、`templates.spec.ts:274`）继续 `BLOCKED` / 环境 SKIP，控制器未重试、未写成 PASS、未计产品 RED。`pnpm test:server` 的集成包 `ok (cached)` 不作 MySQL 通过依据，真实断言只由两次 `python3 tools/test-integration.py` 覆盖。
 
 **B03 完成（Ruling 290）**：B03 **COMPLETE**；B 批保持 `IN_PROGRESS`、**不标 `VERIFIED`**，唯一剩余门槛是在匹配 Chrome 156 / Node 24 环境补跑 A10.4 与 3 个 PNG 用例后复议。`last_verified_commit` 沿用 `4d4f8e7`，A 批 `IN_PROGRESS` 与 `last_verified_commit: 4610e25` 不动。B 计划 `:39-43` 仅 B01/B02/B03，**无 B04**；两批均 `IN_PROGRESS` 时不派 whole-branch final review、不删除 `.superpowers/sdd/...` 工作区、不触发 finishing-a-development-branch（Ruling 276）。
+
+## EXPORT-DIAG · 导出链路诊断、修复与归因订正（2026-11-13）
+
+本章节由用户 2026-11-13「继续执行 未执行清单 内容」授权补记（Ruling 312）。此前 Rulings 295/306 把本验收入口、`AGENTS.md`、`README.md`、`deploy/toolchain.lock.json` 与两个账本列为 EXPORT-DIAG 任务的禁改文件，并留下「需用户显式决定」的治理项；Ruling 312 解除该限制，仅限口径同步、归因订正与结果落盘，其余禁令（IDL、生成物、migrations、`.workbuddy/**`、10 个顶层 `??` 资产、不建 linked worktree、不自动写 `VERIFIED`）继续有效。Ruling 276 仍适用：不触发全分支评审与 finishing，不部署。
+
+### 根因与证据链（Ruling 313）
+
+`server/internal/exports` 的 STEP0 探测在本机系统 Chrome `157.0.8103.78` 上直接观察到：
+
+```text
+sandbox initialization failed: Operation not permitted
+aperitif: Failed to initialize sandbox
+GPU process exited unexpectedly: exit_code=6
+FATAL:content/browser/gpu/gpu_data_manager_impl_private.cc:389] GPU process isn't usable. Goodbye.
+STEP0 browser start: FAIL: browser process exited: signal: trace/BPT trap
+```
+
+随后 `RenderText` 失败，worker 把导出 job 映射为 `RENDER_FAILED`，`ExportDialog.tsx` 只在 `status === "succeeded"` 时渲染「下载原尺寸 PNG」链接，于是 A10.3 记录的 11 个用例在 `toBeVisible` 处超时。**关键控制实验**：把 Chrome 换成官方 Chrome-for-Testing `156.0.8078.47`（`/tmp/fp-exportdiag-20261113/cft156/`，仅解压、仅经 `CHROME_PATH` 指向，未安装未提交），在**不带** `--no-sandbox` 时逐字复现同一沙箱初始化失败、GPU FATAL 与 SIGTRAP。故根因是**宿主不允许 Chrome 子进程初始化沙箱**，与 Chrome 版本无关；既有 blocker「Chrome 157 vs 锁定 156」以及「匹配 Chrome 156 即解除阻塞」**事实错误**。日志：`/tmp/fp-exportdiag-20261113/diag-step0.log`、`cft156-noflag-full.log`。
+
+### 修复与运维契约
+
+| 提交      | 内容                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ef29768` | 在 `server/internal/exports/renderer.go` 的 allocator options 追加 `chromedp.NoSandbox`，使受限宿主上 Chrome 可启动；`server/internal/exports/worker.go:143-147` 把渲染错误如实映射为 `RENDER_FAILED`，失败态显示文案而非伪造成功链接。                                                                                                                                                |
+| `55ccf59` | 抽出纯函数 `rendererChromeOptions(chromePath, getenv)`；**`FASTPOSTER_CHROME_SANDBOX=1` 时省略 `chromedp.NoSandbox`**（恢复沙箱），未设置或任何其它值保持默认追加；新增 `renderer_sandbox_test.go` 的 `TestChromeSandboxGate`（7 子用例，reflect 检查 `initFlags` + 反射无关的选项数断言）。同时把 4 个集成 fixture 的硬编码 Chrome 路径改为 `chromePath()`，遵循 `CHROME_PATH` 约定。 |
+
+> `ef29768` 的历史 subject 写作 `repair Chrome 157 export rendering`，措辞误归因；按 Ruling 304 **不 amend**，更正只记于账本、EXPORT-DIAG 报告与本文档。
+
+**安全取舍（Ruling 303 / 必须随交付传递）**：默认关闭 Chrome 进程沙箱是**有意的安全取舍**，不是「无需沙箱」。FastPoster 是本机单用户原生应用，CSP、`127.0.0.1` 回环与随机令牌只能收窄远程内容暴露，**不能替代 OS 进程隔离**。生产 `server/cmd/export-worker/main.go` 构造同一 `Renderer`，因此**默认仍无 Chrome 进程沙箱**；加固宿主须显式设 `FASTPOSTER_CHROME_SANDBOX=1`。但本受限宿主设该值会立即 SIGTRAP、导出不可用（`/tmp/fp-exportdiag-ctrl2/15-sandbox-on-expected.log`，exit 1，属预期环境结果而非产品 RED，同时反证门控分支被真实走到）。未来多租户或非本机部署必须重新评估默认值。
+
+**版本可得性**：`deploy/toolchain.lock.json` 锁定 `156.0.8078.48`，官方 Chrome-for-Testing feed **0 条**该精确版本；同通道最近可得为 `156.0.8078.47`。该缺口如实记录，但因为根因与版本无关，且 A10.4-R 已在 `.47` 与系统 `157.0.8103.78` 上产出**字节相同**的固定样本，不再构成验收阻塞。
+
+### 修复后的真实验证
+
+- **RED → GREEN**：既有 `FASTPOSTER_RENDER_TEST=1` 门控用例（`TestRenderMixedChineseFonts`、`TestExportWorkerRendersRealPNG`）在修复前真实 2 FAIL，修复后 2 PASS；门控单测经 A/B 双向变异验证，移除任一方向的门控都会真实 FAIL。
+- **独立评审**：首轮 Spec ✅ / Changes requested（2 Important：无条件关闭生产沙箱、根因误称 Chrome 157 回归）→ 控制器裁定 Rulings 303–307 → 修复轮 `55ccf59` → 定向复评审 clean。
+- **控制器终验**（`/tmp/fp-exportdiag-ctrl2/`）：14/15 命令 exit 0；`pnpm test` 218/218、`pnpm verify` turbo 8/8、全量 `--all-server -v` **149 PASS / 4 SKIP / 0 FAIL**；第 15 项 `FASTPOSTER_CHROME_SANDBOX=1` 预期 exit 1；3 个既有 PNG 用例（`admin-catalog.spec.ts:11`/`:111`、`templates.spec.ts:274`）各 `1 passed / exit 0`。
+- **A10.4-R 固定样本像素对比**：见上文 A10.4-R，`magick compare -metric AE = 0 (0)`、两侧 SHA-256 均 `f36c78f9…`、1200×1600 8-bit sRGB；基线 `124b4ea` 已在独立临时目录单独采样，历史 `0 (0)` 未被当作本轮证据。
+- **本轮新增**：`renderer_sandbox_test.go` 的选项数断言由硬编码 `+3` 改为以 unset 分支为基准的相对断言（消除与 chromedp 默认选项数量的耦合），7/7 子用例 PASS、`gofmt` 与 `git diff --check` clean。
+
+### 修复后全量 E2E 矩阵（2026-11-13，CfT 156.0.8078.47 / Node 22.22.2）
+
+按 `AGENTS.md` 逐 spec 独立临时栈（`reuseExistingServer: false`）跑完 20 个 spec，每次起全新服务栈，`GOPROXY=off GOSUMDB=off`，`CHROME_PATH` 指向 CfT `156.0.8078.47`，开工前预构建 renderer。日志 `/tmp/fp-a104-20261113/logs/full-e2e-*.log`，逐组 exit 与用例数 `/tmp/fp-a104-20261113/logs/full-e2e-exits.tsv`。
+
+| 结果        | 数量 | 说明                                                                                                                                                                                                                                           |
+| ----------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 用例总数    | 153  | 20 个 spec（A 批新增用例后多于历史 139）                                                                                                                                                                                                       |
+| 首轮 passed | 144  | 覆盖 A10.3 记录的 11 个「下载原尺寸 PNG」失败用例所在全部 spec：`export` 3/3、`full-flow` 3/3、`image-upload` 2/2、`project-permanent-deletion` 13/13、`editor-fonts` 12/12、`templates` 7/7、`admin-catalog` 5/5 —— 修复后**零 PNG 导出失败** |
+| 首轮 failed | 4    | `admin-layout` 2（登录态 URL）、`copy` 1（单栈 180s 超时）、`ui-controls` 1（URL 状态），均非 PNG 导出                                                                                                                                         |
+| skipped     | 5    | `ui-baseline.spec.ts` 截图用例需 `FP_UI_BASELINE=1`，默认跳过；五档布局守卫 5 例真实 PASS                                                                                                                                                      |
+
+**4 个失败的独立栈对照**：按 A09/A10 既定做法，用互斥 `-g` 每组起全新栈，并分别在 CfT `156.0.8078.47` 与本机系统 Chrome `157.0.8103.78` 各跑一遍（`/tmp/fp-a104-20261113/rerun-failures.sh`）：
+
+| 用例                                                        | CfT 156           | Chrome 157        |
+| ----------------------------------------------------------- | ----------------- | ----------------- |
+| `admin-layout` brand link keeps the one-time token          | 1 passed / exit 0 | 1 passed / exit 0 |
+| `admin-layout` browser history keeps the one-time token     | 1 passed / exit 0 | 1 passed / exit 0 |
+| `copy` administrator maintains a five-level copy tree       | 1 passed / exit 0 | 1 passed / exit 0 |
+| `ui-controls` closed select values share the trigger center | 1 passed / exit 0 | 1 passed / exit 0 |
+
+8/8 全绿，证明首轮 4 例是**单 spec 内共享栈状态 / 调度竞争**（`copy` 五层树用例在单栈内等待「保存作品」按钮达 180s 超时），不是产品 RED，也不是 Chrome 版本差异。`ui-baseline` 的 5 个 SKIP 是有开关的截图用例，不计失败、不写成 PASS。
+
+### 锁定工具链回归（Node 24.21.0 + CfT 156.0.8078.47）
+
+`/tmp/fp-a104-20261113/run-node24-full.sh`：`PATH` 前置 `~/.nvm/versions/node/v24.21.0/bin`（实测 `node v24.21.0` / `pnpm 11.25.0`），`CHROME_PATH` 指向 CfT `156.0.8078.47`，先在 Node 24 下重建 renderer，再逐 spec 起独立临时栈。
+
+| 项           | 结果                                                                                                                                                                                                     |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 固定导出样本 | `FP_EXPORT_BASELINE_PATH=…/current-node24.png` → `1 passed` / exit 0；SHA-256 仍为 `f36c78f9…`，`magick compare -metric AE` 对 `baseline.png` = `0 (0)`，1200×1600 8-bit sRGB 56419 B                    |
+| 全量矩阵     | 20 spec / 153 用例：**145 passed / 3 failed / 5 skipped**（`ui-baseline` 截图开关用例）                                                                                                                  |
+| PNG 导出     | 所有相关 spec 零失败（`export` 3/3、`full-flow` 3/3、`image-upload` 2/2、`project-permanent-deletion` 13/13、`editor-fonts` 12/12、`templates` 7/7、`admin-catalog` 5/5、`copy` 7/7）                    |
+| 3 个失败     | `admin-layout` 2（登录态 URL）+ `ui-controls` 1（`/register` vs `/login`），与 Node 22 首轮同类；互斥 `-g` 独立栈补跑 **3/3 `1 passed` / exit 0**（`/tmp/fp-a104-20261113/logs/node24-rerun-exits.tsv`） |
+
+这直接补上历史 blocker 要求的「匹配 Chrome 156 / Node 24 环境」（精确 `.48` 官方不可得，用同通道 `.47`；已由对照实验证明该补丁号与像素、导出结果无关）。
+
+### 最终门槛（2026-11-13，14/14 exit 0）
+
+`/tmp/fp-a104-20261113/final-gate/exits.tsv`，全程 `GOPROXY=off GOSUMDB=off`：
+
+| 命令                                                                                                               | 结果                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `pnpm contracts:check`                                                                                             | `generated contracts match the Thrift IDL` / exit 0                                                          |
+| `pnpm typecheck` / `pnpm test`                                                                                     | exit 0 / **32 文件 · 218 用例**                                                                              |
+| `pnpm verify`                                                                                                      | turbo **8/8**                                                                                                |
+| `go test ./internal/... -count=1` / `pnpm test:server`                                                             | exit 0 / exit 0                                                                                              |
+| `python3 tools/test-integration.py --all-server -count=1 -v` ×2                                                    | 各 **167 PASS / 10 SKIP / 0 FAIL**（`--- PASS` 含子测试行，与 EXPORT-DIAG 的 149 为不同计数口径，均 0 FAIL） |
+| `pnpm --filter @fastposter/renderer build`                                                                         | exit 0（119 modules）                                                                                        |
+| `go test ./server/internal/exports -run TestChromeSandboxGate -v`                                                  | **7/7 子用例 PASS**                                                                                          |
+| `gofmt -l` / `git diff --check` / `prettier --check README.md` / `python3 -m json.tool deploy/toolchain.lock.json` | 0 文件 / exit 0 / 合规 / JSON 有效                                                                           |
+
+新增章节按 `AGENTS.md` 定向格式化并单独通过 Prettier 校验；`AGENTS.md` 与本验收入口的全文件 Prettier 在 HEAD 版本即因 A 批历史表格而 exit 1，属既有偏差，未做全仓格式化。最终门槛日志 DSN / 凭据扫描 **0 命中**。
+
+### 批次级复议裁定（Ruling 320）
+
+**A、B 两批状态由 `IN_PROGRESS` 改为 `VERIFIED`。** 依据：① A10.4-R 固定样本像素对比在基线 `124b4ea` 与 HEAD 两侧真实执行，`AE = 0 (0)`、字节相同，并在 CfT 156 / 系统 Chrome 157 / Node 22 / Node 24 四种组合下复现；② 修复后全量 20-spec / 153 用例矩阵在 Node 22 与锁定 Node 24 各跑一遍，全部 PNG 导出用例零失败，首轮少量单栈失败经互斥 `-g` 独立栈 8/8 与 3/3 全绿，无产品 RED；③ 最终门槛 14/14 exit 0；④ 归因订正与运维开关已落入验收入口、`AGENTS.md`、`README.md`、`deploy/toolchain.lock.json` 与两个账本。Rulings 160/273 设定的「复议前置条件」已全部满足，故按用户 2026-11-13 的显式授权做出本裁定。
+
+**明确保留、不因 `VERIFIED` 而消失**：
+
+- A 批 **67** 项、B 批 **8** 项 deferred Minor 仍按历史裁定推迟到全分支评审；EXPORT-DIAG 遗留的 1 项 ⚠️（测试断言硬编码 `+3`）已在本批次闭合。
+- `open_verification_items` 中的 FP-14「替换背景」文案写回、Ruling 121 `ProjectDeletionQueue` 成功门禁 + 失败注入 E2E、FP-09「版本变化经 409 检测」矩阵说明、A04–A07 证据落盘汇总等仍是未完成项，均非本轮产品回归，归属未来全分支评审。
+- 环境与运维限制：精确 Chrome `156.0.8078.48` 官方 feed **0 条**不可得；生产默认仍无 Chrome 进程沙箱，加固需 `FASTPOSTER_CHROME_SANDBOX=1`，该值在本受限宿主会 SIGTRAP、导出不可用。
+- **`completion != deployment`**：**未部署**。按 Ruling 276 不触发全分支最终评审、不删除 `.superpowers/sdd/...` 工作区、不触发 finishing-a-development-branch。10 个顶层 `??` 用户资产全程未动。
+
+**历史与当前区分**：A10 / B01 / B02 / B03 各章节内的「`IN_PROGRESS`」「`NOT_AUTHORIZED`」「A10.4 `BLOCKED`」均为各任务完成时点的原始结论，按 FP-14 单一执行记录原则保留、不改写；**当前结论以 A 批 front matter、B 状态 YAML 与本章节为准**。
