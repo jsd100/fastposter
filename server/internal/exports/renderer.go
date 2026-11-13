@@ -53,6 +53,27 @@ type Renderer struct {
 	RendererDir string
 }
 
+// rendererChromeOptions builds the chromedp allocator options used to launch
+// the isolated headless Chrome. It is a pure function of its inputs so the
+// sandbox gate can be unit-tested without starting a browser.
+func rendererChromeOptions(chromePath string, getenv func(string) string) []chromedp.ExecAllocatorOption {
+	opts := append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...)
+	opts = append(opts, chromedp.ExecPath(chromePath), chromedp.Flag("hide-scrollbars", true), chromedp.Flag("force-color-profile", "srgb"))
+	// On hosts where Chrome child processes cannot initialize their sandbox
+	// (restricted/containerized environments), Chrome aborts with SIGTRAP
+	// ("GPU process isn't usable. Goodbye.") once the GPU process is unusable.
+	// This is a host-environment constraint, NOT a Chrome-157-specific
+	// regression. Disabling the sandbox (default here) is a deliberate
+	// SECURITY TRADE-OFF: it removes Chrome's OS process isolation from the
+	// renderer. CSP and the loopback-only page narrow remote-content exposure
+	// but do NOT replace process isolation. Set FASTPOSTER_CHROME_SANDBOX=1
+	// to restore the sandbox on hosts where it can initialize.
+	if getenv("FASTPOSTER_CHROME_SANDBOX") != "1" {
+		opts = append(opts, chromedp.NoSandbox)
+	}
+	return opts
+}
+
 func (r *Renderer) RenderText(ctx context.Context, snapshot RenderSnapshot) (image.Image, LayoutReport, error) {
 	var report LayoutReport
 	d := snapshot.Document
@@ -126,14 +147,7 @@ func (r *Renderer) RenderText(ctx context.Context, snapshot RenderSnapshot) (ima
 	if e != nil {
 		return nil, report, e
 	}
-	opts := append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...)
-	// When Chrome's child processes cannot initialize their sandbox (e.g. in a
-	// restricted/containerized environment), recent builds abort with SIGTRAP
-	// ("GPU process isn't usable. Goodbye.") once the GPU process is unusable.
-	// Disable it for the isolated headless renderer, matching Playwright's
-	// default launch. The page is served from loopback under a strict CSP, so
-	// no sandbox is needed to contain remote content.
-	opts = append(opts, chromedp.ExecPath(r.ChromePath), chromedp.NoSandbox, chromedp.Flag("hide-scrollbars", true), chromedp.Flag("force-color-profile", "srgb"))
+	opts := rendererChromeOptions(r.ChromePath, os.Getenv)
 	allocator, cancelAllocator := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancelAllocator()
 	browser, cancelBrowser := chromedp.NewContext(allocator)
