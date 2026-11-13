@@ -427,7 +427,7 @@ FASTPOSTER_TEST_MYSQL_DSN=fastposter_test:CHANGE_ME_TO_A_TEST_PASSWORD@tcp(127.0
 
 ### 浏览器与实际渲染测试
 
-`pnpm test:e2e` 会启动临时数据库、数据目录、核心服务、网关、worker 和两个 Vite 前端，结束后清理，不需要先启动 `pnpm dev`，也不需要使用真实业务作品。
+`pnpm test:e2e` 会启动临时数据库、数据目录、核心服务、网关、worker 和两个 Vite 前端。测试前端各自使用临时 Vite 依赖缓存，测试栈退出时清理，不需要先启动 `pnpm dev`，也不需要使用真实业务作品。
 
 测试前确保 `15173`、`15174`、`18080` 端口未占用，且 `magick` 位于 `PATH`。测试网关与正式开发端口不同。若 Chrome 不在 macOS 默认路径，应将路径显式传给 Playwright 进程，例如：
 
@@ -469,12 +469,14 @@ pnpm contracts:check
 
 ## Ant Design 界面契约与视觉证据
 
-本节记录当前前端约定与 A 批验收背景。A 批历史样式、FP-13 矩阵与证据清单见 `docs/verification/2026-11-06-antd-remediation.md`。四份权威规范/计划仍是本机未跟踪输入（路径与基线 `124b4ea` 见该记录），新检出依据本节、`AGENTS.md` 与 `deploy/toolchain.lock.json` 即可复现，不依赖忽略目录作为唯一交接来源。
+当前前端以 `a3fba77` 的样式与交互调整为基线。 [当前前端验收](docs/verification/2026-11-13-antd-default-appearance.md) · [A/B 批历史验收](docs/verification/2026-11-06-antd-remediation.md)
 
 - **版本与共享控件**：固定 `antd@6.7.0`。两站共用 `packages/ui/src/UIProvider.tsx` 的 `UIProvider`，renderer 独立。
-- **入口边界与 forbidden 规则**：`tools/check-entry-boundary.mjs` 对 web/admin 禁 `@tiptap/`、`prosemirror-`，对 renderer 禁 `antd`、`packages/ui/src`、`@fastposter+ui@`；用 `vite build --manifest --sourcemap` 产物审计。
+- **构建边界**：用户站与管理站在进入编辑器时按需加载 Tiptap。用 `vite build --manifest --sourcemap` 生成产物，再用 `tools/check-entry-boundary.mjs` 检查两站静态入口的依赖和 renderer 的隔离。
 - **创作路径与手机历史**：`BackgroundPicker` 的 `mode: "create" | "replace"` 创建/替换契约、手机 390px / 320px 工作台「撤销」「重做」≥44×44px，详见验收入口与 `AGENTS.md`。
 - **当前视觉样式**：用户站、管理站和编辑器使用 Ant Design 6.7.0 的默认配色、字体、组件尺寸、边框和交互状态。页面样式负责内容排版、滚动和断点，编辑器样式还负责画布、选框和拖拽手柄。手机主操作保留 ≥44×44px 命中区，编辑器文本输入在手机宽度保留 16px。旧绿色主题和控件尺度见 A 批历史验收记录。
+- **页面布局**：作品、模板和后台资源卡片保留完整预览，标题、尺寸和版本或更新时间分层显示。后台搜索框最大宽度 288px，筛选控件可换行。新建海报弹窗桌面宽度为 376px，手机按视口收缩。
+- **编辑器与后台操作**：文字、段落、效果和位置使用 antd Segmented，支持方向键切换。模板卡片显示「编辑」「预览」「更多」，发布或下架、导出、删除位于菜单。后台新建、保存和发布使用主按钮，查看详情可用链接样式，删除和禁用使用危险样式。
 - **五档尺寸与四个断点**：1440×1000 / 1024×768 / 768×1024 / 390×844 / 320×700；编辑器断点 ≥1200px、881–1199px、681–880px、≤680px。`tests/e2e/ui-baseline.spec.ts` 的 `five-width layout guards` 默认可运行，断言 `document.documentElement.scrollWidth <= innerWidth`、选区可见、关键操作可达。
 - **截图与导出采样开关**：`FP_UI_BASELINE=1 FP_UI_BASELINE_OUT=/绝对路径/screenshots pnpm test:e2e tests/e2e/ui-baseline.spec.ts`（`OUT` 不要指向 `test-results/`，Playwright 会清空）；`FP_EXPORT_BASELINE_PATH=/绝对路径/sample.png pnpm test:e2e tests/e2e/export.spec.ts -g 'flushes latest edits and previews the exact native PNG'` 把下载字节写到指定位置（`tests/e2e/export.spec.ts:41-42`）。
 - **逐文件独立临时测试栈与预构建 renderer**：每个 spec 独立临时栈、`GOPROXY=off GOSUMDB=off`、`--output <证据目录>/results/<suite>`，单文件注册限流时按互斥 `-g` 分栈；测试前 `pnpm --filter @fastposter/renderer build`。
@@ -486,6 +488,10 @@ pnpm contracts:check
 ### 启动提示 `MYSQL_DSN is required`
 
 确认仓库根存在 `.env.local`，命令在项目内执行，配置键名正确。Go 服务读取根配置，前端应用目录中的 `.env.local` 不能替代它。另需检查当前终端是否设置了覆盖文件配置的同名环境变量。
+
+### 编辑文字时报 `Cannot read properties of null (reading 'useRef')`
+
+如果浏览器还开着更新前的编辑器页面，先刷新并重新打开模板或作品。仍可复现时，停止当前开发进程并重新运行 `pnpm dev`。两站的 Vite 配置统一解析 `react` 和 `react-dom`，并预构建 Tiptap 依赖。Playwright 测试栈通过 `FASTPOSTER_VITE_CACHE_DIR` 为每个测试前端指定独立缓存，常规本地开发沿用 Vite 默认目录。 [富文本回归记录](docs/verification/2026-11-13-antd-default-appearance.md#富文本加载与-vite-缓存)
 
 ### 数据库连接失败或 `database schema is not ready`
 
@@ -606,7 +612,7 @@ go run ./server/cmd/maintenance backup
 
 ## B 批 · 后台资源写入边界、升级兼容与回滚（FP-11）
 
-本节是 B 批（FP-11 后台资源写入边界）交付的维护契约，逐字重述 B01/B02 已落地的前后端契约、部署兼容单元与回滚规则。当前前端样式见本文的 Ant Design 章节。四份权威规范/计划仍是本机未跟踪输入（路径与基线 `124b4ea` 见 `docs/verification/2026-11-06-antd-remediation.md`），新检出依据本节、`AGENTS.md`、`README.md`、`deploy/toolchain.lock.json` 与验收入口即可复现，不依赖忽略目录作为唯一交接来源。
+本节是 B 批（FP-11 后台资源写入边界）交付的维护契约，逐字重述 B01/B02 已落地的前后端契约、部署兼容单元与回滚规则。当前前端样式见本文的 Ant Design 章节。B 批历史规范、计划与证据见 [A/B 批验收记录](docs/verification/2026-11-06-antd-remediation.md)。
 
 - **适用批次**：A 批 = FP-12 / FP-13 / FP-14 的 antd 迁移后修正；B 批 = FP-11 后台资源写入边界（B01 保存与分类移动版本前提、B02 独立发布意图）。B 批无 B04；B03 是纯文档与最终门槛任务，零产品代码、零 IDL、零生成物、零测试文件改动。
 

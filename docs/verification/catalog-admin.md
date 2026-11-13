@@ -1,6 +1,6 @@
 # 公共资源与管理后台验证
 
-后台使用独立 React 应用，路由 `/admin/overview`、`users`、`projects`、`backgrounds`、`fonts`、`jobs`、`audit`。每个管理 RPC 在 core 解析会话并校验 admin；前端不提供角色选择。人用管理员通过已实现的 admin-cli 创建，不设默认密码。浏览器测试中的 admin-e2e 仅存在于独立的 fastposter_test_* 数据库。
+后台使用独立 React 应用，业务路由包括 `/admin/overview`、`/admin/users`、`/admin/projects`、`/admin/backgrounds`、`/admin/templates`、`/admin/copy`、`/admin/fonts`、`/admin/jobs` 和 `/admin/audit`。每个管理 RPC 在 core 解析会话并校验 admin；前端不提供角色选择。人用管理员通过已实现的 admin-cli 创建，不设默认密码。浏览器测试中的 admin-e2e 仅存在于独立的 fastposter_test_* 数据库。
 
 作品管理使用独立 Thrift ProjectMetadataDTO，仅传名称、归属、尺寸、版本、时间；没有正文、背景文件或字体内容。管理任务列表不提供他人的下载入口，也不转发可能包含私有文字的缺字详情。审计只记录动作与目标 ID。
 
@@ -17,3 +17,7 @@
 - 内置字体初始化为资源登记引用，重复启动不重新发布已经下架的字体。
 
 资源版本只追加。下架影响新的浏览选择；已有作品通过明确版本引用读取。删除被引用的素材会返回冲突并提示下架，不提供直接物理删除入口。
+
+## 当前后台交互
+
+后台筛选控件按可用宽度换行。模板卡片上直接编辑或预览，从「更多」发布、下架、导出或删除。文案分类树的添加子分类和编辑分类按钮常态可见。资源发布状态仍受版本前提保护，冲突后需要管理员明确确认重提。 [当前前端验收](2026-11-13-antd-default-appearance.md#后台操作按钮)

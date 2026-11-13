@@ -54,16 +54,19 @@ pnpm dev
 - 使用 `pnpm exec prettier --write <文件路径>` 格式化修改过的前端文件，Go 使用 `gofmt -w <文件路径>`；避免无关的全仓格式化。当前未配置独立 lint 脚本。
 - 契约修改从 `idl` 开始，运行 `pnpm contracts:generate`，同时提交生成结果；禁止手改 `server/gen`、`packages/api-client/src/generated.ts` 及生成路由。
 
-## Ant Design 前端约定（A 批迁移后，FP-12）
+## Ant Design 前端约定
 
-本节记录当前前端约定与 A 批验收背景。四份权威规范/计划仍是本机未跟踪输入（路径与基线 `124b4ea` 见 `docs/verification/2026-11-06-antd-remediation.md`），新检出依据本节、`README.md` 与 `deploy/toolchain.lock.json` 即可复现，不依赖忽略目录作为唯一交接来源。
+本节适用于用户站、管理站和共享编辑器。 [当前前端验收](docs/verification/2026-11-13-antd-default-appearance.md) · [A/B 批历史验收](docs/verification/2026-11-06-antd-remediation.md)
 
 - **固定版本**：直接导入 antd 的工作区包固定 `antd@6.7.0`，声明位置 `packages/ui/package.json:15`、`packages/poster-editor/package.json:15`、`apps/web/package.json:17`、`apps/admin/package.json:17`。不升级组件库、不换路由框架、不重写编辑器 store。
 - **共享 UIProvider**：用户站与管理站通过 `packages/ui/src/UIProvider.tsx` 使用同一个 provider。组件使用 antd 默认主题，provider 统一提供中文 locale、减少动态效果偏好及通知上下文。
-- **renderer 隔离**：`apps/renderer` 独立，不引入 `antd` 或 `packages/ui/src`。`tools/check-entry-boundary.mjs` 的 `forbidden` 规则：renderer 不得含 `node_modules/antd/`、`packages/ui/src/`、`@fastposter+ui@`；web/admin 不得含 `@tiptap/`、`prosemirror-`。以 `vite build --manifest --sourcemap` 产物审计。
+- **renderer 隔离**：`apps/renderer` 独立，不引入 `antd` 或 `packages/ui/src`。`tools/check-entry-boundary.mjs` 的 `forbidden` 规则：renderer 不得含 `node_modules/antd/`、`packages/ui/src/`、`@fastposter+ui@`；web/admin 的静态入口不得含 `@tiptap/`、`prosemirror-`，这些依赖随编辑器按需加载。以 `vite build --manifest --sourcemap` 产物审计。
 - **背景库入口与创建/替换契约**：`BackgroundPicker` 提供 `mode: "create" | "replace"`；create 以「用此背景创建」确认并复用 A05 的 `buildProjectFromBackground` 与创建事务（零本地上传），replace 保留 `aria-label="选用 ${title}"` 一次点击旧契约与异尺寸预检/撤销。「确认按钮应写作「替换背景」」的可见文案偏差当前未实现，按 Ruling 63 记为 FP-14 写回项。
 - **手机历史与撤销**：390px / 320px 工作台提供可点击「撤销」「重做」，命中区 ≥44×44px；编辑手势、数值草稿与自动保存按 A02/A03 的会话边界收敛。
 - **当前视觉样式**：用户站、管理站和编辑器使用 Ant Design 6.7.0 的默认配色、字体、组件尺寸、边框和交互状态。页面样式负责内容排版、滚动和断点，编辑器样式还负责画布、选框和拖拽手柄。手机主操作保留 ≥44×44px 命中区，编辑器文本输入在手机宽度保留 16px。旧绿色主题和控件尺度见 A 批历史验收记录。
+- **页面与控件**：作品和素材预览保持原比例，卡片的标题、尺寸和版本或更新时间分层显示。后台搜索框最大宽度 288px，筛选控件按可用宽度换行。编辑器使用 antd Segmented 切换文字、段落、效果和位置，位置单位由数值输入框后缀承载。
+- **后台操作样式**：新建、保存和发布使用主按钮，查看详情用链接样式，删除和禁用用危险样式。分类树使用 antd 的 `icon` 插槽，确保添加和编辑图标始终可见。模板卡片最多三个入口，「编辑」「预览」「更多」，发布或下架、导出和删除放在菜单中。沿用现有权限、版本冲突恢复和禁用条件。
+- **富文本依赖与开发缓存**：两站的 `vite.config.ts` 通过 `resolve.dedupe` 统一解析 React 和 React DOM，并用 `optimizeDeps.include` 预构建 Tiptap 依赖。`server/tests/integration/browser_stack_test.go` 为两个测试 Vite 进程分别设置 `FASTPOSTER_VITE_CACHE_DIR`，使用各自的临时目录。排查 `useEditor()` 内的 `useRef` 报错时，先确认浏览器是否加载了不同批次的 React 模块。
 - **五档与四个断点**：视口 1440×1000 / 1024×768 / 768×1024 / 390×844 / 320×700；编辑器断点 ≥1200px、881–1199px、681–880px、≤680px。`tests/e2e/ui-baseline.spec.ts` 的 `five-width layout guards` 默认可运行（不依赖 `FP_UI_BASELINE`），断言 `document.documentElement.scrollWidth <= innerWidth`、选区可见、关键操作可达。
 - **截图与导出采样开关**：`FP_UI_BASELINE=1` 启用截图，`FP_UI_BASELINE_OUT` 指向 `test-results/` 之外的绝对路径（Playwright 会清空 `test-results/`）；`FP_EXPORT_BASELINE_PATH` 把固定导出用例的下载字节写到指定位置（`tests/e2e/export.spec.ts:41-42`）。
 - **逐文件独立临时测试栈与预构建 renderer**：E2E 每个 spec 独立临时栈、`GOPROXY=off GOSUMDB=off`、`--output <证据目录>/results/<suite>`，单文件注册限流时按互斥 `-g` 分栈；开工先 `pnpm --filter @fastposter/renderer build`。
@@ -90,7 +93,7 @@ PR 应说明问题、变更后的行为、关联 issue，以及实际执行的�
 
 ## B 批 · 后台资源写入边界、升级兼容与回滚（FP-11）
 
-本节是 B 批（FP-11 后台资源写入边界）交付的维护契约，逐字重述 B01/B02 已落地的前后端契约、部署兼容单元与回滚规则。当前前端样式见本文的 Ant Design 章节。四份权威规范/计划仍是本机未跟踪输入（路径与基线 `124b4ea` 见 `docs/verification/2026-11-06-antd-remediation.md`），新检出依据本节、`AGENTS.md`、`README.md`、`deploy/toolchain.lock.json` 与验收入口即可复现，不依赖忽略目录作为唯一交接来源。
+本节是 B 批（FP-11 后台资源写入边界）交付的维护契约，逐字重述 B01/B02 已落地的前后端契约、部署兼容单元与回滚规则。当前前端样式见本文的 Ant Design 章节。B 批历史规范、计划与证据见 [A/B 批验收记录](docs/verification/2026-11-06-antd-remediation.md)。
 
 - **适用批次**：A 批 = FP-12 / FP-13 / FP-14 的 antd 迁移后修正；B 批 = FP-11 后台资源写入边界（B01 保存与分类移动版本前提、B02 独立发布意图）。B 批无 B04；B03 是纯文档与最终门槛任务，零产品代码、零 IDL、零生成物、零测试文件改动。
 

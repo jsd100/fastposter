@@ -1,14 +1,16 @@
 # Ant Design 迁移后修正 — A/B 批共用执行记录
 
+> 本文记录当时的设计或验收基线。当前默认主题、页面布局和开发约定见[前端验收](2026-11-13-antd-default-appearance.md)及 [AGENTS.md](../../AGENTS.md)。
+
 创建于 A01 阶段（实际补建于 A02 开工前，见「遗留与裁定」）。**引用完整性说明（Ruling 158）**：
 
-- 以下 4 份权威规范/计划在本机仍是**未跟踪输入**，按 A 批长期裁定全程不修改、不暂存、不重命名、不提交；新检出无需解析它们：
+- 以下 4 份规范与计划是 A/B 批执行时的输入，已随 `a86d9ab` 纳入版本控制：
   - 规范：`docs/superpowers/specs/2026-11-06-antd-post-migration-remediation-design.md`（FP-00 … FP-14）
   - A 批计划：`docs/superpowers/plans/2026-11-06-antd-remediation-a-implementation.md`
   - B 批计划：`docs/superpowers/plans/2026-11-06-antd-remediation-b-implementation.md`
   - 原始布局规范：`docs/superpowers/specs/2026-11-05-antd-layout-design.md`（UI-06、UI-08、UI-09）
 - 基线：`124b4ea5d2dc7b1b58183749a393a3c4759fe47b`（`124b4ea`）；`docs/verification/2026-11-05-antd-migration.md` 是**已跟踪**的历史验收记录。
-- **实施必需契约已在本记录「A10.2 维护契约逐字重述」、`AGENTS.md`、`README.md`、`deploy/toolchain.lock.json` 逐字重述**（色板、字号/控件高度/触控目标/对比度、四个断点、五档尺寸、`antd@6.7.0`、共享 `UIProvider`、renderer forbidden 边界、截图/导出采样开关、逐文件临时栈、预构建 renderer、Chrome 差异、`pnpm verify` 组成），从而消除「新检出无法解析引用」。依据 spec FP-12 `:143`「不要把忽略目录设为唯一交接来源」与 plan :188 的「或」路径；本轮不 `git add` 任何 `??` 文档。
+- **交付 A 批时，实施必需契约已在本记录「A10.2 维护契约逐字重述」、当时的 `AGENTS.md`、`README.md` 与 `deploy/toolchain.lock.json` 中重述**（色板、字号/控件高度/触控目标/对比度、四个断点、五档尺寸、`antd@6.7.0`、共享 `UIProvider`、renderer forbidden 边界、截图/导出采样开关、逐文件临时栈、预构建 renderer、Chrome 差异、`pnpm verify` 组成），从而消除「新检出无法解析引用」。依据 spec FP-12 `:143`「不要把忽略目录设为唯一交接来源」与 plan :188 的「或」路径；本轮不 `git add` 任何 `??` 文档。
 - 逐任务的流水与评审包另见执行账本 `.superpowers/sdd/2026-11-06-antd-remediation-a-implementation/`（git 忽略，仅本机证据）；B 批计划仅引用，不执行。
 
 ## 当前状态

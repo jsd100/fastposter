@@ -1,5 +1,7 @@
 # FastPoster antd 迁移验证记录
 
+> 本文记录当时的设计或验收基线。当前默认主题、页面布局和开发约定见[前端验收](2026-11-13-antd-default-appearance.md)及 [AGENTS.md](../../AGENTS.md)。
+
 > 计划：`docs/superpowers/plans/2026-11-05-antd-frontend-migration.md`。执行账本：`.superpowers/sdd/2026-11-05-antd-frontend-migration-plans/progress.md`（本文件只汇总可复核证据）。
 
 ```yaml

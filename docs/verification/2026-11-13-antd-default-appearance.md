@@ -1,5 +1,7 @@
 # Ant Design 默认样式回退验收
 
+实现与验收基线为 `a3fba77`。本文汇总默认主题、页面布局、后台按钮及富文本加载调整的验证结果。
+
 用户站、管理站和共享编辑器采用仓库固定的 Ant Design 6.7.0 默认主题。登录表单、页面外壳、资源卡片、弹窗、通知和编辑控件使用 antd 组件。项目保留页面网格、响应式断点、画布交互和手机触控尺寸所需的样式。
 
 - `pnpm verify` 通过契约漂移检查、类型检查、219 项单元测试和工作区构建。
@@ -19,3 +21,11 @@
 - 文案分类树使用 antd 图标按钮，添加和编辑图标在常态下可见。图标尺寸回归在修复前失败，修复后通过。
 - 后台列表区分主操作、普通操作、链接和危险操作。模板卡片保留编辑、预览和更多，菜单包含发布或下架、导出和删除。
 - `pnpm verify` 通过，219 项单元测试通过。10 项定向浏览器用例通过，覆盖五级分类、发布冲突、模板包导出、删除后分页、后台记录和密码重置。截图用例验证更多菜单可用 Enter 打开、Escape 关闭。
+
+## 富文本加载与 Vite 缓存
+
+在本机 `/admin/templates` 新建模板并编辑文字时，`RichTextEditor` 的 `useEditor()` 可能报 `Cannot read properties of null (reading 'useRef')`。浏览器诊断复现了同一错误，并确认 React DOM 与 Tiptap 加载了不同批次的 React 模块。开发站和浏览器测试原先使用同一应用的 Vite 预构建缓存。
+
+- [管理站配置](../../apps/admin/vite.config.ts)和[用户站配置](../../apps/web/vite.config.ts)通过 `resolve.dedupe` 统一解析 React 与 React DOM，并通过 `optimizeDeps.include` 一起预构建富文本依赖。生产入口继续按需加载编辑器。
+- [浏览器测试栈](../../server/tests/integration/browser_stack_test.go)通过 `FASTPOSTER_VITE_CACHE_DIR` 为两个测试 Vite 进程分别指定临时目录。
+- 本机 5174 管理站的探针在修复后正常挂载 Tiptap，浏览器测试前后开发缓存元数据校验值一致。模板定向用例 2 项、用户站富文本用例 5 项通过，模板用例增加了编辑阶段的页面异常断言。提交前 `pnpm verify` 通过，包含 219 项单元测试和 8 个工作区构建任务。
