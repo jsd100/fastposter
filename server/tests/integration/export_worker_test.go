@@ -63,7 +63,7 @@ func TestExportWorkerRendersRealPNG(t *testing.T) {
 	if e != nil || lease == nil {
 		t.Fatal("no job", e)
 	}
-	worker := exports.Worker{Service: s, Renderer: &exports.Renderer{ChromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: t.TempDir()}
+	worker := exports.Worker{Service: s, Renderer: &exports.Renderer{ChromePath: chromePath(), RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: t.TempDir()}
 	if e = worker.Process(ctx, *lease); e != nil {
 		t.Fatal(e)
 	}

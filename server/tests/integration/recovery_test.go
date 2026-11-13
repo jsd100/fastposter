@@ -360,7 +360,7 @@ func TestRecoveryRestoresDatabaseFilesAndPrivateAccess(t *testing.T) {
 		t.Fatal("restored export could not be claimed", e)
 	}
 	if os.Getenv("FASTPOSTER_RENDER_TEST") == "1" {
-		renderer := &exports.Renderer{ChromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", RendererDir: filepath.Join(root, "apps/renderer/dist")}
+		renderer := &exports.Renderer{ChromePath: chromePath(), RendererDir: filepath.Join(root, "apps/renderer/dist")}
 		worker := exports.Worker{Service: restoredExports, Renderer: renderer, TempRoot: t.TempDir()}
 		if e = worker.Process(ctx, *secondLease); e != nil {
 			t.Fatal(e)

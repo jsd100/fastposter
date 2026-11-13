@@ -127,7 +127,13 @@ func (r *Renderer) RenderText(ctx context.Context, snapshot RenderSnapshot) (ima
 		return nil, report, e
 	}
 	opts := append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...)
-	opts = append(opts, chromedp.ExecPath(r.ChromePath), chromedp.Flag("hide-scrollbars", true), chromedp.Flag("force-color-profile", "srgb"))
+	// When Chrome's child processes cannot initialize their sandbox (e.g. in a
+	// restricted/containerized environment), recent builds abort with SIGTRAP
+	// ("GPU process isn't usable. Goodbye.") once the GPU process is unusable.
+	// Disable it for the isolated headless renderer, matching Playwright's
+	// default launch. The page is served from loopback under a strict CSP, so
+	// no sandbox is needed to contain remote content.
+	opts = append(opts, chromedp.ExecPath(r.ChromePath), chromedp.NoSandbox, chromedp.Flag("hide-scrollbars", true), chromedp.Flag("force-color-profile", "srgb"))
 	allocator, cancelAllocator := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancelAllocator()
 	browser, cancelBrowser := chromedp.NewContext(allocator)

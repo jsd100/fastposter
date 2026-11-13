@@ -100,7 +100,7 @@ func TestBrowserStack(t *testing.T) {
 	})
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
-	worker := exports.Worker{Service: exports.NewService(db, store, projects.NewService(db, store)), Renderer: &exports.Renderer{ChromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: t.TempDir(), ID: "browser-worker"}
+	worker := exports.Worker{Service: exports.NewService(db, store, projects.NewService(db, store)), Renderer: &exports.Renderer{ChromePath: chromePath(), RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: t.TempDir(), ID: "browser-worker"}
 	workerDone := make(chan struct{})
 	go func() { defer close(workerDone); worker.Run(workerCtx) }()
 	defer func() { workerCancel(); <-workerDone }()
