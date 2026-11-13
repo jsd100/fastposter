@@ -48,7 +48,7 @@ func TestTemplateApplyCreatesIndependentPrivateProject(t *testing.T) {
 	if e != nil || a.ID == b.ID || a.OwnerID != "u2" {
 		t.Fatal("not independent", e)
 	}
-	if _, e = s.Save(ctx, admin, catalog.ResourceInput{ID: resource.ID, Kind: "template", Title: "模板", Document: string(mustJSON(doc)), Published: false}); e != nil {
+	if _, e = s.Save(ctx, admin, catalog.ResourceInput{ID: resource.ID, Kind: "template", Title: "模板", Document: string(mustJSON(doc)), Published: false, ExpectedVersion: resource.Version}); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = p.ResolveSnapshot(ctx, user, a.ID, "1"); e != nil {

@@ -1,1 +1,1 @@
-export { Link, navigate, usePath } from "../../web/src/router";
+export { Link, navigate, usePath } from "@fastposter/ui";

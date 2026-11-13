@@ -1,24 +1,42 @@
+import { Card, Empty, Skeleton, Tag } from "antd";
 import { FontPreview } from "./FontPreview";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   apiClient,
+  loadCatalogPages,
   routes,
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
 import {
   Button,
+  CheckboxField,
   Dialog,
+  FileField,
   FormField,
+  NumberField,
   Select,
+  Status,
   TextInput,
   Textarea,
   useErrorNotice,
 } from "@fastposter/ui";
 import { Plus, ImagePlus, Type } from "lucide-react";
-import { request, errorMessage } from "../api";
-import { Pager } from "./Metadata";
+import {
+  errorMessage,
+  isGone,
+  isRevisionConflict,
+  isStaleClient,
+  reloadResource,
+  request,
+} from "../api";
+import { PAGE_SIZE, RecordPager } from "./records";
+import {
+  pageAfterShrink,
+  adminPageIdentity,
+  canCorrectAdminPage,
+} from "./projects/pagination";
 export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
   const cache = useQueryClient();
   const [page, setPage] = useState(1),
@@ -27,58 +45,111 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
     [editing, setEditing] = useState<ResourceDTO | "new" | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [conflict, setConflict] = useState<{
+      resource: ResourceDTO;
+      published: boolean;
+    } | null>(null),
     [newCategory, setNewCategory] = useState(false),
     [categoryTitle, setCategoryTitle] = useState("");
+  const viewIdentity = adminPageIdentity([kind, page, keyword, category]);
   const q = useQuery({
     queryKey: ["admin", "resources", kind, page, keyword, category],
-    queryFn: () =>
-      request(routes.AdminResources, {
+    queryFn: async () => {
+      const reply = await request(routes.AdminResources, {
         kind,
         page,
-        pageSize: 24,
+        pageSize: PAGE_SIZE,
         keyword,
         categoryId: category || undefined,
-      }),
+      });
+      return { ...reply, __identity: viewIdentity };
+    },
     retry: false,
   });
+  /* FP-09 / Ruling 108. A successful 25 -> 24 shrink falls back to page 1;
+     a failed refetch (react-query keeps the prior data) must not. */
+  useEffect(() => {
+    if (
+      !q.data ||
+      !canCorrectAdminPage({
+        isSuccess: q.isSuccess,
+        isError: q.isError,
+        fetchStatus: q.fetchStatus,
+        resultIdentity: q.data.__identity,
+        viewIdentity,
+      })
+    )
+      return;
+    const next = pageAfterShrink(
+      page,
+      q.data.total,
+      q.data.resources.length,
+      PAGE_SIZE,
+    );
+    if (next !== page) setPage(next);
+  }, [page, q.data, q.isSuccess, q.isError, q.fetchStatus, viewIdentity]);
   const categories = useQuery({
     queryKey: ["admin", "categories", kind],
     queryFn: () =>
-      request(routes.AdminResources, {
-        kind: kind + "-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.AdminResources, {
+          kind: kind + "-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   const refresh = () =>
     cache.invalidateQueries({ queryKey: ["admin", "resources", kind] });
-  useErrorNotice(
-    "admin:resources",
-    q.error ? errorMessage(q.error) : null,
-    {
-      persistent: true,
-      action: { label: "重新加载", onClick: () => void q.refetch() },
-    },
-  );
+  useErrorNotice("admin:resources", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
   useErrorNotice("admin:resource-action", error || null);
   async function publish(resource: ResourceDTO) {
+    await commitPublish(resource, !resource.published, resource.version);
+  }
+  // The pending publication state is kept across a conflict; only an explicit
+  // confirmation may send a second POST, and it reuses the newest version.
+  async function commitPublish(
+    resource: ResourceDTO,
+    published: boolean,
+    expectedVersion: string,
+  ) {
     setBusy(true);
     setError("");
     try {
-      await request(routes.AdminSaveResource, {
+      // B02: a versioned publication intent carries only the target state and
+      // the expected version. The server copies content from the locked
+      // current version row, so no client-side snapshot is submitted.
+      await request(routes.AdminPublishResource, {
         id: resource.id,
-        kind,
-        title: resource.title,
-        assetId: resource.asset?.id,
-        categoryId: resource.categoryId,
-        sortOrder: resource.sortOrder,
-        published: !resource.published,
-        license: resource.license,
+        published,
+        expectedVersion,
       });
+      setConflict(null);
       await refresh();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e)) {
+        const latest = await reloadResource(resource.id).catch(() => null);
+        if (latest) {
+          setConflict({ resource: latest, published });
+          setError(
+            "该素材已被其他操作更新，请确认后以最新版本重新提交这个发布动作。",
+          );
+        } else {
+          setError("无法重载该素材，请刷新页面后重试。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
+        setError("该素材已被更新或页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("素材不存在或无权访问，请刷新页面。");
+        setConflict(null);
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -99,11 +170,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
     <>
       <div className="admin-title-row">
         <div>
-          <span className="eyebrow">SHARED CREATIVE RESOURCES</span>
-          <h1>
-            {kind === "background" ? "背景库" : "字体库"}
-            <span>.</span>
-          </h1>
+          <h1>{kind === "background" ? "背景库" : "字体库"}</h1>
           <p className="admin-subtitle">
             {kind === "background"
               ? "上传并发布预设背景，保留已有作品的不可变引用。"
@@ -116,7 +183,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
         </Button>
       </div>
       <div className="admin-filters">
-        <TextInput variant="bare"
+        <TextInput
           className="admin-search"
           aria-label="搜索素材"
           placeholder="搜索素材名称"
@@ -135,17 +202,74 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
           }}
           options={[
             { value: "", label: "全部分类" },
-            ...(categories.data?.resources.map((r) => ({
-              value: r.id,
-              label: r.title,
-            })) ?? []),
+            ...(categories.isSuccess
+              ? categories.data.map((r) => ({ value: r.id, label: r.title }))
+              : []),
           ]}
         />
         <Button onClick={() => setNewCategory(true)}>添加分类</Button>
       </div>
-      <div className="admin-resource-grid">
+      {categories.isError && (
+        <div data-testid="category-error" className="picker-failed">
+          <Status tone="error">分类加载失败，请重新加载</Status>
+          <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
+      {conflict && (
+        <div className="inline-confirm" data-testid="version-conflict">
+          <span>
+            最新版本 {conflict.resource.version} · {conflict.resource.title}（
+            {conflict.resource.published ? "已发布" : "已下架"}）。
+            请确认后以最新版本重新提交
+            {conflict.published ? "发布" : "下架"}
+            动作，不会自动合并或覆盖。
+          </span>
+          <Button
+            variant="primary"
+            busy={busy}
+            onClick={() =>
+              void commitPublish(
+                conflict.resource,
+                conflict.published,
+                conflict.resource.version,
+              )
+            }
+          >
+            确认重新提交
+          </Button>
+          <Button
+            onClick={() => {
+              setConflict(null);
+              setError("");
+            }}
+          >
+            取消
+          </Button>
+        </div>
+      )}
+      <div
+        className="admin-resource-grid"
+        role={q.isPending ? "status" : undefined}
+        aria-label={q.isPending ? "正在加载素材" : undefined}
+        aria-busy={q.isPending || undefined}
+      >
+        {q.isPending &&
+          [0, 1, 2].map((n) => (
+            <Card size="small" className="admin-resource-card" key={n}>
+              <div className="admin-resource-preview">
+                <Skeleton active title={false} paragraph={{ rows: 3 }} />
+              </div>
+              <div className="resource-card-details">
+                <Skeleton
+                  active
+                  title={{ width: "55%" }}
+                  paragraph={{ rows: 2 }}
+                />
+              </div>
+            </Card>
+          ))}
         {q.data?.resources.map((r) => (
-          <article
+          <Card
             className="admin-resource-card"
             data-testid="resource-card"
             key={r.id}
@@ -156,16 +280,15 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
               ) : (
                 <FontPreview resource={r} />
               )}
-              <span
-                className={
-                  r.published ? "resource-state published" : "resource-state"
-                }
+              <Tag
+                className="resource-state"
+                color={r.published ? "success" : undefined}
               >
                 {r.published ? "已发布" : "已下架"}
-              </span>
+              </Tag>
             </div>
             <div className="resource-card-details">
-              <h2>{r.title}</h2>
+              <h2 title={r.title}>{r.title}</h2>
               <p>
                 版本 {r.version}
                 {r.asset && kind === "background"
@@ -174,18 +297,24 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
               </p>
               {r.license && <small>{r.license}</small>}
               <div className="resource-actions">
-                <Button variant="ghost" onClick={() => setEditing(r)}>
+                <Button
+                  density="compact"
+                  variant="link"
+                  onClick={() => setEditing(r)}
+                >
                   编辑
                 </Button>
                 <Button
-                  variant="ghost"
+                  density="compact"
+                  variant={r.published ? "secondary" : "primary"}
                   disabled={busy}
                   onClick={() => void publish(r)}
                 >
                   {r.published ? "下架" : "发布"}
                 </Button>
                 <Button
-                  variant="ghost"
+                  density="compact"
+                  variant="danger-outline"
                   disabled={busy}
                   onClick={() => void remove(r)}
                 >
@@ -193,22 +322,30 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
                 </Button>
               </div>
             </div>
-          </article>
+          </Card>
         ))}
       </div>
       {q.data?.resources.length === 0 && (
-        <div className="admin-empty">
-          <ImagePlus size={30} />
-          <h2>还没有{kind === "background" ? "共享背景" : "上传字体"}</h2>
+        <Empty
+          className="admin-empty"
+          description={
+            <h2>还没有{kind === "background" ? "共享背景" : "上传字体"}</h2>
+          }
+        >
           <p>添加素材并发布后，用户即可在创作空间选用。</p>
-        </div>
+        </Empty>
       )}
-      <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
+      <RecordPager
+        page={page}
+        total={q.data?.total ?? 0}
+        onPage={setPage}
+        label={kind === "background" ? "背景分页" : "字体分页"}
+      />
       {editing && (
         <ResourceForm
           kind={kind}
           resource={editing === "new" ? undefined : editing}
-          categories={categories.data?.resources ?? []}
+          categories={categories.isSuccess ? categories.data : []}
           close={() => setEditing(null)}
           saved={async () => {
             setEditing(null);
@@ -285,16 +422,21 @@ function ResourceForm({
     [license, setLicense] = useState(resource?.license ?? ""),
     [file, setFile] = useState<File | null>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [conflict, setConflict] = useState<ResourceDTO | null>(null);
+  const uploadedAsset = useRef<string | undefined>(undefined);
   useErrorNotice("admin:resource-form", error || null);
   async function submit(e: FormEvent) {
     e.preventDefault();
+    await commit(resource?.version);
+  }
+  async function commit(version: string | undefined) {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
-      let assetId = resource?.asset?.id;
-      if (file) {
+      let assetId = uploadedAsset.current ?? resource?.asset?.id;
+      if (file && !uploadedAsset.current) {
         const form = new FormData();
         form.append("file", file);
         if (kind === "font") {
@@ -309,7 +451,8 @@ function ResourceForm({
             : "/api/v1/assets/images",
           form,
         );
-        assetId = uploaded.asset.id;
+        uploadedAsset.current = uploaded.asset.id;
+        assetId = uploadedAsset.current;
       }
       if (!assetId) throw Error("请选择需要上传的文件");
       await request(routes.AdminSaveResource, {
@@ -322,10 +465,29 @@ function ResourceForm({
         published,
         license,
         family: kind === "font" ? family : undefined,
+        expectedVersion: version,
       });
+      setConflict(null);
       await saved();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) && resource) {
+        const latest = await reloadResource(resource.id).catch(() => null);
+        if (latest) {
+          setConflict(latest);
+          setError(
+            "素材已被其他操作更新，草稿与已上传素材已保留。请确认后以最新版本重新提交。",
+          );
+        } else {
+          setError("素材已删除或无权访问，请关闭表单刷新页面。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
+        setError("页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("素材不存在或无权访问，请关闭表单刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -360,14 +522,16 @@ function ResourceForm({
             ]}
           />
         </label>
-        <FormField
-          label="排序"
-          type="number"
-          min={0}
-          max={100000}
-          value={sort}
-          onChange={(e) => setSort(Number(e.target.value))}
-        />
+        <label className="form-field">
+          排序
+          <NumberField
+            aria-label="素材排序"
+            min={0}
+            max={100000}
+            value={sort}
+            onValueChange={setSort}
+          />
+        </label>
         {kind === "font" && (
           <>
             <FormField
@@ -407,28 +571,27 @@ function ResourceForm({
             </div>
           </>
         )}
-        <label className="form-field">
-          {kind === "font" ? "字体文件" : "背景图片"}
-          <input
-            type="file"
-            aria-label={kind === "font" ? "字体文件" : "背景图片文件"}
-            accept={
-              kind === "font"
-                ? ".ttf,.otf,.woff2"
-                : "image/jpeg,image/png,image/webp"
-            }
-            required={!resource}
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-          <small>
-            {kind === "font"
+        <FileField
+          aria-label={kind === "font" ? "字体文件" : "背景图片文件"}
+          label={kind === "font" ? "选择字体文件" : "选择背景图片"}
+          icon={kind === "font" ? <Type size={14} /> : <ImagePlus size={14} />}
+          accept={
+            kind === "font"
+              ? ".ttf,.otf,.woff2"
+              : "image/jpeg,image/png,image/webp"
+          }
+          disabled={busy}
+          value={file}
+          onChange={setFile}
+          hint={
+            kind === "font"
               ? "TTF / OTF / WOFF2 · 最大 20 MiB；字重样式须与文件真实提供的版本一致。"
-              : "JPG / PNG / WebP · 原文件最大 40 MiB。"}
-          </small>
-        </label>
+              : "JPG / PNG / WebP · 原文件最大 40 MiB。"
+          }
+        />
         <label className="form-field">
           授权说明
-          <Textarea variant="bare"
+          <Textarea
             aria-label="授权说明"
             value={license}
             onChange={(e) => setLicense(e.target.value)}
@@ -436,15 +599,37 @@ function ResourceForm({
             rows={3}
           />
         </label>
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={published}
-            onChange={(e) => setPublished(e.target.checked)}
-            aria-label="立即发布"
-          />
-          立即发布
-        </label>
+        <CheckboxField
+          label="立即发布"
+          checked={published}
+          onChange={setPublished}
+          disabled={busy}
+        />
+        {conflict && (
+          <div className="inline-confirm" data-testid="version-conflict">
+            <span>
+              最新版本 {conflict.version} · {conflict.title}
+              。草稿与已上传素材已保留；确认后仅以最新版本重新提交，不会自动合并或覆盖。
+            </span>
+            <Button
+              type="button"
+              variant="primary"
+              busy={busy}
+              onClick={() => void commit(conflict.version)}
+            >
+              确认重新提交
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConflict(null);
+                setError("请刷新页面后重新编辑。");
+              }}
+            >
+              放弃修改
+            </Button>
+          </div>
+        )}
         <div className="dialog-actions">
           <Button type="button" disabled={busy} onClick={close}>
             取消

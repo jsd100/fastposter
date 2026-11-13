@@ -13,6 +13,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -183,6 +184,16 @@ func repoRoot(t *testing.T) string {
 	}
 	return p
 }
+
+// chromePath follows the CHROME_PATH convention used by internal/config and
+// playwright.config.ts. When unset, behaviour is unchanged on macOS.
+func chromePath() string {
+	if p := strings.TrimSpace(os.Getenv("CHROME_PATH")); p != "" {
+		return p
+	}
+	return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+}
+
 func renderFixture(t *testing.T) (*exports.Renderer, document.Document) {
 	t.Helper()
 	root := repoRoot(t)
@@ -194,5 +205,5 @@ func renderFixture(t *testing.T) (*exports.Renderer, document.Document) {
 	if e = json.Unmarshal(b, &doc); e != nil {
 		t.Fatal(e)
 	}
-	return &exports.Renderer{ChromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", RendererDir: filepath.Join(root, "apps/renderer/dist")}, doc
+	return &exports.Renderer{ChromePath: chromePath(), RendererDir: filepath.Join(root, "apps/renderer/dist")}, doc
 }

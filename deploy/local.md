@@ -38,3 +38,7 @@ go run ./server/cmd/maintenance backup            # 暂停写入并备份 MySQL 
 ```
 
 软删除作品 30 天内可恢复，导出结果保留 7 天，不要手工删除 APP_DATA_DIR 中的文件。备份目录必须位于 APP_DATA_DIR 之外；恢复只写入独立的数据库和数据目录，不影响其他库。
+
+## 本地富文本编辑
+
+如果更新后编辑模板或作品时报 `Cannot read properties of null (reading 'useRef')`，刷新页面并重新打开编辑器。仍可复现时，停止当前开发进程并重新运行 `pnpm dev`。浏览器验收会给两个测试前端分配独立的 Vite 依赖缓存，常规开发沿用应用的默认缓存目录。 [排查与验证记录](../docs/verification/2026-11-13-antd-default-appearance.md#富文本加载与-vite-缓存)

@@ -2,6 +2,7 @@ import type { PosterDocument, TextBlock } from "@fastposter/poster-schema";
 export type Point = { x: number; y: number };
 export type Size = { width: number; height: number };
 export type ViewTransform = Point & { scale: number };
+export type Rect = Point & Size;
 export type BackgroundAsset = Size & { id: string; version: string };
 export const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
@@ -67,6 +68,54 @@ export function replaceBackground(
         },
       };
     }),
+  };
+}
+/**
+ * Pure view math for the phone inspector. `bounds` is a selection in document
+ * pixels while `viewport` is the visible band of the stage in stage-local
+ * pixels, so the selection is projected through the view before comparing.
+ * Translation is preferred; the zoom only shrinks when the selection cannot
+ * fit at the current scale. No document or history state is touched.
+ */
+export function fitSelectionIntoViewport(
+  view: ViewTransform,
+  bounds: Rect,
+  viewport: Rect,
+): ViewTransform {
+  const pad = 8;
+  const left = viewport.x + pad,
+    top = viewport.y + pad,
+    right = viewport.x + viewport.width - pad,
+    bottom = viewport.y + viewport.height - pad;
+  const availWidth = Math.max(1, right - left),
+    availHeight = Math.max(1, bottom - top);
+  const scale = clamp(
+    Math.min(
+      view.scale,
+      availWidth / Math.max(1, bounds.width),
+      availHeight / Math.max(1, bounds.height),
+    ),
+    0.02,
+    3,
+  );
+  const x = view.x + bounds.x * scale,
+    y = view.y + bounds.y * scale,
+    width = bounds.width * scale,
+    height = bounds.height * scale;
+  // A selection larger than the band keeps its leading edge (the line being
+  // edited) on screen instead of being aligned to the unreachable bottom.
+  const shift = (start: number, size: number, min: number, max: number) =>
+    size > max - min
+      ? min - start
+      : start < min
+        ? min - start
+        : start + size > max
+          ? max - (start + size)
+          : 0;
+  return {
+    scale,
+    x: view.x + shift(x, width, left, right),
+    y: view.y + shift(y, height, top, bottom),
   };
 }
 export function pinchView(

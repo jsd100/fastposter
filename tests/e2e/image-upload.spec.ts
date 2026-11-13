@@ -75,3 +75,99 @@ test("a genuine PNG uploaded as .jpg keeps its real format in the editor, admin 
   expect(body.readUInt32BE(16)).toBe(4);
   expect(body.readUInt32BE(20)).toBe(3);
 });
+
+/**
+ * FP-06 / A05.1. A create that is explicitly rejected (4xx + business code)
+ * is a known, uncommitted failure: the retry must re-use the asset that was
+ * already uploaded for this operation instead of uploading the file again.
+ * Two file selections in the same tick must also leave only one in-flight
+ * write, so the submit lock is observed, not just declared.
+ */
+test("retrying known create rejection reuses uploaded asset", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const username = "a05_retry_" + Date.now().toString(36);
+  const registered = await request.post("/api/v1/auth/register", {
+    data: { username, password: "a secure test password" },
+  });
+  expect(registered.ok()).toBeTruthy();
+  await page.goto("/login");
+  await page.getByLabel("用户名", { exact: true }).fill(username);
+  await page.getByLabel("密码", { exact: true }).fill("a secure test password");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+
+  const uploadPosts: string[] = [];
+  const createPosts: { assetId: string; version: string }[] = [];
+  page.on("request", (req) => {
+    if (req.method() !== "POST") return;
+    const url = req.url();
+    if (/\/api\/v1\/assets\/images(\?|$)/.test(url)) uploadPosts.push(url);
+    if (/\/api\/v1\/projects(\?|$)/.test(url)) {
+      const body = req.postDataJSON() as { document: string };
+      const doc = JSON.parse(body.document);
+      createPosts.push({
+        assetId: doc.background.assetId,
+        version: doc.background.version,
+      });
+    }
+  });
+
+  let creates = 0;
+  await page.route(/\/api\/v1\/projects(\?|$)/, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    creates += 1;
+    if (creates === 1)
+      return route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "CREATE_REJECTED",
+          message: "创建被明确拒绝",
+          requestId: "e2e-reject",
+        }),
+      });
+    return route.fallback();
+  });
+
+  const png = (
+    await readFile(path.resolve("tests/fixtures/images/rgba.png"))
+  ).toString("base64");
+  // Fire two change events in one synchronous tick. A state-based lock lets
+  // both through; only a synchronous claim keeps one in-flight write.
+  await page.evaluate((b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="导入背景图文件"]',
+    )!;
+    const fire = (name: string) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([bytes], name, { type: "image/png" }));
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    fire("first.png");
+    fire("second.png");
+  }, png);
+
+  // Known rejection: exactly one upload, one create, a retry notice, no editor.
+  await expect.poll(() => uploadPosts.length).toBe(1);
+  await expect.poll(() => createPosts.length).toBe(1);
+  const notice = page
+    .getByTestId("notice")
+    .filter({ hasText: "创建被明确拒绝" });
+  await expect(notice).toHaveCount(1);
+  await expect(notice.getByTestId("notice-action")).toHaveText("重试");
+  await expect(page).toHaveURL(/\/projects$/);
+
+  await notice.getByTestId("notice-action").click();
+  await expect(page).toHaveURL(/\/projects\/[^/]+\/edit$/, {
+    timeout: 20_000,
+  });
+  expect(uploadPosts).toHaveLength(1);
+  expect(createPosts).toHaveLength(2);
+  // The retry re-uses the very same asset reference from the first upload.
+  expect(createPosts[1]).toEqual(createPosts[0]);
+});

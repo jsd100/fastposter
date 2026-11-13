@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import { chooseCardAction, chooseOption, selectValue } from "./helpers";
 
 type DeletionDTO = {
   id: string;
@@ -47,9 +48,19 @@ async function upload(page: Page, fixture = "editor.png") {
     .getByLabel("导入背景图文件")
     .setInputFiles(path.resolve("tests/fixtures/images", fixture));
   await expect(page).toHaveURL(/\/projects\/[^/]+\/edit$/);
-  await expect(
-    page.getByRole("button", { name: "添加文字", exact: true }),
-  ).toBeEnabled();
+  /* Phones keep the creation entry inside the 文字设置 sheet; the toolbar row
+     only exists from the narrow breakpoint up. Either one proves the editor
+     has mounted before the test starts renaming or deleting the project. */
+  const toolbarAdd = page.getByRole("button", {
+    name: "添加文字",
+    exact: true,
+  });
+  const phoneEntry = page.getByRole("button", {
+    name: "文字设置",
+    exact: true,
+  });
+  await expect(toolbarAdd.or(phoneEntry).first()).toBeVisible();
+  if ((await toolbarAdd.count()) > 0) await expect(toolbarAdd).toBeEnabled();
 }
 
 function card(page: Page, title: string) {
@@ -64,8 +75,11 @@ async function backToProjects(page: Page) {
 }
 
 async function renameProject(page: Page, from: string, to: string) {
-  await card(page, from).getByLabel(`${from} 的操作`, { exact: true }).click();
-  await page.getByRole("button", { name: "重命名", exact: true }).click();
+  await chooseCardAction(
+    page,
+    card(page, from).getByLabel(`${from} 的操作`, { exact: true }),
+    "重命名",
+  );
   await page.getByLabel("作品名称").fill(to);
   await page.getByRole("button", { name: "保存名称", exact: true }).click();
   await expect(
@@ -74,10 +88,11 @@ async function renameProject(page: Page, from: string, to: string) {
 }
 
 async function moveToTrash(page: Page, title: string) {
-  await card(page, title)
-    .getByLabel(`${title} 的操作`, { exact: true })
-    .click();
-  await page.getByRole("button", { name: "移到回收站", exact: true }).click();
+  await chooseCardAction(
+    page,
+    card(page, title).getByLabel(`${title} 的操作`, { exact: true }),
+    "移到回收站",
+  );
   await page
     .getByRole("button", { name: "确认移入回收站", exact: true })
     .click();
@@ -137,10 +152,7 @@ async function readDraft(page: Page, userId: string, id: string) {
   );
 }
 
-async function adminSession(
-  browser: import("@playwright/test").Browser,
-  target: string,
-) {
+async function adminLogin(browser: import("@playwright/test").Browser) {
   const context = await browser.newContext();
   const admin = await context.newPage();
   await admin.goto("http://127.0.0.1:15174/admin/login");
@@ -152,9 +164,51 @@ async function adminSession(
     .getByRole("button", { name: "登录管理后台", exact: true })
     .click();
   await expect(admin).toHaveURL(/\/admin\/overview$/);
-  await admin.getByRole("link", { name: "作品元数据", exact: true }).click();
-  await admin.getByLabel("搜索作品元数据").fill(target);
   return { context, admin };
+}
+
+async function adminSession(
+  browser: import("@playwright/test").Browser,
+  target: string,
+) {
+  const session = await adminLogin(browser);
+  await session.admin
+    .getByRole("link", { name: "作品元数据", exact: true })
+    .click();
+  await session.admin.getByLabel("搜索作品元数据").fill(target);
+  return session;
+}
+
+function deletionTask(
+  index: number,
+  title = `待清理任务 ${index}`,
+  state = "pending",
+): DeletionDTO {
+  return {
+    id: `mock-task-${index}`,
+    projectId: `mock-project-${index}`,
+    ownerId: "mock-owner",
+    state,
+    createdAt: "2026-11-05T00:00:00Z",
+    title,
+    width: 1200,
+    height: 1600,
+    deletedAt: "2026-11-05T00:00:00Z",
+  };
+}
+
+function metadataProject(index: number, title = `测试作品 ${index}`) {
+  return {
+    id: `mock-project-${index}`,
+    ownerId: "mock-owner",
+    title,
+    revision: 1,
+    width: 1200,
+    height: 1600,
+    createdAt: "2026-11-05T00:00:00Z",
+    updatedAt: "2026-11-05T00:00:00Z",
+    deletedAt: "2026-11-05T00:00:00Z",
+  };
 }
 
 test("deletion dialog defaults to cancel and keeps the project when dismissed", async ({
@@ -251,14 +305,44 @@ test("confirmed deletion exposes durable cleanup progress and survives refresh",
   await expect(page.getByTestId("project-card")).toHaveCount(0);
 });
 
+test("completion feedback survives a queue that never lists the accepted task", async ({
+  page,
+}) => {
+  await account(page, "fast");
+  await upload(page, "rgba.png");
+  await backToProjects(page);
+  await moveToTrash(page, "rgba");
+  await page.route(/\/api\/v1\/project-deletions\?/, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        requestId: "e2e-fast-cleanup",
+        deletions: [],
+        total: 0,
+      }),
+    }),
+  );
+  await openTrash(page);
+  await confirmPermanentDelete(page, "rgba");
+  await expect(page.getByTestId("deletion-task")).toHaveCount(0);
+  await expect(
+    page.getByText("作品及独占资源已彻底删除，共享资源已保留。", {
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 20000 });
+});
+
 test("cloned projects keep the shared background after the original is permanently deleted", async ({
   page,
 }) => {
   await account(page, "share");
   await upload(page, "rgba.png");
   await backToProjects(page);
-  await card(page, "rgba").getByLabel("rgba 的操作", { exact: true }).click();
-  await page.getByRole("button", { name: "复制作品", exact: true }).click();
+  await chooseCardAction(
+    page,
+    card(page, "rgba").getByLabel("rgba 的操作", { exact: true }),
+    "复制作品",
+  );
   await expect(page.getByTestId("project-card")).toHaveCount(2);
   await expect(
     page.getByRole("heading", { name: "rgba 副本", exact: true }),
@@ -312,7 +396,8 @@ test("administrator can only delete trashed projects after acknowledging ownersh
     await moveToTrash(page, title);
     await admin.reload();
     await admin.getByLabel("搜索作品元数据").fill(title);
-    await admin.getByLabel("筛选作品状态").selectOption("trash");
+    await chooseOption(admin, "筛选作品状态", "回收站");
+    await expect(selectValue(admin, "筛选作品状态")).toHaveText("回收站");
     const trashedRow = admin.getByRole("row").filter({ hasText: title });
     await expect(trashedRow).toHaveCount(1);
     await trashedRow
@@ -339,6 +424,149 @@ test("administrator can only delete trashed projects after acknowledging ownersh
 
   await page.getByRole("button", { name: "回收站", exact: true }).click();
   await expect(page.getByText("回收站是空的", { exact: true })).toBeVisible();
+});
+
+test("admin cleanup queue returns to the previous page when its last row finishes", async ({
+  browser,
+}) => {
+  test.setTimeout(45_000);
+  const { context, admin } = await adminLogin(browser);
+  try {
+    const firstPage = Array.from({ length: 24 }, (_, index) =>
+      deletionTask(index + 1),
+    );
+    let pageTwoCalls = 0;
+    let shrunk = false;
+    await admin.route(
+      /\/api\/v1\/admin\/project-deletions\?/,
+      async (route) => {
+        const page = new URL(route.request().url()).searchParams.get("page");
+        if (page === "2") {
+          pageTwoCalls++;
+          if (pageTwoCalls === 1)
+            return route.fulfill({
+              contentType: "application/json",
+              body: JSON.stringify({
+                requestId: "e2e-admin-queue-25",
+                deletions: [deletionTask(25, "第二页任务")],
+                total: 25,
+              }),
+            });
+          shrunk = true;
+          return route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+              requestId: "e2e-admin-queue-24",
+              deletions: [],
+              total: 24,
+            }),
+          });
+        }
+        return route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-admin-queue-first",
+            deletions: firstPage,
+            total: shrunk ? 24 : 25,
+          }),
+        });
+      },
+    );
+    const queue = admin.getByRole("region", { name: "待清理作品" });
+    await admin.getByRole("link", { name: "作品元数据", exact: true }).click();
+    await expect(queue.locator(".admin-queue-item")).toHaveCount(24);
+    await queue.getByRole("button", { name: "下一页", exact: true }).click();
+    await expect(
+      queue.getByRole("heading", { name: "第二页任务", exact: true }),
+    ).toBeVisible();
+    await expect(queue.locator(".admin-queue-item")).toHaveCount(24, {
+      timeout: 15_000,
+    });
+    await expect(
+      queue.getByRole("heading", { name: "第二页任务", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      queue.getByRole("button", { name: "下一页", exact: true }),
+    ).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test("admin project list returns to the previous page after deleting its last row", async ({
+  browser,
+}) => {
+  test.setTimeout(45_000);
+  const { context, admin } = await adminLogin(browser);
+  try {
+    const firstPage = Array.from({ length: 24 }, (_, index) =>
+      metadataProject(index + 1),
+    );
+    let deleted = false;
+    await admin.route(/\/api\/v1\/admin\/projects\?/, async (route) => {
+      const page = new URL(route.request().url()).searchParams.get("page");
+      const projects =
+        page === "2"
+          ? deleted
+            ? []
+            : [metadataProject(25, "末页作品")]
+          : firstPage;
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: `e2e-admin-projects-${page}`,
+          projects,
+          total: deleted ? 24 : 25,
+        }),
+      });
+    });
+    await admin.route(/\/api\/v1\/admin\/project-deletions\?/, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-admin-empty-queue",
+          deletions: [],
+          total: 0,
+        }),
+      }),
+    );
+    await admin.route(
+      /\/api\/v1\/admin\/projects\/mock-project-25\/permanent$/,
+      (route) => {
+        deleted = true;
+        return route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            requestId: "e2e-admin-delete-last",
+            deletion: {
+              ...deletionTask(25, "末页作品", "pending"),
+              projectId: "mock-project-25",
+            },
+          }),
+        });
+      },
+    );
+
+    await admin.getByRole("link", { name: "作品元数据", exact: true }).click();
+    await expect(admin.locator("tbody tr")).toHaveCount(24);
+    await admin.getByRole("button", { name: "下一页", exact: true }).click();
+    const last = admin.getByRole("row").filter({ hasText: "末页作品" });
+    await expect(last).toBeVisible();
+    await last.getByRole("button", { name: "彻底删除", exact: true }).click();
+    const dialog = deletionDialog(admin);
+    await dialog.getByRole("checkbox").check();
+    await dialog.getByRole("button", { name: "彻底删除", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(admin.locator("tbody tr")).toHaveCount(24);
+    await expect(
+      admin.getByRole("row").filter({ hasText: "末页作品" }),
+    ).toHaveCount(0);
+    await expect(
+      admin.getByRole("button", { name: "下一页", exact: true }),
+    ).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
 });
 
 test("permanent deletion is rejected while an export is queued or running", async ({
@@ -418,10 +646,15 @@ test("deleting the only item on the last trash page returns to the previous page
 
   await page.goto("/projects");
   await openTrash(page);
+  const pager = page.getByRole("navigation", { name: "作品分页" });
+  const currentPage = (index: number) =>
+    expect(
+      pager.getByRole("button", { name: `页 ${index}`, exact: true }),
+    ).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("project-card")).toHaveCount(24);
-  await expect(page.getByText("第 1 页", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "下一页", exact: true }).click();
-  await expect(page.getByText("第 2 页", { exact: true })).toBeVisible();
+  await currentPage(1);
+  await pager.getByRole("button", { name: "下一页", exact: true }).click();
+  await currentPage(2);
   await expect(page.getByTestId("project-card")).toHaveCount(1);
 
   const lastCard = page.getByTestId("project-card");
@@ -434,9 +667,7 @@ test("deleting the only item on the last trash page returns to the previous page
   await expect(dialog).toHaveCount(0);
 
   await expect(page.getByTestId("project-card")).toHaveCount(24);
-  await expect(
-    page.getByRole("button", { name: "下一页", exact: true }),
-  ).toHaveCount(0);
+  await expect(pager).toHaveCount(0);
 });
 
 test("cleanup tasks stay scoped to the account that deleted the project", async ({
@@ -459,6 +690,56 @@ test("cleanup tasks stay scoped to the account that deleted the project", async 
     await page.request.get("/api/v1/project-deletions?page=1&pageSize=24")
   ).json();
   expect(list.total).toBe(0);
+});
+
+test("retrying one cleanup task leaves the other queue rows intact", async ({
+  page,
+}) => {
+  await account(page, "retry_pair");
+  const first = deletionTask(1, "甲任务", "retry_wait");
+  const second = deletionTask(2, "乙任务", "pending");
+  let listCalls = 0;
+  await page.route(/\/api\/v1\/project-deletions\?/, async (route) => {
+    listCalls++;
+    if (listCalls > 1) return route.abort();
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        requestId: "e2e-retry-pair",
+        deletions: [first, second],
+        total: 2,
+      }),
+    });
+  });
+  await page.route(
+    /\/api\/v1\/project-deletions\/mock-task-1\/retry$/,
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          requestId: "e2e-retry-pair-post",
+          deletion: { ...first, state: "pending" },
+        }),
+      }),
+  );
+
+  await openTrash(page);
+  await expect(page.getByTestId("deletion-task")).toHaveCount(2);
+  await expect(page.getByText("乙任务", { exact: true })).toBeVisible();
+  const refreshFailed = page.waitForEvent("requestfailed", (request) =>
+    request.url().includes("/api/v1/project-deletions?"),
+  );
+  const retried = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/retry"),
+  );
+  await page.getByRole("button", { name: "重试清理", exact: true }).click();
+  await retried;
+  await refreshFailed;
+  await expect(page.getByTestId("deletion-task")).toHaveCount(2);
+  await expect(page.getByText("乙任务", { exact: true })).toBeVisible();
+  await expect(page.getByText("甲任务", { exact: true })).toHaveCount(1);
 });
 
 test("cleanup retry state survives refresh and retries through the API", async ({

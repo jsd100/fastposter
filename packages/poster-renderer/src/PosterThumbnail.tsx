@@ -8,12 +8,14 @@ export function PosterThumbnail({
   className,
   style,
   alt,
+  maxHeight,
 }: {
   document: PosterDocument;
   backgroundUrl?: string;
   className?: string;
   style?: CSSProperties;
   alt?: string;
+  maxHeight?: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -36,7 +38,9 @@ export function PosterThumbnail({
       aria-label={alt}
       style={{
         position: "relative",
-        width: "100%",
+        width: maxHeight
+          ? `min(100%, ${(maxHeight * d.canvas.width) / d.canvas.height}px)`
+          : "100%",
         aspectRatio: `${d.canvas.width} / ${d.canvas.height}`,
         overflow: "hidden",
         background: "#eef3e6",

@@ -415,12 +415,34 @@ func (g *GC) pruneAssets(ctx context.Context, now time.Time, grace time.Duration
 		if !result.Retired {
 			continue
 		}
-		if e = g.removeFiles(ctx, result.Keys, report); e != nil {
+		if e = g.removeRetiredFiles(ctx, result.Keys, report); e != nil {
 			return e
 		}
 		report.ReclaimedAssets++
 	}
 	return nil
+}
+
+// removeRetiredFiles keeps keys that a surviving version, export result or
+// staged upload still owns. Versions can share a physical key, so retiring one
+// row must not remove the file backing another row.
+func (g *GC) removeRetiredFiles(ctx context.Context, keys []Key, report *GCReport) error {
+	tx, e := g.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback()
+	unreferenced := make([]Key, 0, len(keys))
+	for _, key := range keys {
+		referenced, e := StorageKeyReferenced(ctx, tx, key)
+		if e != nil {
+			return e
+		}
+		if !referenced {
+			unreferenced = append(unreferenced, key)
+		}
+	}
+	return g.removeFiles(ctx, unreferenced, report)
 }
 
 func (g *GC) loadReferences(ctx context.Context, now time.Time, out map[string]struct{}) error {

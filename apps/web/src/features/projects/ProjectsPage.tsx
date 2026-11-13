@@ -1,18 +1,28 @@
 import { BrandIcon } from "@fastposter/ui";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { Avatar, Input, Layout, Pagination, Tag, Typography } from "antd";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type RefObject,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiClientError,
   apiClient,
   routes,
+  type AssetDTO,
   type AssetReply,
   type ProjectDTO,
+  type ResourceDTO,
 } from "@fastposter/api-client";
 import {
   Button,
   Dialog,
   FormField,
   IconButton,
+  LoadingState,
   ProjectDeletionConfirm,
   Status,
   TextInput,
@@ -22,79 +32,238 @@ import {
 import {
   FolderOpen,
   ImagePlus,
-  LogOut,
-  Search,
-  Trash2,
-  ArrowLeft,
-  ArrowRight,
-  Settings2,
-  Plus,
   LayoutTemplate,
+  LogOut,
+  Plus,
+  Search,
+  Settings2,
+  Trash2,
 } from "lucide-react";
 import { errorMessage, request } from "../../api";
 import { Link, navigate } from "../../router";
 import { useSession } from "../auth/Session";
 import { ProjectListView, type ProjectAction } from "./ProjectList";
 import { ProjectDeletionQueue } from "./ProjectDeletionQueue";
-import { useProjectDeletion } from "./useProjectDeletion";
+import { DELETION_PAGE_SIZE, useProjectDeletion } from "./useProjectDeletion";
 import { TemplatePicker } from "../templates/TemplatePicker";
-export function ProjectsPage() {
+import { BackgroundPicker } from "../catalog/BackgroundPicker";
+import {
+  lastValidPage,
+  readPosition,
+  collectionIdentity,
+  canCorrectPage,
+  type CollectionPosition,
+} from "./collection-position";
+import {
+  buildProjectFromBackground,
+  classifyCreationFailure,
+  normalizeTitle,
+  useCreationScope,
+  type CreationOperation,
+  type ProjectBackground,
+} from "./project-creation";
+
+/** UI-04: the gallery always asks the server for 24 works per page. */
+const PAGE_SIZE = 24;
+
+/** An uploaded asset held for one local create operation (FP-06 stage 3). */
+type HeldAsset = { asset: ProjectBackground; title: string };
+
+export function ProjectsPage({
+  position,
+}: {
+  position: RefObject<CollectionPosition | null>;
+}) {
   const { user, logout } = useSession();
   const cache = useQueryClient();
-  const [trash, setTrash] = useState(false),
-    [page, setPage] = useState(1),
-    [search, setSearch] = useState(""),
-    [keyword, setKeyword] = useState("");
+  const userId = user!.id;
+  /* FP-06: every create reply is bound to this account, one operation id and
+     the lifetime of this page. A late reply from another account cannot act. */
+  const scope = useCreationScope(user?.id ?? "");
+  /* A position saved by this account during this App session. Anything else
+     — another account, a new session — starts from the first page. */
+  const saved = readPosition(position.current, userId);
+  const [trash, setTrash] = useState(saved?.trash ?? false);
+  const [page, setPage] = useState(saved?.page ?? 1);
+  const [search, setSearch] = useState(saved?.search ?? "");
+  const [keyword, setKeyword] = useState(saved?.keyword ?? "");
+  const [deletionPage, setDeletionPage] = useState(saved?.deletionPage ?? 1);
+  const editedSearch = useRef(false);
+  const pendingScroll = useRef<number | null>(saved?.scrollTop ?? null);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [uploading, setUploading] = useState(false),
+    [creating, setCreating] = useState(false),
     [uploadError, setUploadError] = useState(""),
+    [createError, setCreateError] = useState(""),
+    [unknownError, setUnknownError] = useState(""),
+    [held, setHeld] = useState<HeldAsset | null>(null),
     [pendingFile, setPendingFile] = useState<File | null>(null),
     [deletionProject, setDeletionProject] = useState<ProjectDTO | null>(null),
-    [deletionPage, setDeletionPage] = useState(1),
     [deletionError, setDeletionError] = useState(""),
     [dialog, setDialog] = useState<{
       action: "rename" | "delete";
       project: ProjectDTO;
     } | null>(null),
     [name, setName] = useState(""),
+    /* FP-09 / Ruling 109. Held only after a conflict, with the whole latest
+       ProjectDTO from GetProject (its document AND revision are submitted
+       together). renameError is an inline, non-retryable dialog message. */
+    [renameConflict, setRenameConflict] = useState<ProjectDTO | null>(null),
+    [renameError, setRenameError] = useState(""),
     [dragging, setDragging] = useState(false),
-    [templatesOpen, setTemplatesOpen] = useState(false);
+    [templatesOpen, setTemplatesOpen] = useState(false),
+    /* FP-05: the shared source selection for the top bar and the empty state.
+       "menu" → source options; "library" → the published background library. */
+    [createStep, setCreateStep] = useState<"menu" | "library" | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const createEntryRef = useRef<HTMLButtonElement>(null);
   const retry = useRef<(() => void) | null>(null);
   const confirmRef = useRef<(() => Promise<void>) | null>(null);
+  /* FP-09 / Ruling 109. One rename context is bound to this account, one
+     project and the lifetime of its dialog. Every async reply re-checks that
+     the context is still the active one, so closing the dialog, switching
+     account, deleting the work, or a newer conflict round invalidates an older
+     (late) reply instead of reopening the old dialog or writing into a new
+     account. */
+  const activeUser = useRef(userId);
+  activeUser.current = userId;
+  const renameCtx = useRef<{ userId: string; projectId: string } | null>(null);
+  const renameSeq = useRef(0);
+  function isRenameActive(
+    ctx: { userId: string; projectId: string } | null,
+    seq: number,
+  ): boolean {
+    return (
+      ctx !== null &&
+      renameCtx.current === ctx &&
+      renameSeq.current === seq &&
+      activeUser.current === ctx.userId
+    );
+  }
+  /* Switching accounts ends any rename context (FP-06 late-callback clause). */
   useEffect(() => {
+    renameCtx.current = null;
+    renameSeq.current += 1;
+    setRenameConflict(null);
+    setRenameError("");
+    setDialog(null);
+  }, [userId]);
+  /* Only a keystroke may reset the page. A restored search value arrives
+     through the same state, and re-running the debounce would throw away the
+     very page that position was saved with. */
+  useEffect(() => {
+    if (!editedSearch.current) return;
     const id = setTimeout(() => {
+      editedSearch.current = false;
       setKeyword(search);
       setPage(1);
       setDeletionPage(1);
     }, 300);
     return () => clearTimeout(id);
   }, [search]);
-  const key = ["projects", user!.id, trash, page, keyword];
+  /* The query identity of the view currently on screen. The same identity is
+     stamped onto each successful reply so a late response from an old account,
+     filter or page can never be mistaken for this view's data. */
+  const viewIdentity = collectionIdentity({ userId, trash, keyword, page });
   const query = useQuery({
-    queryKey: key,
-    queryFn: () =>
-      request(routes.ListProjects, { page, pageSize: 24, trash, keyword }),
+    queryKey: ["projects", userId, trash, page, keyword],
+    queryFn: async () => {
+      const reply = await request(routes.ListProjects, {
+        page,
+        pageSize: PAGE_SIZE,
+        trash,
+        keyword,
+      });
+      return { ...reply, __identity: viewIdentity };
+    },
     retry: false,
     staleTime: 15_000,
   });
+  const total = query.data?.total ?? 0;
   const refresh = () =>
-    cache.invalidateQueries({ queryKey: ["projects", user!.id] });
-  const projectDeletion = useProjectDeletion(user!.id, {
+    cache.invalidateQueries({ queryKey: ["projects", userId] });
+  const projectDeletion = useProjectDeletion(userId, {
     enabled: trash,
     page: deletionPage,
     keyword,
   });
+  /* Save where this session is standing, so that returning from the editor
+     can re-open the same page of the same filtered list at the same scroll. */
   useEffect(() => {
-    if (query.isPending || query.isFetching) return;
-    if (page > 1 && (query.data?.projects.length ?? 0) === 0) setPage(page - 1);
-  }, [page, query.data, query.isFetching, query.isPending]);
+    const store = () => {
+      position.current = {
+        userId,
+        trash,
+        search,
+        keyword,
+        page,
+        deletionPage,
+        scrollTop: window.scrollY,
+      };
+    };
+    store();
+    window.addEventListener("scroll", store, { passive: true });
+    return () => window.removeEventListener("scroll", store);
+  }, [position, userId, trash, search, keyword, page, deletionPage]);
+  /* A page the server no longer has — because a filter or a deletion shrank
+     the list — falls back to the last page that really has rows. Only a
+     successful, settled reply for the exact identity currently on screen may
+     correct it: react-query keeps the previous `data` after a failed refetch,
+     so an error vetoes the correction, and a late reply from an old account,
+     filter or page must not move the position (FP-09 / Ruling 106). */
   useEffect(() => {
-    if (projectDeletion.isLoading) return;
-    if (deletionPage > 1 && projectDeletion.pending.length === 0)
-      setDeletionPage(deletionPage - 1);
-  }, [deletionPage, projectDeletion.isLoading, projectDeletion.pending.length]);
+    if (
+      !query.data ||
+      !canCorrectPage({
+        isSuccess: query.isSuccess,
+        isError: query.isError,
+        fetchStatus: query.fetchStatus,
+        resultIdentity: query.data.__identity,
+        viewIdentity,
+      })
+    )
+      return;
+    const next = lastValidPage({
+      page,
+      rows: query.data.projects.length,
+      total,
+      pageSize: PAGE_SIZE,
+    });
+    if (next !== page) setPage(next);
+  }, [
+    page,
+    query.data,
+    query.isSuccess,
+    query.isError,
+    query.fetchStatus,
+    total,
+    viewIdentity,
+  ]);
+  useEffect(() => {
+    if (!projectDeletion.canCorrect) return;
+    const next = lastValidPage({
+      page: deletionPage,
+      rows: projectDeletion.pending.length,
+      total: projectDeletion.total,
+      pageSize: DELETION_PAGE_SIZE,
+    });
+    if (next !== deletionPage) setDeletionPage(next);
+  }, [
+    deletionPage,
+    projectDeletion.canCorrect,
+    projectDeletion.pending.length,
+    projectDeletion.total,
+  ]);
+  /* The scroll position comes back once the restored page is on screen. */
+  useEffect(() => {
+    if (pendingScroll.current === null) return;
+    if (query.isPending || query.isFetching || query.error) return;
+    const target = pendingScroll.current;
+    pendingScroll.current = null;
+    if ((query.data?.projects.length ?? 0) === 0) return;
+    requestAnimationFrame(() => window.scrollTo(0, target));
+  }, [query.data, query.error, query.isFetching, query.isPending]);
   useErrorNotice("projects:action", error || null, {
     action: { label: "重试", onClick: () => retry.current?.() },
   });
@@ -115,6 +284,25 @@ export function ProjectsPage() {
       ? { label: "重试导入", onClick: () => void upload(pendingFile) }
       : undefined,
   });
+  /* A known, uncommitted create rejection may retry the create with the held
+     asset; it never re-uploads the file. Ruling 49. */
+  useErrorNotice("projects:create", createError || null, {
+    action: held
+      ? { label: "重试", onClick: () => void retryCreate() }
+      : undefined,
+  });
+  /* An unconfirmed outcome offers only a read-only list reload. No create
+     retry and no editor navigation. Rulings 47/49. */
+  useErrorNotice("projects:unknown", unknownError || null, {
+    persistent: true,
+    action: {
+      label: "重新加载作品列表",
+      onClick: () => {
+        setUnknownError("");
+        void refresh();
+      },
+    },
+  });
   useErrorNotice(
     "projects:list",
     query.error ? errorMessage(query.error) : null,
@@ -123,12 +311,96 @@ export function ProjectsPage() {
       action: { label: "重新加载", onClick: () => void query.refetch() },
     },
   );
+  /* Stage 4/5: submit the create and classify its outcome. The same entry is
+     used by the first create and by a create-only retry, so both reference the
+     very same held asset (Rulings 48/49). */
+  async function createAndFinish(op: CreationOperation, source: HeldAsset) {
+    setCreating(true);
+    try {
+      const input = buildProjectFromBackground(source.title, source.asset);
+      const result = await request(routes.CreateProject, input);
+      // Late reply: no navigation, no stale notice, no cache update.
+      if (!scope.isValid(op)) return;
+      setHeld(null);
+      setCreateError("");
+      setUnknownError("");
+      await refresh();
+      navigate(`/projects/${result.project.id}/edit`);
+    } catch (e) {
+      if (!scope.isValid(op)) return;
+      const kind = classifyCreationFailure(e);
+      if (kind === "auth-required") {
+        window.dispatchEvent(new Event("session-expired"));
+        return;
+      }
+      if (kind === "unknown-outcome") {
+        // The server may have committed; never resubmit automatically.
+        setHeld(null);
+        setCreateError("");
+        setUnknownError("结果未确认：请重新加载作品列表确认，未自动重新提交。");
+        return;
+      }
+      // Known uncommitted rejection: keep the held asset for retryCreate().
+      setCreateError(errorMessage(e));
+    } finally {
+      if (scope.isValid(op)) setCreating(false);
+    }
+  }
+  /* A06 / Ruling 64. The confirmed gallery asset is a published catalog
+     reference, so there is no local upload: feed its fresh metadata and the
+     resource title straight into A05's shared create path (buildProjectFrom-
+     Background / classifyCreationFailure / useCreationScope), including the
+     「结果未确认」 rule and the late-reply / account-scope guards. */
+  async function handleGalleryCreate(asset: AssetDTO, resource: ResourceDTO) {
+    const op = scope.claim();
+    if (!op) return;
+    const source: HeldAsset = {
+      asset: {
+        id: asset.id,
+        version: asset.version,
+        width: asset.width,
+        height: asset.height,
+      },
+      title: resource.title,
+    };
+    setHeld(source);
+    setCreateError("");
+    setUnknownError("");
+    setCreateStep(null);
+    try {
+      await createAndFinish(op, source);
+    } finally {
+      scope.release(op);
+    }
+  }
+
+  /* The only retry path. It claims a fresh operation and reuses the asset that
+     was already uploaded, so no second upload POST is issued. */
+  async function retryCreate() {
+    if (!held) return;
+    const op = scope.claim();
+    if (!op) return;
+    setCreateError("");
+    try {
+      await createAndFinish(op, held);
+    } finally {
+      scope.release(op);
+    }
+  }
+  /* FP-06 five stages: 选择 → 上传 → 已有素材 → 创建 → 结果. The synchronous
+     claim() is the shared submit lock for button, card, file select, drop and
+     retry: only one write may be in flight. */
   async function upload(file: File) {
-    if (uploading) return;
+    const op = scope.claim();
+    if (!op) return;
     setUploadError("");
+    setCreateError("");
+    setUnknownError("");
+    setHeld(null);
     setPendingFile(file);
     if (file.size > 40 * 1024 * 1024) {
       setUploadError("图片不能超过 40 MiB");
+      scope.release(op);
       return;
     }
     setUploading(true);
@@ -139,33 +411,56 @@ export function ProjectsPage() {
         "/api/v1/assets/images",
         form,
       );
-      const document = {
-        schemaVersion: 1,
-        canvas: { width: asset.width, height: asset.height },
-        background: { assetId: asset.id, version: asset.version },
-        fonts: [],
-        textBlocks: [],
+      if (!scope.isValid(op)) return;
+      // Stage 3: hold the asset id, version and dimensions for this account.
+      const source: HeldAsset = {
+        asset: {
+          id: asset.id,
+          version: asset.version,
+          width: asset.width,
+          height: asset.height,
+        },
+        title: normalizeTitle(file.name),
       };
-      const result = await request(routes.CreateProject, {
-        title: file.name.replace(/\.[^.]+$/, "") || "未命名海报",
-        document: JSON.stringify(document),
-      });
+      setHeld(source);
       setPendingFile(null);
-      await refresh();
-      navigate(`/projects/${result.project.id}/edit`);
-    } catch (e) {
-      if (e instanceof ApiClientError && e.code === "AUTH_REQUIRED")
-        window.dispatchEvent(new Event("session-expired"));
-      setUploadError(errorMessage(e));
-    } finally {
       setUploading(false);
-      if (fileInput.current) fileInput.current.value = "";
+      await createAndFinish(op, source);
+    } catch (e) {
+      if (!scope.isValid(op)) return;
+      // An upload failure happens before any asset exists, so the existing
+      // re-upload retry is safe (no project could have been committed).
+      if (classifyCreationFailure(e) === "auth-required") {
+        window.dispatchEvent(new Event("session-expired"));
+      } else {
+        setUploadError(errorMessage(e));
+      }
+    } finally {
+      if (scope.isValid(op)) {
+        setUploading(false);
+        setCreating(false);
+        if (fileInput.current) fileInput.current.value = "";
+      }
+      scope.release(op);
     }
   }
   async function act(action: ProjectAction, project: ProjectDTO) {
     setError("");
+    setRenameError("");
+    setRenameConflict(null);
     retry.current = null;
-    if (action === "rename" || action === "delete") {
+    if (action === "rename") {
+      /* One rename context, bound to this account, this project and the
+         lifetime of this dialog (FP-09 / Ruling 109). */
+      renameSeq.current += 1;
+      renameCtx.current = { userId, projectId: project.id };
+      setName(project.title);
+      setDialog({ action, project });
+      return;
+    }
+    /* Any other operation ends an outstanding rename context. */
+    renameCtx.current = null;
+    if (action === "delete") {
       setName(project.title);
       setDialog({ action, project });
       return;
@@ -210,12 +505,16 @@ export function ProjectsPage() {
     }
   }
   async function confirm() {
-    if (!dialog || busy) return;
+    if (!dialog || busy || renameConflict) return;
+    const ctx = renameCtx.current;
+    const seq = ++renameSeq.current;
     setBusy(true);
     setError("");
+    setRenameError("");
     retry.current = () => void confirmRef.current?.();
     try {
       if (dialog.action === "rename") {
+        // Submit the full document held at open time, changing only the title.
         await request(routes.SaveProject, {
           id: dialog.project.id,
           expectedRevision: dialog.project.revision,
@@ -225,24 +524,106 @@ export function ProjectsPage() {
       } else {
         await request(routes.DeleteProject, { id: dialog.project.id });
       }
+      // A late reply from a closed dialog, a switched account or a superseded
+      // operation must not act on the new state (FP-06 / Ruling 109).
+      if (dialog.action === "rename" && !isRenameActive(ctx, seq)) return;
       retry.current = null;
+      renameCtx.current = null;
       setDialog(null);
+      setRenameConflict(null);
       await refresh();
     } catch (e) {
+      if (
+        dialog.action === "rename" &&
+        e instanceof ApiClientError &&
+        e.code === "REVISION_CONFLICT"
+      ) {
+        /* FP-09 / Ruling 109. Keep the typed title, discard the stale retry,
+           read the latest snapshot through GetProject, show BOTH the cloud
+           title and the user's input, and wait for a NEW explicit confirmation.
+           Never auto-resubmit, never splice a new revision onto the held
+           document, never let the old 重试 resubmit a known-invalid revision. */
+        retry.current = null;
+        setError("");
+        await loadRenameConflict(ctx, seq);
+        return;
+      }
+      if (dialog.action === "rename" && !isRenameActive(ctx, seq)) return;
       setError(errorMessage(e));
-      if (e instanceof ApiClientError && e.code === "REVISION_CONFLICT")
-        await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+  /* Read the newest snapshot of the work on a conflict. The reply is guarded
+     against a closed dialog, a switched account or a newer conflict round. */
+  async function loadRenameConflict(
+    ctx: { userId: string; projectId: string } | null,
+    seq: number,
+  ) {
+    if (!ctx) return;
+    try {
+      const { project } = await request(routes.GetProject, {
+        id: ctx.projectId,
+      });
+      if (!isRenameActive(ctx, seq)) return;
+      // Hold the whole latest snapshot; document and revision are submitted
+      // together on the explicit resubmit, never mixed with the old document.
+      setRenameConflict(project);
+    } catch (e) {
+      if (!isRenameActive(ctx, seq)) return;
+      // No latest snapshot (e.g. the work was deleted): keep the user's input,
+      // show a quiet inline message, and never reopen or auto-resubmit.
+      setRenameError(errorMessage(e));
+    }
+  }
+  /* The ONLY path that resubmits after a conflict: a new explicit confirmation
+     using BOTH the latest snapshot's document and its revision. A second
+     conflict repeats the same flow instead of looping an invalid revision. */
+  async function confirmRenameWithLatest() {
+    if (!dialog || !renameConflict || busy) return;
+    const ctx = renameCtx.current;
+    const seq = ++renameSeq.current;
+    setBusy(true);
+    setRenameError("");
+    try {
+      await request(routes.SaveProject, {
+        id: renameConflict.id,
+        expectedRevision: renameConflict.revision,
+        title: name,
+        document: renameConflict.document,
+      });
+      if (!isRenameActive(ctx, seq)) return;
+      retry.current = null;
+      renameCtx.current = null;
+      setDialog(null);
+      setRenameConflict(null);
+      await refresh();
+    } catch (e) {
+      if (e instanceof ApiClientError && e.code === "REVISION_CONFLICT") {
+        // A second conflict repeats the flow: reload the latest snapshot.
+        retry.current = null;
+        await loadRenameConflict(ctx, seq);
+        return;
+      }
+      if (!isRenameActive(ctx, seq)) return;
+      setRenameError(errorMessage(e));
     } finally {
       setBusy(false);
     }
   }
   confirmRef.current = confirm;
   function closeDialog() {
+    renameCtx.current = null;
+    renameSeq.current += 1;
     setDialog(null);
     setError("");
+    setRenameConflict(null);
+    setRenameError("");
     retry.current = null;
   }
-  const select = (next: boolean) => {
+  /* The collection and the trash answer different questions, so switching
+     starts a fresh position instead of carrying one across. */
+  function select(next: boolean) {
     setTrash(next);
     setPage(1);
     setDeletionPage(1);
@@ -250,7 +631,15 @@ export function ProjectsPage() {
     setKeyword("");
     setError("");
     setDeletionError("");
-  };
+    editedSearch.current = false;
+    pendingScroll.current = null;
+    position.current = null;
+    window.scrollTo(0, 0);
+  }
+  function searchThrough(next: string) {
+    editedSearch.current = true;
+    setSearch(next);
+  }
   function drop(e: DragEvent) {
     e.preventDefault();
     setDragging(false);
@@ -258,50 +647,45 @@ export function ProjectsPage() {
     if (file) void upload(file);
   }
   return (
-    <div className="workspace-shell">
-      <aside className="workspace-sidebar">
+    <Layout className="gallery-shell">
+      <Layout.Header className="gallery-topbar">
         <Link href="/projects" className="brand">
           <BrandIcon />
           FastPoster
         </Link>
-        <div className="sidebar-caption">创作空间</div>
-        <nav aria-label="作品导航">
-          <button
-            aria-label="我的作品"
-            className={!trash ? "nav-item active" : "nav-item"}
+        <nav aria-label="作品导航" className="gallery-nav">
+          <Button
+            variant={!trash ? "primary" : "secondary"}
+            aria-pressed={!trash}
+            className="gallery-nav-item"
             onClick={() => select(false)}
           >
-            <FolderOpen size={18} />
-            我的作品<span>{!trash ? query.data?.total : undefined}</span>
-          </button>
-          <button
-            className={trash ? "nav-item active" : "nav-item"}
+            <FolderOpen size={16} />
+            我的作品
+          </Button>
+          <Button
+            variant={trash ? "primary" : "secondary"}
+            aria-pressed={trash}
+            className="gallery-nav-item"
             onClick={() => select(true)}
           >
-            <Trash2 size={18} />
+            <Trash2 size={16} />
             回收站
-          </button>
+          </Button>
         </nav>
-        <div className="sidebar-tip">
-          <span className="tip-star">✳</span>
-          <h3>让灵感，有处安放。</h3>
-          <p>
-            原图画布，自由文字。
-            <br />
-            从简单的排版开始创作。
-          </p>
-        </div>
-        <div className="sidebar-account">
-          <span className="avatar">
-            {user!.username.slice(0, 1).toUpperCase()}
-          </span>
+        <div className="gallery-account">
+          <Link className="password-link" href="/password">
+            <Settings2 size={14} />
+            修改密码
+          </Link>
           <span className="account-name">
+            <Avatar>{user!.username.slice(0, 1).toUpperCase()}</Avatar>
             {user!.username}
-            <small>个人空间</small>
           </span>
           <Tooltip label="退出登录">
             <IconButton
               aria-label="退出登录"
+              density="compact"
               onClick={() =>
                 void logout().catch((e) => setError(errorMessage(e)))
               }
@@ -310,13 +694,9 @@ export function ProjectsPage() {
             </IconButton>
           </Tooltip>
         </div>
-        <Link className="password-link" href="/password">
-          <Settings2 size={13} />
-          修改密码
-        </Link>
-      </aside>
-      <main
-        className={`workspace-main ${dragging ? "drop-active" : ""}`}
+      </Layout.Header>
+      <Layout.Content
+        className={`gallery-main ${dragging ? "drop-active" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -327,52 +707,23 @@ export function ProjectsPage() {
         }}
         onDrop={drop}
       >
-        <header className="workspace-topbar">
-          <div className="breadcrumb">
-            个人空间 <span>/</span>{" "}
-            <strong>{trash ? "回收站" : "我的作品"}</strong>
-          </div>
-          <span className="workspace-badge">
-            <i />
-            云端保存
-          </span>
-          <Tooltip label="退出登录">
-            <IconButton
-              className="mobile-logout"
-              aria-label="退出登录"
-              onClick={() =>
-                void logout().catch((e) => setError(errorMessage(e)))
-              }
-            >
-              <LogOut size={18} />
-            </IconButton>
-          </Tooltip>
-        </header>
-        <div className="workspace-content">
-          <div className="workspace-title-row">
+        <div className="gallery-content">
+          <div className="gallery-title-row">
             <div>
-              <span className="eyebrow">
-                {trash ? "A SECOND CHANCE" : "YOUR POSTER COLLECTION"}
-              </span>
-              <h1>
+              <Typography.Title level={2}>
                 {trash ? "回收站" : "我的作品"}
-                <span className="title-dot">.</span>
-              </h1>
-              <p>
-                {trash
-                  ? "作品暂存 30 天，随时找回你的灵感。"
-                  : "每一张画面，都从一个想法开始。"}
-              </p>
+              </Typography.Title>
             </div>
-            <div className="workspace-title-actions">
+            <div className="gallery-title-actions">
               <Button onClick={() => setTemplatesOpen(true)}>
                 <LayoutTemplate size={17} />
                 模板库
               </Button>
               <Button
                 variant="primary"
-                onClick={() => fileInput.current?.click()}
-                disabled={uploading}
+                ref={createEntryRef}
+                onClick={() => setCreateStep("menu")}
+                disabled={uploading || creating}
               >
                 <Plus size={18} />
                 新建海报
@@ -390,27 +741,22 @@ export function ProjectsPage() {
               if (file) void upload(file);
             }}
           />
-          <div className="workspace-filter-row">
-            <span>
-              {trash ? "已移入回收站" : "全部海报"}
-              <span className="count-badge">{query.data?.total ?? "—"}</span>
+          <div className="gallery-filter-row">
+            <Input
+              className="search-input"
+              prefix={<Search size={16} />}
+              aria-label="搜索作品"
+              value={search}
+              onChange={(e) => searchThrough(e.target.value)}
+              placeholder="搜索作品名称"
+            />
+            <span className="gallery-count">
+              {keyword ? "匹配的作品" : trash ? "已移入回收站" : "全部海报"}
+              <Tag>{total}</Tag>
             </span>
-            <div className="search-input">
-              <Search size={16} />
-              <TextInput
-                variant="bare"
-                aria-label="搜索作品"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索作品名称"
-              />
-            </div>
           </div>
-          {uploading && (
-            <Status>
-              <span className="spinner" /> 正在导入并保存原图，请稍候…
-            </Status>
-          )}
+          {uploading && <LoadingState label="正在导入并保存原图，请稍候…" />}
+          {creating && <LoadingState label="正在创建作品，请稍候…" />}
           {trash && (
             <ProjectDeletionQueue
               tasks={projectDeletion.pending}
@@ -421,39 +767,36 @@ export function ProjectsPage() {
               busy={projectDeletion.isBusy}
             />
           )}
-          {query.error ? null : (
+          {query.error ? (
+            <div className="gallery-error">
+              <Status tone="error">作品列表加载失败，当前筛选已保留。</Status>
+              <Button onClick={() => void query.refetch()}>重新加载</Button>
+            </div>
+          ) : (
             <ProjectListView
               projects={query.data?.projects ?? []}
               loading={query.isPending}
               trash={trash}
+              filtered={keyword !== ""}
+              searchTerm={keyword}
               pendingDeletions={projectDeletion.total}
               onAction={(action, p) => void act(action, p)}
-              onUpload={() => fileInput.current?.click()}
+              onUpload={() => setCreateStep("menu")}
+              onBrowseTemplates={() => setTemplatesOpen(true)}
+              onClearSearch={() => searchThrough("")}
             />
           )}
-          {(query.data?.total ?? 0) > 24 && (
-            <div className="pagination">
-              <Button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ArrowLeft size={16} />
-                上一页
-              </Button>
-              <span>第 {page} 页</span>
-              <Button
-                disabled={page * 24 >= (query.data?.total ?? 0)}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                下一页
-                <ArrowRight size={16} />
-              </Button>
-            </div>
+          {!query.error && total > PAGE_SIZE && (
+            <nav className="gallery-pager" aria-label="作品分页">
+              <Pagination
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={total}
+                showSizeChanger={false}
+                onChange={setPage}
+              />
+            </nav>
           )}
-          <footer className="workspace-footer">
-            <span>为灵感留白，为文字定格。</span>
-            <span>FastPoster</span>
-          </footer>
         </div>
         {dragging && (
           <div className="drop-overlay">
@@ -461,7 +804,7 @@ export function ProjectsPage() {
             <h2>松开以导入背景图</h2>
           </div>
         )}
-      </main>
+      </Layout.Content>
       {dialog && (
         <Dialog
           title={dialog.action === "rename" ? "重命名作品" : "移到回收站"}
@@ -472,18 +815,34 @@ export function ProjectsPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void confirm();
+              // In a conflict state only the explicit action may submit.
+              if (!renameConflict) void confirm();
             }}
           >
             {dialog.action === "rename" ? (
-              <FormField
-                label="作品名称"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={120}
-                required
-                autoFocus
-              />
+              <>
+                <FormField
+                  label="作品名称"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={120}
+                  required
+                  autoFocus
+                />
+                {renameConflict && (
+                  <div data-testid="rename-conflict">
+                    <Status tone="error">
+                      检测到版本冲突：这份作品已被其他修改更新。
+                    </Status>
+                    <p>云端当前标题：{renameConflict.title}</p>
+                    <p>你输入的名称：{name}</p>
+                    <p>
+                      只有点击下方按钮，才会用云端最新的文档和版本，仅保留你输入的名称重新提交。
+                    </p>
+                  </div>
+                )}
+                {renameError && <Status tone="error">{renameError}</Status>}
+              </>
             ) : (
               <p>“{dialog.project.title}”将移入回收站，可在 30 天内恢复。</p>
             )}
@@ -491,13 +850,24 @@ export function ProjectsPage() {
               <Button type="button" onClick={closeDialog} disabled={busy}>
                 取消
               </Button>
-              <Button
-                type="submit"
-                busy={busy}
-                variant={dialog.action === "delete" ? "danger" : "primary"}
-              >
-                {dialog.action === "rename" ? "保存名称" : "确认移入回收站"}
-              </Button>
+              {renameConflict ? (
+                <Button
+                  type="button"
+                  busy={busy}
+                  variant="primary"
+                  onClick={() => void confirmRenameWithLatest()}
+                >
+                  使用云端版本并保存
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  busy={busy}
+                  variant={dialog.action === "delete" ? "danger" : "primary"}
+                >
+                  {dialog.action === "rename" ? "保存名称" : "确认移入回收站"}
+                </Button>
+              )}
             </div>
           </form>
         </Dialog>
@@ -519,11 +889,61 @@ export function ProjectsPage() {
           onClose={() => setTemplatesOpen(false)}
           onApplied={(id) => {
             setTemplatesOpen(false);
+            setUnknownError("");
             void refresh();
             navigate(`/projects/${id}/edit`);
           }}
+          onUnknownOutcome={() => {
+            // Return to the works list; the persistent notice only offers a
+            // read-only reload, never a resubmission or editor navigation.
+            setTemplatesOpen(false);
+            setUnknownError(
+              "结果未确认：请重新加载作品列表确认，未自动重新提交。",
+            );
+          }}
         />
       )}
-    </div>
+      {createStep === "menu" && (
+        <Dialog
+          title="新建海报"
+          className="create-poster-dialog"
+          onClose={() => setCreateStep(null)}
+          restoreFocusTo={() => createEntryRef.current}
+        >
+          <Typography.Text type="secondary">
+            选择一张背景图开始创作。
+          </Typography.Text>
+          <div className="create-poster-sources">
+            <Button
+              variant="primary"
+              onClick={() => {
+                // Open the native picker inside the click's user activation.
+                // The always-mounted hidden input keeps its upload() path.
+                fileInput.current?.click();
+                setCreateStep(null);
+              }}
+            >
+              <ImagePlus size={16} />
+              上传本地图片
+            </Button>
+            <Button onClick={() => setCreateStep("library")}>
+              从背景库选择
+            </Button>
+          </div>
+          <div className="dialog-actions">
+            <Button onClick={() => setCreateStep(null)}>取消</Button>
+          </div>
+        </Dialog>
+      )}
+      {createStep === "library" && (
+        <BackgroundPicker
+          mode="create"
+          restoreFocusTo={() => createEntryRef.current}
+          onBack={() => setCreateStep("menu")}
+          onClose={() => setCreateStep(null)}
+          onChoose={handleGalleryCreate}
+        />
+      )}
+    </Layout>
   );
 }

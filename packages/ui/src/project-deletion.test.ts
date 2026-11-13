@@ -35,6 +35,11 @@ describe("ProjectDeletionStatus", () => {
     expect(html).toContain("作品已不可恢复");
     expect(html).not.toContain("恢复作品");
     expect(html).not.toContain("彻底删除");
+    // FP-02: the running cleanup uses an antd loading component, not the
+    // package's self-drawn spinner, and announces the state exactly once.
+    expect(html).toContain("ant-spin");
+    expect(html).not.toContain('class="spinner"');
+    expect(html).toContain('role="status"');
   });
 
   it("offers only a safe retry after cleanup failure", () => {

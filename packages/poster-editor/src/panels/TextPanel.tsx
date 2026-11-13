@@ -5,14 +5,43 @@ import { fontWeights } from "./font-options";
 import type { Editor } from "@tiptap/react";
 import type { TextBlock, InlineStyle } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
-import { NumberField, Select, ToggleButton } from "@fastposter/ui";
+import {
+  Button,
+  NumberField,
+  Select,
+  ToggleButton,
+  type NumberDraftBinding,
+} from "@fastposter/ui";
 import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
 import { selectionStyle, type InlineStylePatch } from "../text/selection";
 import type { FontChoiceIntent } from "../fonts/prepare-change";
 import { FontPicker } from "../fonts/FontPicker";
+import { ColorField } from "./ColorField";
 import { ParagraphPanel } from "./ParagraphPanel";
 import { StylePanel } from "./StylePanel";
+import type { InspectorGroup } from "./EditorInspector";
+export type TextPanelProps = {
+  block: TextBlock;
+  editor: Editor | null;
+  fonts: FontSource[];
+  apply: (patch: InlineStylePatch) => void;
+  chooseFont: (font: FontSource, intent?: FontChoiceIntent) => void;
+  fontPending: boolean;
+  sizeBase?: number;
+  onNumericStart: () => void;
+  onNumericEnd: (action: "commit" | "cancel") => void;
+  update: (change: (block: TextBlock) => TextBlock) => void;
+  draft: (field: string) => NumberDraftBinding;
+  editing: boolean;
+  onToggleEdit: () => void;
+};
+/**
+ * The inspector keeps one property group mounted at a time. Splitting the
+ * groups here instead of stacking every control keeps the phone sheet short,
+ * while the owner keeps the selection and draft strings across the swap.
+ */
 export function TextPanel({
+  group,
   block,
   editor,
   fonts,
@@ -23,18 +52,37 @@ export function TextPanel({
   onNumericStart,
   onNumericEnd,
   update,
-}: {
-  block: TextBlock;
-  editor: Editor | null;
-  fonts: FontSource[];
-  apply: (patch: InlineStylePatch) => void;
-  chooseFont: (font: FontSource, intent?: FontChoiceIntent) => void;
-  fontPending: boolean;
-  sizeBase?: number;
-  onNumericStart: () => void;
-  onNumericEnd: () => void;
-  update: (change: (block: TextBlock) => TextBlock) => void;
-}) {
+  draft,
+  editing,
+  onToggleEdit,
+}: TextPanelProps & { group: InspectorGroup }) {
+  if (group === "paragraph")
+    return (
+      <div className="text-panel">
+        <p className="style-target">整块文字的段落格式</p>
+        <ParagraphPanel
+          block={block}
+          update={update}
+          onNumericStart={onNumericStart}
+          onNumericEnd={onNumericEnd}
+          draft={draft}
+        />
+      </div>
+    );
+  if (group === "effects")
+    return (
+      <div className="text-panel">
+        <p className="style-target">整块文字的外观效果</p>
+        <StylePanel
+          block={block}
+          update={update}
+          onNumericStart={onNumericStart}
+          onNumericEnd={onNumericEnd}
+          draft={draft}
+        />
+      </div>
+    );
+  if (group === "position") return null;
   const selection = editor?.state.selection;
   const current =
     selection && !selection.empty
@@ -84,12 +132,12 @@ export function TextPanel({
           disabled={fontPending}
           onChoose={chooseFont}
         />
+        {restrictedLatin && (
+          <small className="property-hint">
+            当前文字包含中文，西文字体暂不可选；仅选中英文后即可使用 Inter。
+          </small>
+        )}
       </label>
-      {restrictedLatin && (
-        <p className="property-hint">
-          当前文字包含中文，西文字体暂不可选；仅选中英文后即可使用 Inter。
-        </p>
-      )}
       <label className="panel-field">
         字重
         <Select
@@ -111,35 +159,35 @@ export function TextPanel({
           ]}
         />
       </label>
-      <div className="panel-row">
-        <label className="panel-field">
-          字号
-          <NumberField
-            aria-label="文字字号"
-            variant="stepper"
-            unit="px"
-            min={1}
-            max={4096}
-            step={1}
-            stepBase={sizeBase}
-            value={current.fontSize ?? null}
-            placeholder="混合"
-            onInteractionStart={onNumericStart}
-            onInteractionEnd={onNumericEnd}
-            onValueChange={(fontSize) => apply({ fontSize })}
-          />
-        </label>
-        <label className="panel-field">
-          颜色
-          <input
-            aria-label="文字颜色"
-            type="color"
-            value={(current.color ?? "#000000").slice(0, 7)}
-            onChange={(e) => apply({ color: e.target.value })}
-          />
-          {current.color === null && <small>混合</small>}
-        </label>
-      </div>
+      <label className="panel-field">
+        字号
+        <NumberField
+          aria-label="文字字号"
+          variant="stepper"
+          unit="px"
+          min={1}
+          max={4096}
+          step={1}
+          stepBase={sizeBase}
+          value={current.fontSize ?? null}
+          placeholder="混合"
+          {...draft("fontSize")}
+          onInteractionStart={onNumericStart}
+          onInteractionEnd={onNumericEnd}
+          onValueChange={(fontSize) => apply({ fontSize })}
+        />
+      </label>
+      <label className="panel-field">
+        颜色
+        <ColorField
+          label="文字颜色"
+          value={current.color ?? "#000000"}
+          onChange={(color) => apply({ color })}
+          onInteractionStart={onNumericStart}
+          onInteractionEnd={onNumericEnd}
+        />
+        {current.color === null && <small>混合</small>}
+      </label>
       <label className="panel-field">
         预设文字颜色
         <Select
@@ -204,18 +252,9 @@ export function TextPanel({
       {!italicAvailable && (
         <p className="property-hint">当前字体未提供斜体字形。</p>
       )}
-      <ParagraphPanel
-        block={block}
-        update={update}
-        onNumericStart={onNumericStart}
-        onNumericEnd={onNumericEnd}
-      />
-      <StylePanel
-        block={block}
-        update={update}
-        onNumericStart={onNumericStart}
-        onNumericEnd={onNumericEnd}
-      />
+      <Button className="edit-content" onClick={onToggleEdit}>
+        {editing ? "完成文字编辑" : "编辑文字"}
+      </Button>
     </div>
   );
 }

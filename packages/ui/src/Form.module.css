@@ -1,18 +1,3 @@
-:global(.form-field) .error {
-  font-size: 10px;
-  line-height: 1.6;
-  color: var(--fp-danger-ink);
-}
-
-:global(.form-field) input.invalid,
-:global(.form-field) textarea.invalid,
-.invalid {
-  border-color: var(--fp-danger);
-  box-shadow: 0 0 0 3px #a45e5022;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .error {
-    transition: none;
-  }
+.error {
+  color: var(--ant-color-error-text, #cf1322);
 }

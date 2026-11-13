@@ -1,22 +1,61 @@
-import { useEffect, useMemo, useState } from "react";
+import { Button as AntButton, Card, Dropdown, Empty, Tag } from "antd";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   apiClient,
+  loadCatalogPages,
   routes,
   type ResourceDTO,
   type ResourceReply,
 } from "@fastposter/api-client";
-import { Button, Dialog, FormField, Select, Status, TextInput, useErrorNotice } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  FileField,
+  FormField,
+  LoadingState,
+  Select,
+  Status,
+  TextInput,
+  useErrorNotice,
+} from "@fastposter/ui";
 import {
   loadFonts,
   PosterThumbnail,
   type FontSource,
 } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
-import { Download, LayoutTemplate, Plus, Upload } from "lucide-react";
-import { download, errorMessage, request } from "../../api";
-import { Pager } from "../Metadata";
-import { TemplateEditor } from "./TemplateEditor";
+import {
+  Archive,
+  Download,
+  Ellipsis,
+  Eye,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import {
+  download,
+  errorMessage,
+  isGone,
+  isRevisionConflict,
+  isStaleClient,
+  reloadResource,
+  request,
+} from "../../api";
+import { PAGE_SIZE, RecordPager } from "../records";
+import {
+  pageAfterShrink,
+  adminPageIdentity,
+  canCorrectAdminPage,
+} from "../projects/pagination";
+
+const TemplateEditor = lazy(() =>
+  import("./TemplateEditor").then((module) => ({
+    default: module.TemplateEditor,
+  })),
+);
 
 export function TemplatesPage() {
   const cache = useQueryClient();
@@ -27,28 +66,60 @@ export function TemplatesPage() {
     [preview, setPreview] = useState<ResourceDTO | null>(null),
     [newCategory, setNewCategory] = useState(false),
     [categoryTitle, setCategoryTitle] = useState(""),
+    [importFile, setImportFile] = useState<File | null>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState("");
+    [busy, setBusy] = useState(""),
+    [conflict, setConflict] = useState<{
+      resource: ResourceDTO;
+      published: boolean;
+    } | null>(null);
+  const viewIdentity = adminPageIdentity(["template", page, keyword, category]);
   const q = useQuery({
     queryKey: ["admin", "resources", "template", page, keyword, category],
-    queryFn: () =>
-      request(routes.AdminResources, {
+    queryFn: async () => {
+      const reply = await request(routes.AdminResources, {
         kind: "template",
         page,
-        pageSize: 24,
+        pageSize: PAGE_SIZE,
         keyword,
         categoryId: category || undefined,
-      }),
+      });
+      return { ...reply, __identity: viewIdentity };
+    },
     retry: false,
   });
+  /* FP-09 / Ruling 108. Successful shrink falls back a page; a failed refetch
+     keeps react-query's old data and must not move the page. */
+  useEffect(() => {
+    if (
+      !q.data ||
+      !canCorrectAdminPage({
+        isSuccess: q.isSuccess,
+        isError: q.isError,
+        fetchStatus: q.fetchStatus,
+        resultIdentity: q.data.__identity,
+        viewIdentity,
+      })
+    )
+      return;
+    const next = pageAfterShrink(
+      page,
+      q.data.total,
+      q.data.resources.length,
+      PAGE_SIZE,
+    );
+    if (next !== page) setPage(next);
+  }, [page, q.data, q.isSuccess, q.isError, q.fetchStatus, viewIdentity]);
   const categories = useQuery({
     queryKey: ["admin", "categories", "template"],
     queryFn: () =>
-      request(routes.AdminResources, {
-        kind: "template-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.AdminResources, {
+          kind: "template-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   const fonts = useQuery({
@@ -57,14 +128,10 @@ export function TemplatesPage() {
     retry: false,
     staleTime: 60_000,
   });
-  useErrorNotice(
-    "admin:templates",
-    q.error ? errorMessage(q.error) : null,
-    {
-      persistent: true,
-      action: { label: "重新加载", onClick: () => void q.refetch() },
-    },
-  );
+  useErrorNotice("admin:templates", q.error ? errorMessage(q.error) : null, {
+    persistent: true,
+    action: { label: "重新加载", onClick: () => void q.refetch() },
+  });
   useErrorNotice("admin:template-action", error || null);
   const documents = useMemo(() => {
     const map = new Map<string, PosterDocument>();
@@ -99,26 +166,53 @@ export function TemplatesPage() {
         );
         if (source) needed.set(source.assetId, source);
       }
-    if (needed.size) void loadFonts([...needed.values()]).catch(() => undefined);
+    if (needed.size)
+      void loadFonts([...needed.values()]).catch(() => undefined);
   }, [fonts.data, signature, documents]);
   const refresh = () =>
     cache.invalidateQueries({ queryKey: ["admin", "resources", "template"] });
   async function toggle(resource: ResourceDTO) {
+    await commitToggle(resource, !resource.published, resource.version);
+  }
+  // The pending publication state is kept across a conflict; only an explicit
+  // confirmation may send a second POST, and it reuses the newest version.
+  async function commitToggle(
+    resource: ResourceDTO,
+    published: boolean,
+    expectedVersion: string,
+  ) {
     setBusy(resource.id);
     setError("");
     try {
-      await request(routes.AdminSaveResource, {
+      // B02: a versioned publication intent carries only the target state and
+      // the expected version; the server keeps its own newer document.
+      await request(routes.AdminPublishResource, {
         id: resource.id,
-        kind: "template",
-        title: resource.title,
-        categoryId: resource.categoryId,
-        sortOrder: resource.sortOrder,
-        published: !resource.published,
-        document: resource.document,
+        published,
+        expectedVersion,
       });
+      setConflict(null);
       await refresh();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e)) {
+        const latest = await reloadResource(resource.id).catch(() => null);
+        if (latest) {
+          setConflict({ resource: latest, published });
+          setError(
+            "该模板已被其他操作更新，请确认后以最新版本重新提交这个发布动作。",
+          );
+        } else {
+          setError("无法重载该模板，请刷新页面后重试。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
+        setError("该模板已被更新或页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("模板不存在或无权访问，请刷新页面。");
+        setConflict(null);
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy("");
     }
@@ -146,10 +240,12 @@ export function TemplatesPage() {
       setError(errorMessage(e));
     }
   }
-  async function importPackage(file: File | undefined) {
+  async function importPackage(file: File | null) {
+    setImportFile(file);
     if (!file) return;
     if (file.size > 80 * 1024 * 1024) {
       setError("模板包不能超过 80 MiB");
+      setImportFile(null);
       return;
     }
     setBusy("import");
@@ -166,44 +262,42 @@ export function TemplatesPage() {
       setError(errorMessage(e));
     } finally {
       setBusy("");
+      // The pick is spent once the request has been answered, so the same
+      // package can be selected again without a stale chip in the way.
+      setImportFile(null);
     }
   }
   return (
     <>
       <div className="admin-title-row">
         <div>
-          <span className="eyebrow">PORTABLE POSTER TEMPLATES</span>
-          <h1>
-            模板<span>.</span>
-          </h1>
+          <h1>模板</h1>
           <p className="admin-subtitle">
             使用共享编辑器维护模板草稿；FastPoster 模板包不嵌入字体或脚本。
           </p>
         </div>
         <div className="admin-title-actions">
-          <label className="button button-secondary button-like">
-            <Upload size={15} />
-            {busy === "import" ? "正在导入…" : "导入模板包"}
-            <input
-              type="file"
-              accept="application/zip,.zip"
-              aria-label="导入管理员模板包"
-              disabled={busy !== ""}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                void importPackage(file);
-              }}
-            />
-          </label>
-          <Button variant="primary" onClick={() => setEditing("new")}>
+          <FileField
+            aria-label="导入管理员模板包"
+            label={busy === "import" ? "正在导入…" : "导入模板包"}
+            icon={<Upload size={15} />}
+            accept="application/zip,.zip"
+            disabled={busy !== ""}
+            value={importFile}
+            onChange={(file) => void importPackage(file)}
+          />
+          <Button
+            variant="primary"
+            data-fp-list-entry=""
+            onClick={() => setEditing("new")}
+          >
             <Plus size={15} />
             新建模板
           </Button>
         </div>
       </div>
       <div className="admin-filters">
-        <TextInput variant="bare"
+        <TextInput
           className="admin-search"
           aria-label="搜索模板"
           placeholder="搜索模板名称"
@@ -222,45 +316,81 @@ export function TemplatesPage() {
           }}
           options={[
             { value: "", label: "全部分类" },
-            ...(categories.data?.resources.map((r) => ({
-              value: r.id,
-              label: r.title,
-            })) ?? []),
+            ...(categories.isSuccess
+              ? categories.data.map((r) => ({ value: r.id, label: r.title }))
+              : []),
           ]}
         />
         <Button onClick={() => setNewCategory(true)}>添加分类</Button>
       </div>
+      {categories.isError && (
+        <div data-testid="category-error" className="picker-failed">
+          <Status tone="error">分类加载失败，请重新加载</Status>
+          <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
+      {conflict && (
+        <div className="inline-confirm" data-testid="version-conflict">
+          <span>
+            最新版本 {conflict.resource.version} · {conflict.resource.title}（
+            {conflict.resource.published ? "已发布" : "已下架"}）。
+            请确认后以最新版本重新提交
+            {conflict.published ? "发布" : "下架"}
+            动作，不会自动合并或覆盖。
+          </span>
+          <Button
+            variant="primary"
+            busy={busy !== ""}
+            onClick={() =>
+              void commitToggle(
+                conflict.resource,
+                conflict.published,
+                conflict.resource.version,
+              )
+            }
+          >
+            确认重新提交
+          </Button>
+          <Button
+            onClick={() => {
+              setConflict(null);
+              setError("");
+            }}
+          >
+            取消
+          </Button>
+        </div>
+      )}
       <div className="admin-resource-grid">
         {q.data?.resources.map((resource) => {
           const document = documents.get(resource.id);
           return (
-            <article
+            <Card
               className="admin-resource-card"
               data-testid="template-card"
               key={resource.id}
+              size="small"
+              cover={
+                <div className="admin-resource-preview">
+                  {document && (
+                    <PosterThumbnail
+                      document={document}
+                      backgroundUrl={resource.asset?.previewUrl}
+                      maxHeight={164}
+                      alt={`${resource.title} 预览`}
+                    />
+                  )}
+                  <Tag
+                    className="resource-state"
+                    color={resource.published ? "success" : undefined}
+                  >
+                    {resource.published ? "已发布" : "已下架"}
+                  </Tag>
+                </div>
+              }
             >
-              <div className="admin-resource-preview template-preview">
-                {document ? (
-                  <PosterThumbnail
-                    document={document}
-                    backgroundUrl={resource.asset?.previewUrl}
-                    alt={`${resource.title} 预览`}
-                  />
-                ) : (
-                  <div className="template-preview-fallback" />
-                )}
-                <span
-                  className={
-                    resource.published
-                      ? "resource-state published"
-                      : "resource-state"
-                  }
-                >
-                  {resource.published ? "已发布" : "已下架"}
-                </span>
-              </div>
               <div className="resource-card-details">
-                <h2>{resource.title}</h2>
+                <h2 title={resource.title}>{resource.title}</h2>
                 <p>
                   版本 {resource.version}
                   {document
@@ -268,60 +398,104 @@ export function TemplatesPage() {
                     : ""}
                 </p>
                 <div className="resource-actions">
-                  <Button variant="ghost" onClick={() => setEditing(resource)}>
+                  <AntButton
+                    size="small"
+                    type="primary"
+                    ghost
+                    icon={<Pencil size={14} />}
+                    onClick={() => setEditing(resource)}
+                  >
                     编辑
-                  </Button>
-                  <Button variant="ghost" onClick={() => setPreview(resource)}>
+                  </AntButton>
+                  <AntButton
+                    size="small"
+                    icon={<Eye size={14} />}
+                    onClick={() => setPreview(resource)}
+                  >
                     预览
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy !== ""}
-                    onClick={() => void toggle(resource)}
+                  </AntButton>
+                  <Dropdown
+                    trigger={["click"]}
+                    placement="bottomRight"
+                    destroyOnHidden
+                    autoFocus
+                    menu={{
+                      items: [
+                        {
+                          key: "publication",
+                          label: resource.published ? "下架" : "发布",
+                          icon: resource.published ? (
+                            <Archive size={14} />
+                          ) : (
+                            <Upload size={14} />
+                          ),
+                          disabled: busy !== "",
+                          onClick: () => void toggle(resource),
+                        },
+                        {
+                          key: "export",
+                          label: "导出",
+                          icon: <Download size={14} />,
+                          disabled: busy !== "",
+                          onClick: () => void exportPackage(resource),
+                        },
+                        { type: "divider" },
+                        {
+                          key: "delete",
+                          label: "删除",
+                          icon: <Trash2 size={14} />,
+                          danger: true,
+                          disabled: busy !== "",
+                          onClick: () => void remove(resource),
+                        },
+                      ],
+                    }}
                   >
-                    {resource.published ? "下架" : "发布"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy !== ""}
-                    onClick={() => void exportPackage(resource)}
-                  >
-                    <Download size={13} />
-                    导出
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy !== ""}
-                    onClick={() => void remove(resource)}
-                  >
-                    删除
-                  </Button>
+                    <AntButton
+                      size="small"
+                      type="text"
+                      icon={<Ellipsis size={16} />}
+                      aria-label="更多操作"
+                      aria-haspopup="menu"
+                    />
+                  </Dropdown>
                 </div>
               </div>
-            </article>
+            </Card>
           );
         })}
       </div>
       {q.data?.resources.length === 0 && (
-        <div className="admin-empty">
-          <LayoutTemplate size={30} />
-          <h2>还没有模板</h2>
+        <Empty className="admin-empty" description="还没有模板">
           <p>用共享编辑器创建，或导入 FastPoster 模板包。</p>
-        </div>
+        </Empty>
       )}
-      <Pager page={page} total={q.data?.total ?? 0} onPage={setPage} />
+      <RecordPager
+        page={page}
+        total={q.data?.total ?? 0}
+        onPage={setPage}
+        label="模板分页"
+      />
       {editing && (
-        <TemplateEditor
-          resource={editing === "new" ? undefined : editing}
-          close={() => setEditing(null)}
-          saved={async () => {
-            setEditing(null);
-            await refresh();
-          }}
-        />
+        <Suspense fallback={<LoadingState label="正在打开模板编辑器…" />}>
+          <TemplateEditor
+            resource={editing === "new" ? undefined : editing}
+            restoreFocusTo={() =>
+              document.querySelector<HTMLElement>("[data-fp-list-entry]")
+            }
+            close={() => setEditing(null)}
+            saved={async () => {
+              setEditing(null);
+              await refresh();
+            }}
+          />
+        </Suspense>
       )}
       {preview && (
-        <TemplatePreviewDialog resource={preview} close={() => setPreview(null)} />
+        <TemplatePreviewDialog
+          resource={preview}
+          close={() => setPreview(null)}
+        />
       )}
       {newCategory && (
         <Dialog title="添加模板分类" onClose={() => setNewCategory(false)}>
@@ -435,7 +609,11 @@ function TemplatePreviewDialog({
     };
   }, [resource, fonts.data]);
   return (
-    <Dialog title={`模板预览 · ${resource.title}`} className="template-preview-dialog" onClose={close}>
+    <Dialog
+      title={`模板预览 · ${resource.title}`}
+      className="template-preview-dialog"
+      onClose={close}
+    >
       {document && ready ? (
         <PosterThumbnail
           document={document}
@@ -443,7 +621,7 @@ function TemplatePreviewDialog({
           alt={`${resource.title} 完整预览`}
         />
       ) : (
-        <Status>正在准备预览…</Status>
+        <LoadingState label="正在准备预览…" />
       )}
     </Dialog>
   );

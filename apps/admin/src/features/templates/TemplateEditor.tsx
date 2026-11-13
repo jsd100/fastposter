@@ -2,28 +2,46 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   apiClient,
+  loadCatalogPages,
   routes,
   type AssetDTO,
   type AssetReply,
   type ResourceDTO,
 } from "@fastposter/api-client";
-import { Button, FormField, NumberField, Select, Status, TextInput, useErrorNotice } from "@fastposter/ui";
-import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
 import {
-  loadFonts,
-  type FontSource,
-} from "@fastposter/poster-renderer";
+  Button,
+  CheckboxField,
+  LoadingState,
+  NumberField,
+  Select,
+  Status,
+  TextInput,
+  Workbench,
+  useErrorNotice,
+} from "@fastposter/ui";
+import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
+import { loadFonts, type FontSource } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
-import { errorMessage, request } from "../../api";
+import {
+  errorMessage,
+  isGone,
+  isRevisionConflict,
+  isStaleClient,
+  reloadResource,
+  request,
+} from "../../api";
 
 export function TemplateEditor({
   resource,
   close,
   saved,
+  restoreFocusTo,
 }: {
   resource?: ResourceDTO;
   close: () => void;
   saved: () => Promise<void>;
+  /** Stable list entry to focus when the opening card was removed. */
+  restoreFocusTo?: () => HTMLElement | null;
 }) {
   const initial = useMemo<PosterDocument | null>(() => {
     if (!resource?.document) return null;
@@ -45,16 +63,19 @@ export function TemplateEditor({
     [uploading, setUploading] = useState(false),
     [overflow, setOverflow] = useState(false),
     [availableFonts, setAvailableFonts] = useState<FontSource[]>([]),
-    [fontsReady, setFontsReady] = useState(false);
+    [fontsReady, setFontsReady] = useState(false),
+    [conflict, setConflict] = useState<ResourceDTO | null>(null);
   const backgroundFile = useRef<HTMLInputElement>(null);
   const categories = useQuery({
     queryKey: ["admin", "categories", "template"],
     queryFn: () =>
-      request(routes.AdminResources, {
-        kind: "template-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.AdminResources, {
+          kind: "template-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   const fontQuery = useQuery({
@@ -156,7 +177,8 @@ export function TemplateEditor({
         "/api/v1/assets/images",
         form,
       );
-      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, "") || "新模板");
+      if (!title.trim())
+        setTitle(file.name.replace(/\.[^.]+$/, "") || "新模板");
       setDraft({
         schemaVersion: 1,
         canvas: { width: asset.width, height: asset.height },
@@ -171,7 +193,7 @@ export function TemplateEditor({
       if (backgroundFile.current) backgroundFile.current.value = "";
     }
   }
-  async function save() {
+  async function save(version: string | undefined = resource?.version) {
     if (!draft || busy) return;
     if (!title.trim()) {
       setError("请填写模板名称");
@@ -188,20 +210,42 @@ export function TemplateEditor({
         sortOrder,
         published,
         document: JSON.stringify(draft),
+        expectedVersion: version,
       });
+      setConflict(null);
       await saved();
     } catch (e) {
-      setError(errorMessage(e));
+      if (isRevisionConflict(e) && resource) {
+        const latest = await reloadResource(resource.id).catch(() => null);
+        if (latest) {
+          setConflict(latest);
+          setError(
+            "模板已被其他操作更新，草稿与素材引用已保留。请确认后以最新版本重新提交。",
+          );
+        } else {
+          setError("模板已删除或无权访问，请关闭编辑器刷新页面。");
+          setConflict(null);
+        }
+      } else if (isStaleClient(e)) {
+        setError("页面版本过旧，请刷新页面后重试。");
+      } else if (isGone(e)) {
+        setError("模板不存在或无权访问，请关闭编辑器刷新页面。");
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
   }
   return (
-    <div className="template-editor-overlay" role="dialog" aria-label="模板编辑器">
+    <Workbench
+      label="模板编辑器"
+      className="template-editor-overlay"
+      restoreFocusTo={restoreFocusTo}
+    >
       <header className="template-editor-header">
         <div className="template-editor-meta">
           <TextInput
-            variant="bare"
             className="template-title-input"
             aria-label="模板名称"
             placeholder="模板名称"
@@ -215,10 +259,9 @@ export function TemplateEditor({
             onValueChange={setCategoryId}
             options={[
               { value: "", label: "未分类" },
-              ...(categories.data?.resources.map((r) => ({
-                value: r.id,
-                label: r.title,
-              })) ?? []),
+              ...(categories.isSuccess
+                ? categories.data.map((r) => ({ value: r.id, label: r.title }))
+                : []),
             ]}
           />
           <label className="template-sort">
@@ -232,15 +275,19 @@ export function TemplateEditor({
               onValueChange={setSortOrder}
             />
           </label>
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              aria-label="发布模板"
-              checked={published}
-              onChange={(e) => setPublished(e.target.checked)}
-            />
-            发布
-          </label>
+          <CheckboxField
+            label="发布模板"
+            checked={published}
+            onChange={setPublished}
+          />
+          {categories.isError && (
+            <div data-testid="category-error" className="picker-failed">
+              <Status tone="error">分类加载失败，请重新加载</Status>
+              <Button onClick={() => void categories.refetch()}>
+                重新加载
+              </Button>
+            </div>
+          )}
         </div>
         <div className="template-editor-actions">
           {overflow && <span className="template-overflow">文字超出画布</span>}
@@ -257,6 +304,29 @@ export function TemplateEditor({
           </Button>
         </div>
       </header>
+      {conflict && (
+        <div className="inline-confirm" data-testid="version-conflict">
+          <span>
+            最新版本 {conflict.version} · {conflict.title}
+            。当前草稿与素材引用已保留；确认后仅以最新版本重新提交，不会自动合并或覆盖。
+          </span>
+          <Button
+            variant="primary"
+            busy={busy}
+            onClick={() => void save(conflict.version)}
+          >
+            确认重新提交
+          </Button>
+          <Button
+            onClick={() => {
+              setConflict(null);
+              setError("请刷新页面后重新编辑。");
+            }}
+          >
+            放弃修改
+          </Button>
+        </div>
+      )}
       {!draft ? (
         <div className="template-editor-empty">
           <h2>{resource ? "模板文档不可用" : "选择模板背景"}</h2>
@@ -271,7 +341,7 @@ export function TemplateEditor({
         </div>
       ) : !fontsReady ? (
         <div className="template-editor-empty">
-          <Status>正在载入字体…</Status>
+          <LoadingState label="正在载入字体…" />
         </div>
       ) : (
         <div className="template-editor-canvas">
@@ -290,6 +360,12 @@ export function TemplateEditor({
           />
         </div>
       )}
+      {/*
+        The canvas asks for a background through a promise that has to settle
+        when the OS dialog is dismissed, so this stays a headless native input
+        that the editor clicks; `FileField` owns the flows where the page itself
+        submits. Its accessible name is how the request stays reachable.
+      */}
       <input
         ref={backgroundFile}
         className="visually-hidden"
@@ -301,6 +377,6 @@ export function TemplateEditor({
           if (file && !draft) void createFromBackground(file);
         }}
       />
-    </div>
+    </Workbench>
   );
 }

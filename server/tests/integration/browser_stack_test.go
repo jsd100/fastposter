@@ -100,7 +100,7 @@ func TestBrowserStack(t *testing.T) {
 	})
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
-	worker := exports.Worker{Service: exports.NewService(db, store, projects.NewService(db, store)), Renderer: &exports.Renderer{ChromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: t.TempDir(), ID: "browser-worker"}
+	worker := exports.Worker{Service: exports.NewService(db, store, projects.NewService(db, store)), Renderer: &exports.Renderer{ChromePath: chromePath(), RendererDir: filepath.Join(root, "apps/renderer/dist")}, TempRoot: t.TempDir(), ID: "browser-worker"}
 	workerDone := make(chan struct{})
 	go func() { defer close(workerDone); worker.Run(workerCtx) }()
 	defer func() { workerCancel(); <-workerDone }()
@@ -114,7 +114,12 @@ func TestBrowserStack(t *testing.T) {
 	defer h.Close()
 	cmd := exec.Command("pnpm", "exec", "vite", "apps/web", "--host", "127.0.0.1", "--port", "15173", "--strictPort", "--config", "apps/web/vite.config.ts")
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "API_PROXY=http://127.0.0.1:18080")
+	// A running developer Vite server may still reference its optimized chunks.
+	// The acceptance servers must generate their own dependency cache.
+	cmd.Env = append(os.Environ(),
+		"API_PROXY=http://127.0.0.1:18080",
+		"FASTPOSTER_VITE_CACHE_DIR="+t.TempDir(),
+	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -133,7 +138,10 @@ func TestBrowserStack(t *testing.T) {
 	}()
 	adminCmd := exec.Command("pnpm", "exec", "vite", "apps/admin", "--host", "127.0.0.1", "--port", "15174", "--strictPort", "--config", "apps/admin/vite.config.ts")
 	adminCmd.Dir = root
-	adminCmd.Env = append(os.Environ(), "API_PROXY=http://127.0.0.1:18080")
+	adminCmd.Env = append(os.Environ(),
+		"API_PROXY=http://127.0.0.1:18080",
+		"FASTPOSTER_VITE_CACHE_DIR="+t.TempDir(),
+	)
 	adminCmd.Stdout = os.Stdout
 	adminCmd.Stderr = os.Stderr
 	adminCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

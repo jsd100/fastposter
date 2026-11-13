@@ -8,6 +8,7 @@ import (
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/testutil"
 	"io/fs"
+	"log"
 	"strings"
 	"sync"
 	"testing"
@@ -237,6 +238,34 @@ func TestCleanupRetryAfterDeleteBeforeAck(t *testing.T) {
 	}
 	for _, key := range seed.Private {
 		f.mustGone(t, key)
+	}
+}
+
+func TestCleanupFailureLogsTaskAndCause(t *testing.T) {
+	var logs strings.Builder
+	previous := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(previous) })
+	flaky := &flakyStore{}
+	f := newCleanupFixtureWith(t, func(store storage.FileStore) storage.FileStore {
+		flaky.FileStore = store
+		return flaky
+	})
+	seed := f.seed(t, "p1", "a1", false)
+	flaky.FailOn = seed.Private[0]
+	ran, e := f.worker.RunOnce(context.Background(), time.Now().UTC())
+	if e != nil || !ran {
+		t.Fatal("cleanup did not run", ran, e)
+	}
+	state, code, attempts, _ := f.taskState(t, seed.TaskID)
+	if state != "retry_wait" || code != "CLEANUP_FAILED" || attempts != 1 {
+		t.Fatalf("failed task state=%s code=%s attempts=%d", state, code, attempts)
+	}
+	out := logs.String()
+	for _, want := range []string{seed.TaskID, "attempt 1", "simulated confirmation failure after delete"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("cleanup failure log missing %q: %s", want, out)
+		}
 	}
 }
 

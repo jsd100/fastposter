@@ -18,7 +18,7 @@ import { apiClient, routes, type AssetReply } from "@fastposter/api-client";
 import { loadFonts, type FontSource } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { Editor, type BackgroundAsset } from "@fastposter/poster-editor";
-import { Status, Button, useErrorNotice } from "@fastposter/ui";
+import { LoadingState, Status, Button, useErrorNotice } from "@fastposter/ui";
 import { ArrowLeft, Save, Package } from "lucide-react";
 import { request, errorMessage, download } from "../../api";
 import { Link } from "../../router";
@@ -47,7 +47,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
   if (!query.data || query.isFetching)
     return (
       <main className="simple-page">
-        <Status>正在打开作品…</Status>
+        <LoadingState label="正在打开作品…" />
       </main>
     );
   return <Workspace key={projectId} initial={query.data.project} />;
@@ -312,7 +312,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
             </div>
           </Dialog>
         ) : (
-          <Status>正在检查本地草稿…</Status>
+          <LoadingState label="正在检查本地草稿…" />
         )}
       </main>
     );
@@ -327,6 +327,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         <SaveStatus status={auto.state.status} />
         <Button
           aria-label="保存作品"
+          title="保存作品"
           disabled={
             auto.state.status === "saved" ||
             auto.state.status === "blocked" ||
@@ -340,6 +341,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         </Button>
         <Button
           aria-label="导出模板包"
+          title="导出模板包"
           busy={packBusy}
           disabled={
             auto.state.status === "blocked" ||
@@ -366,7 +368,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         />
       </header>
       {!readyFonts.length && !error && !fontQuery.error && (
-        <Status>正在载入字体…</Status>
+        <LoadingState label="正在载入字体…" />
       )}
       {auto.state.status === "error" && Boolean(auto.state.error) && (
         <Status tone="error">{errorMessage(auto.state.error)}</Status>
@@ -427,6 +429,10 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
       />
       {libraryOpen && (
         <BackgroundPicker
+          mode="replace"
+          restoreFocusTo={() =>
+            document.querySelector<HTMLElement>("[data-fp-background-entry]")
+          }
           onClose={() => {
             resolver.current?.(undefined);
             resolver.current = null;

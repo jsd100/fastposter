@@ -151,7 +151,31 @@
       "family",
       "weight",
       "style",
-      "license"
+      "license",
+      "expectedVersion"
+    ]
+  },
+  {
+    "name": "AdminGetResource",
+    "method": "GET",
+    "path": "/api/v1/admin/resources/:id/detail",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": []
+  },
+  {
+    "name": "AdminPublishResource",
+    "method": "POST",
+    "path": "/api/v1/admin/resources/:id/publication",
+    "pathFields": [
+      "id"
+    ],
+    "queryFields": [],
+    "bodyFields": [
+      "published",
+      "expectedVersion"
     ]
   },
   {
@@ -173,7 +197,8 @@
     ],
     "queryFields": [],
     "bodyFields": [
-      "parentId"
+      "parentId",
+      "expectedVersion"
     ]
   },
   {

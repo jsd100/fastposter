@@ -310,10 +310,17 @@ export interface ResourceInput {
   weight?: number;
   style?: string;
   license?: string;
+  expectedVersion?: string;
 }
 export interface MoveResourceInput {
   id: string;
   parentId?: string;
+  expectedVersion?: string;
+}
+export interface PublishResourceInput {
+  id: string;
+  published?: boolean;
+  expectedVersion: string;
 }
 export interface FontUploadInput {
   family: string;
@@ -434,8 +441,25 @@ export const routes = {
       "weight",
       "style",
       "license",
+      "expectedVersion",
     ],
   } as Route<ResourceInput, ResourceReply>,
+  AdminGetResource: {
+    name: "AdminGetResource",
+    method: "GET",
+    path: "/api/v1/admin/resources/:id/detail",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: [],
+  } as Route<IDRequest, ResourceReply>,
+  AdminPublishResource: {
+    name: "AdminPublishResource",
+    method: "POST",
+    path: "/api/v1/admin/resources/:id/publication",
+    pathFields: ["id"],
+    queryFields: [],
+    bodyFields: ["published", "expectedVersion"],
+  } as Route<PublishResourceInput, ResourceReply>,
   AdminDeleteResource: {
     name: "AdminDeleteResource",
     method: "DELETE",
@@ -450,7 +474,7 @@ export const routes = {
     path: "/api/v1/admin/resources/:id/move",
     pathFields: ["id"],
     queryFields: [],
-    bodyFields: ["parentId"],
+    bodyFields: ["parentId", "expectedVersion"],
   } as Route<MoveResourceInput, EmptyReply>,
   UploadFont: {
     name: "UploadFont",

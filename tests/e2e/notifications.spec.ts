@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
-import { openPoster } from "./helpers";
+import { chooseCardAction, openPoster } from "./helpers";
 
 async function register(request: Page["request"], username: string) {
   const reply = await request.post("/api/v1/auth/register", {
@@ -56,8 +56,7 @@ test("toast from a modal is accessible and retryable", async ({ page }) => {
   await expect(page).toHaveURL(/\/projects$/);
   const card = page.getByTestId("project-card").first();
   await expect(card).toBeVisible();
-  await card.getByLabel(/的操作$/).click();
-  await card.getByRole("button", { name: "重命名" }).click();
+  await chooseCardAction(page, card.getByLabel(/的操作$/), "重命名");
   const dialog = page.getByRole("dialog", { name: "重命名作品" });
   await expect(dialog).toBeVisible();
   const name = page.getByLabel("作品名称", { exact: true });
@@ -133,16 +132,13 @@ test("rename retry submits the title currently shown", async ({ page }) => {
   await page.getByRole("link", { name: "返回作品" }).click();
   await expect(page).toHaveURL(/\/projects$/);
   const card = page.getByTestId("project-card").first();
-  await card.getByLabel(/的操作$/).click();
-  await card.getByRole("button", { name: "重命名" }).click();
+  await chooseCardAction(page, card.getByLabel(/的操作$/), "重命名");
   const dialog = page.getByRole("dialog", { name: "重命名作品" });
   const name = page.getByLabel("作品名称", { exact: true });
   const titles: string[] = [];
   await page.route("**/api/v1/projects/*", async (route) => {
     if (route.request().method() !== "PUT") return route.fallback();
-    titles.push(
-      (route.request().postDataJSON() as { title: string }).title,
-    );
+    titles.push((route.request().postDataJSON() as { title: string }).title);
     if (titles.length <= 2)
       return route.fulfill({
         status: 500,
@@ -160,8 +156,7 @@ test("rename retry submits the title currently shown", async ({ page }) => {
     page.getByTestId("notice").filter({ hasText: "重命名失败" }),
   ).toHaveCount(0);
 
-  await card.getByLabel(/的操作$/).click();
-  await card.getByRole("button", { name: "重命名" }).click();
+  await chooseCardAction(page, card.getByLabel(/的操作$/), "重命名");
   await name.fill("title A");
   await page.getByRole("button", { name: "保存名称" }).click();
   await expect(page.getByTestId("notice")).toContainText("重命名失败");
@@ -170,6 +165,45 @@ test("rename retry submits the title currently shown", async ({ page }) => {
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText("title B", { exact: true })).toBeVisible();
   expect(titles).toEqual(["title A", "title A", "title B"]);
+});
+
+test("page retry notice survives an overlay transition", async ({
+  page,
+  request,
+}) => {
+  const username = "notice_retry_" + Date.now().toString(36);
+  await register(request, username);
+  let projectLists = 0;
+  await page.route(/\/api\/v1\/projects(\?|$)/, async (route) => {
+    projectLists += 1;
+    if (projectLists > 1) return route.fallback();
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "LIST_FAILED",
+        message: "review-project-list-error",
+      }),
+    });
+  });
+  await login(page, username);
+  const retryNotice = page
+    .getByTestId("notice")
+    .filter({ hasText: "review-project-list-error" });
+  await expect(retryNotice).toHaveCount(1);
+  await expect(retryNotice.getByTestId("notice-action")).toHaveText("重新加载");
+  await expect.poll(() => projectLists).toBe(1);
+  await page.getByRole("button", { name: "模板库", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "模板库" });
+  await expect(picker).toBeVisible();
+  await expect(retryNotice).toHaveCount(1);
+  await picker.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(picker).toHaveCount(0);
+  await expect(retryNotice).toHaveCount(1);
+  await expect.poll(() => projectLists).toBe(1);
+  await retryNotice.getByTestId("notice-action").click();
+  await expect.poll(() => projectLists).toBe(2);
+  await expect(retryNotice).toHaveCount(0);
 });
 
 test("closing a picker dismisses its persistent error notice", async ({
@@ -189,15 +223,11 @@ test("closing a picker dismisses its persistent error notice", async ({
   await page.getByRole("button", { name: "背景库", exact: true }).click();
   const picker = page.getByRole("dialog", { name: "背景库" });
   await expect(
-    page
-      .getByTestId("notice")
-      .filter({ hasText: "review-background-error" }),
+    page.getByTestId("notice").filter({ hasText: "review-background-error" }),
   ).toBeVisible();
   await picker.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(picker).toHaveCount(0);
   await expect(
-    page
-      .getByTestId("notice")
-      .filter({ hasText: "review-background-error" }),
+    page.getByTestId("notice").filter({ hasText: "review-background-error" }),
   ).toHaveCount(0);
 });

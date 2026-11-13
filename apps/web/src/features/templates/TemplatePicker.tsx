@@ -1,7 +1,10 @@
+import { Card } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Pagination } from "antd";
 import {
   apiClient,
+  loadCatalogPages,
   routes,
   type ProjectReply,
   type ResourceDTO,
@@ -9,6 +12,7 @@ import {
 import {
   Button,
   Dialog,
+  LoadingState,
   Select,
   Status,
   TextInput,
@@ -22,15 +26,27 @@ import {
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
 import { request, errorMessage } from "../../api";
 import { useSession } from "../auth/Session";
+import {
+  classifyCreationFailure,
+  useCreationScope,
+} from "../projects/project-creation";
+
+const PAGE_SIZE = 24;
 
 export function TemplatePicker({
   onClose,
   onApplied,
+  onUnknownOutcome,
 }: {
   onClose: () => void;
   onApplied: (projectId: string) => void;
+  onUnknownOutcome: () => void;
 }) {
   const { user } = useSession();
+  /* FP-06 / Ruling 50: apply and import may create a work too, so their
+     replies are bound to the current account, one operation and this picker's
+     lifetime. A late reply must not navigate or raise a stale notice. */
+  const scope = useCreationScope(user?.id ?? "");
   const [page, setPage] = useState(1),
     [keyword, setKeyword] = useState(""),
     [category, setCategory] = useState(""),
@@ -43,7 +59,7 @@ export function TemplatePicker({
       request(routes.ListCatalog, {
         kind: "template",
         page,
-        pageSize: 24,
+        pageSize: PAGE_SIZE,
         keyword,
         categoryId: category || undefined,
       }),
@@ -53,11 +69,13 @@ export function TemplatePicker({
   const categories = useQuery({
     queryKey: ["template-categories", user!.id],
     queryFn: () =>
-      request(routes.ListCatalog, {
-        kind: "template-category",
-        page: 1,
-        pageSize: 100,
-      }),
+      loadCatalogPages((page, pageSize) =>
+        request(routes.ListCatalog, {
+          kind: "template-category",
+          page,
+          pageSize,
+        }),
+      ),
     retry: false,
   });
   const fonts = useQuery({
@@ -127,8 +145,20 @@ export function TemplatePicker({
       active = false;
     };
   }, [fonts.data, signature, documents]);
+  /* FP-06: known rejections stay on the original error path; an unconfirmed
+     outcome hands control back to the works list with a reload-only notice. */
+  function handleFailure(e: unknown) {
+    const kind = classifyCreationFailure(e);
+    if (kind === "unknown-outcome") {
+      setError("");
+      onUnknownOutcome();
+      return;
+    }
+    setError(errorMessage(e));
+  }
   async function apply(resource: ResourceDTO) {
-    if (busy) return;
+    const op = scope.claim();
+    if (!op) return;
     setBusy(resource.id);
     setError("");
     try {
@@ -136,17 +166,24 @@ export function TemplatePicker({
         id: resource.id,
         version: resource.version,
       });
+      // Late reply from a logged-out/switched account: never navigate.
+      if (!scope.isValid(op)) return;
       onApplied(result.project.id);
     } catch (e) {
-      setError(errorMessage(e));
+      if (!scope.isValid(op)) return;
+      handleFailure(e);
     } finally {
-      setBusy("");
+      if (scope.isValid(op)) setBusy("");
+      scope.release(op);
     }
   }
   async function importPackage(selected: File | undefined) {
     if (!selected) return;
+    const op = scope.claim();
+    if (!op) return;
     if (selected.size > 80 * 1024 * 1024) {
       setError("模板包不能超过 80 MiB");
+      scope.release(op);
       return;
     }
     setBusy("import");
@@ -158,19 +195,28 @@ export function TemplatePicker({
         "/api/v1/templates/import",
         form,
       );
+      if (!scope.isValid(op)) return;
       onApplied(result.project.id);
     } catch (e) {
-      setError(errorMessage(e));
+      if (!scope.isValid(op)) return;
+      // apiClient.upload() bypasses request(), so AUTH_REQUIRED needs the
+      // session-expired event dispatched explicitly here.
+      if (classifyCreationFailure(e) === "auth-required")
+        window.dispatchEvent(new Event("session-expired"));
+      handleFailure(e);
     } finally {
-      setBusy("");
+      if (scope.isValid(op)) setBusy("");
       if (file.current) file.current.value = "";
+      scope.release(op);
     }
   }
   return (
     <Dialog title="模板库" className="template-picker" onClose={onClose}>
-      <p>选择模板会创建一个独立作品，保留画布、背景与文字排版。</p>
+      <p className="picker-description">
+        使用模板会创建独立作品，保留原有画布、背景与文字排版。
+      </p>
       <div className="picker-filters">
-        <TextInput variant="bare"
+        <TextInput
           aria-label="搜索模板"
           placeholder="搜索模板"
           value={keyword}
@@ -188,10 +234,9 @@ export function TemplatePicker({
           }}
           options={[
             { value: "", label: "全部分类" },
-            ...(categories.data?.resources.map((r) => ({
-              value: r.id,
-              label: r.title,
-            })) ?? []),
+            ...(categories.isSuccess
+              ? categories.data.map((r) => ({ value: r.id, label: r.title }))
+              : []),
           ]}
         />
         <Button
@@ -210,28 +255,41 @@ export function TemplatePicker({
           onChange={(e) => void importPackage(e.target.files?.[0])}
         />
       </div>
+      {categories.isError && (
+        <div data-testid="category-error" className="picker-failed">
+          <Status tone="error">分类加载失败，请重新加载</Status>
+          <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
       <div className="template-picker-grid">
         {q.data?.resources.map((resource) => {
           const document = documents.get(resource.id);
           return (
-            <article key={resource.id} className="template-card">
-              {document ? (
-                <PosterThumbnail
-                  document={document}
-                  backgroundUrl={resource.asset?.previewUrl}
-                  alt={`${resource.title} 预览`}
-                />
-              ) : (
-                <div className="template-preview-fallback" aria-hidden="true" />
-              )}
-              <div>
-                <h3>{resource.title}</h3>
-                <small>
+            <Card
+              key={resource.id}
+              size="small"
+              className="template-card"
+              cover={
+                <div className="template-card-preview">
+                  {document && (
+                    <PosterThumbnail
+                      document={document}
+                      backgroundUrl={resource.asset?.previewUrl}
+                      alt={`${resource.title} 预览`}
+                      maxHeight={152}
+                    />
+                  )}
+                </div>
+              }
+            >
+              <div className="template-card-info">
+                <h3 title={resource.title}>{resource.title}</h3>
+                <span className="template-card-meta">
                   {document
                     ? `${document.canvas.width} × ${document.canvas.height} px`
                     : "预览不可用"}
-                  {fontsReady ? "" : " · 正在载入字体"}
-                </small>
+                  {!fontsReady && <span>正在载入字体</span>}
+                </span>
                 <Button
                   variant="primary"
                   busy={busy === resource.id}
@@ -241,27 +299,30 @@ export function TemplatePicker({
                   使用模板
                 </Button>
               </div>
-            </article>
+            </Card>
           );
         })}
       </div>
-      {q.isPending && <Status>正在加载模板…</Status>}
+      {q.isPending && <LoadingState label="正在加载模板…" />}
+      {q.error && (
+        <div className="picker-failed">
+          <Status tone="error">模板加载失败，当前筛选已保留。</Status>
+          <Button onClick={() => void q.refetch()}>重新加载</Button>
+        </div>
+      )}
       {q.data?.resources.length === 0 && (
         <p className="picker-empty">暂无已发布的模板。</p>
       )}
-      {(q.data?.total ?? 0) > 24 && (
-        <div className="pagination">
-          <Button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-            上一页
-          </Button>
-          <span>{page}</span>
-          <Button
-            disabled={page * 24 >= (q.data?.total ?? 0)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            下一页
-          </Button>
-        </div>
+      {(q.data?.total ?? 0) > PAGE_SIZE && (
+        <nav className="picker-pager" aria-label="模板分页">
+          <Pagination
+            current={page}
+            pageSize={PAGE_SIZE}
+            total={q.data?.total ?? 0}
+            showSizeChanger={false}
+            onChange={setPage}
+          />
+        </nav>
       )}
     </Dialog>
   );

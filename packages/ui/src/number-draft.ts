@@ -18,3 +18,19 @@ export function classifyNumberDraft(
   if (max !== undefined && value > max) return { kind: "invalid" };
   return { kind: "valid", value };
 }
+
+/**
+ * One step from `base`, clamped to the same inclusive bounds the draft
+ * validator enforces, and rounded to hide binary fraction noise.
+ */
+export function stepNumber(
+  base: number,
+  delta: number,
+  min?: number,
+  max?: number,
+): number {
+  let next = base + delta;
+  if (min !== undefined) next = Math.max(min, next);
+  if (max !== undefined) next = Math.min(max, next);
+  return Number(next.toPrecision(12));
+}

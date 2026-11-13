@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openPoster } from "./helpers";
+import { inspectorOption, openPoster } from "./helpers";
 test("autosaves and preserves a second-window conflict as a separate project", async ({
   page,
   context,
@@ -10,9 +10,11 @@ test("autosaves and preserves a second-window conflict as a separate project", a
   const other = await context.newPage();
   await other.goto(url);
   await expect(other.locator("[data-text-block]")).toHaveCount(1);
+  await inspectorOption(page, "位置").click();
   await page.getByLabel("文本框宽度", { exact: true }).fill("650");
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   await other.locator("[data-text-block]").first().click();
+  await inspectorOption(other, "位置").click();
   await other.getByLabel("文本框宽度", { exact: true }).fill("550");
   await expect(
     other.getByRole("dialog", { name: "作品版本冲突" }),
@@ -41,17 +43,19 @@ test("autosaves and preserves a second-window conflict as a separate project", a
   });
   expect(renamed.ok()).toBeTruthy();
   await third.locator("[data-text-block]").click();
+  await inspectorOption(third, "位置").click();
   await third.getByLabel("文本框宽度", { exact: true }).fill("600");
   await expect(
     third.getByRole("dialog", { name: "作品版本冲突" }),
   ).toBeVisible();
   await third
-    .getByRole("button", { name: "加载云端版本", exact: true })
+    .getByRole("button", { name: "加载已保存版本", exact: true })
     .click();
   await expect(
     third.getByRole("heading", { name: "云端改名", exact: true }),
   ).toBeVisible();
   await third.locator("[data-text-block]").click();
+  await inspectorOption(third, "位置").click();
   await third.getByLabel("文本框宽度", { exact: true }).fill("610");
   await expect(third.getByText("已保存", { exact: true })).toBeVisible();
   expect(
@@ -69,6 +73,7 @@ test("offline edits survive reload after reconnection and require a recovery cho
       ? route.abort("internetdisconnected")
       : route.continue(),
   );
+  await inspectorOption(page, "位置").click();
   await page.getByLabel("文本框宽度", { exact: true }).fill("420");
   await expect(
     page.getByText("离线 · 草稿已保留", { exact: true }),

@@ -3,9 +3,117 @@ import type {
   PosterDocument,
   TextBlock,
 } from "@fastposter/poster-schema";
+import type { NumberDraftSnapshot } from "@fastposter/ui";
 import { DocumentHistory } from "./history";
 import type { ViewTransform } from "./geometry";
 export type EditorMode = "select" | "edit";
+
+/**
+ * One edit gesture owns exactly one open history transaction. The handle
+ * carries the session generation, the edit target and a unique id, so a late
+ * callback (an old debounce timer, a stale blur) can never finish a newer
+ * transaction or one belonging to another page/account (FP-08).
+ */
+export type TransactionOwner = "richtext" | "control";
+export type TransactionHandle = {
+  session: number;
+  target: string;
+  id: number;
+  owner: TransactionOwner;
+};
+
+/**
+ * A suspended number draft is scoped by work/template, text block, property
+ * and edit target, and remembers the transaction that owns its gesture.
+ */
+export type DraftScope = {
+  work: string;
+  blockId: string;
+  field: string;
+  target: string;
+};
+export type DraftRecord = {
+  scope: DraftScope;
+  snapshot: NumberDraftSnapshot;
+  handle: TransactionHandle | null;
+  /** History depth when this input session began, for a scoped cancel. */
+  sessionDepth: number;
+};
+export class NumberDraftSession {
+  private records = new Map<string, DraftRecord>();
+  private generation = 0;
+  private key(scope: DraftScope) {
+    return JSON.stringify([
+      this.generation,
+      scope.work,
+      scope.blockId,
+      scope.field,
+      scope.target,
+    ]);
+  }
+  read(scope: DraftScope): NumberDraftSnapshot | undefined {
+    return this.records.get(this.key(scope))?.snapshot;
+  }
+  handleOf(scope: DraftScope): TransactionHandle | null {
+    return this.records.get(this.key(scope))?.handle ?? null;
+  }
+  depthOf(scope: DraftScope): number | undefined {
+    return this.records.get(this.key(scope))?.sessionDepth;
+  }
+  write(
+    scope: DraftScope,
+    snapshot: NumberDraftSnapshot,
+    handle: TransactionHandle | null,
+    sessionDepth = 0,
+  ) {
+    const existing = this.records.get(this.key(scope));
+    this.records.set(this.key(scope), {
+      scope,
+      snapshot,
+      handle,
+      // A suspended draft keeps the depth of the session that opened it
+      // across remounts; a fresh record adopts the caller's current depth.
+      sessionDepth: existing?.sessionDepth ?? sessionDepth,
+    });
+  }
+  clear(scope: DraftScope) {
+    this.records.delete(this.key(scope));
+  }
+  /** Both delete entries clear every draft of the removed block. */
+  discardBlock(blockId: string) {
+    for (const [key, record] of Array.from(this.records))
+      if (record.scope.blockId === blockId) this.records.delete(key);
+  }
+  /**
+   * An active target switch folds the unfinished strings of the block/target
+   * being left back to their last valid value, like a deliberate blur. Drafts
+   * of other blocks, other fields on another target or another work keep
+   * their suspended raw string, so switching selection never discards input
+   * the user has not acted on (FP-08 scope contract).
+   */
+  tidy(scope: Pick<DraftScope, "work" | "blockId" | "target">) {
+    for (const [key, record] of Array.from(this.records)) {
+      if (
+        record.scope.work !== scope.work ||
+        record.scope.blockId !== scope.blockId ||
+        record.scope.target !== scope.target
+      )
+        continue;
+      const { raw, baseline, lastValid } = record.snapshot;
+      const settledRaw = lastValid == null ? "" : String(lastValid);
+      if (raw === settledRaw) continue;
+      this.records.set(key, {
+        ...record,
+        snapshot: { raw: settledRaw, baseline, lastValid },
+      });
+    }
+  }
+  /** Page / edit target / account invalidation ends the old draft session. */
+  invalidate() {
+    this.generation += 1;
+    this.records.clear();
+  }
+}
 export type EditorState = {
   document: PosterDocument;
   selectedId: string | null;
@@ -21,6 +129,13 @@ export function createEditorStore(
   onChange?: (doc: PosterDocument) => void,
 ) {
   const history = new DocumentHistory(initial);
+  // The edit session is the only owner of gesture transactions. Handles are
+  // matched against both this registry and the history token, so a stale
+  // callback can never commit a transaction started after it.
+  let sessionGeneration = 0;
+  let nextTransactionId = 0;
+  let activeHandle: TransactionHandle | null = null;
+  const drafts = new NumberDraftSession();
   let state: EditorState = {
     document: history.value,
     selectedId: null,
@@ -52,6 +167,90 @@ export function createEditorStore(
       };
     },
     history,
+    drafts,
+    /**
+     * Begin (or continue) one gesture's transaction. A second acquire for the
+     * same owner+target merges into the open transaction; a different gesture
+     * first finalises the previous one. A bare, token-less transaction is
+     * finalised too, so the session always owns the transaction it opens.
+     */
+    acquire: (owner: TransactionOwner, target: string): TransactionHandle => {
+      if (activeHandle && !history.matches(activeHandle)) activeHandle = null;
+      if (activeHandle && activeHandle.session === sessionGeneration) {
+        if (activeHandle.owner === owner && activeHandle.target === target)
+          return activeHandle;
+        history.commit();
+        activeHandle = null;
+      } else if (history.inTransaction) {
+        history.commit();
+        activeHandle = null;
+      }
+      const handle: TransactionHandle = {
+        session: sessionGeneration,
+        owner,
+        target,
+        id: ++nextTransactionId,
+      };
+      history.begin(handle);
+      activeHandle = handle;
+      emit();
+      return handle;
+    },
+    /**
+     * Finish only the transaction that still matches this handle. Old
+     * timers / blur / closed targets are ignored, and a cancelled gesture
+     * reverts the document without adding a history entry.
+     */
+    finish: (
+      handle: TransactionHandle,
+      action: "commit" | "cancel",
+    ): boolean => {
+      if (
+        !activeHandle ||
+        activeHandle.id !== handle.id ||
+        activeHandle.session !== sessionGeneration ||
+        !history.matches(handle)
+      ) {
+        if (activeHandle && !history.matches(activeHandle)) activeHandle = null;
+        return false;
+      }
+      activeHandle = null;
+      if (action === "commit") history.commit();
+      else history.cancel();
+      emit(action === "cancel");
+      return true;
+    },
+    activeTransaction: (): TransactionHandle | null =>
+      activeHandle && history.matches(activeHandle) ? activeHandle : null,
+    /** "external" marks a bare transaction owned outside the session. */
+    transactionOwner: (): TransactionOwner | "external" | null => {
+      if (activeHandle && history.matches(activeHandle))
+        return activeHandle.owner;
+      if (history.inTransaction) return "external";
+      return null;
+    },
+    /** History depth at the start of a bound number input session. */
+    historyDepth: () => history.depth,
+    /**
+     * Cancel a committed bound-number input session. The restore is a
+     * transaction rollback of every commit since `depth`, not a fresh write,
+     * so Escape adds no undo entry and leaves no redo entry; autosave then
+     * persists the restored value through the normal change callback.
+     */
+    cancelNumberSession: (depth: number) => {
+      history.rollbackTo(depth);
+      emit(true);
+    },
+    /** Page / account / remote-deletion invalidation ends the old session. */
+    invalidateSession: () => {
+      if (activeHandle) {
+        history.commit();
+        activeHandle = null;
+      }
+      sessionGeneration += 1;
+      drafts.invalidate();
+      emit();
+    },
     select: (id: string | null, mode: EditorMode = "select") => {
       history.commit();
       state = { ...state, selectedId: id, mode };

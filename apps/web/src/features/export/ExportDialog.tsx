@@ -1,7 +1,14 @@
 import { useState } from "react";
+import { Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
 import { routes, type JobDTO, type ProjectDTO } from "@fastposter/api-client";
-import { Button, Dialog, Status, useErrorNotice } from "@fastposter/ui";
+import {
+  Button,
+  Dialog,
+  LoadingState,
+  Status,
+  useErrorNotice,
+} from "@fastposter/ui";
 import { Download, CheckCircle2 } from "lucide-react";
 import { request, errorMessage } from "../../api";
 export function ExportControls({
@@ -35,14 +42,10 @@ export function ExportControls({
   const current = query.data?.job ?? job;
   const running = current?.status === "queued" || current?.status === "running";
   useErrorNotice("export:start", error || null);
-  useErrorNotice(
-    "export:job",
-    query.error ? errorMessage(query.error) : null,
-    {
-      persistent: true,
-      action: { label: "重试查询", onClick: () => void query.refetch() },
-    },
-  );
+  useErrorNotice("export:job", query.error ? errorMessage(query.error) : null, {
+    persistent: true,
+    action: { label: "重试查询", onClick: () => void query.refetch() },
+  });
   async function start() {
     if (busy) return;
     setOpen(true);
@@ -66,7 +69,7 @@ export function ExportControls({
     <>
       <Button
         variant="primary"
-        disabled={overflow || blocked}
+        disabled={!running && (overflow || blocked)}
         onClick={() => {
           if (running) setOpen(true);
           else void start();
@@ -81,12 +84,7 @@ export function ExportControls({
           className="export-dialog"
           onClose={() => setOpen(false)}
         >
-          {busy ? (
-            <Status>
-              <span className="spinner" />
-              正在保存最新修改并创建导出…
-            </Status>
-          ) : null}
+          {busy ? <LoadingState label="正在保存最新修改并创建导出…" /> : null}
           {current && !busy && (
             <>
               <div className="export-version">
@@ -94,8 +92,13 @@ export function ExportControls({
                 <span>PNG · 原图像素</span>
               </div>
               {running && (
-                <div className="export-wait">
-                  <span className="spinner" />
+                <div
+                  className="export-wait"
+                  role="status"
+                  aria-busy="true"
+                  data-fp-loading=""
+                >
+                  <Spin size="small" aria-hidden="true" />
                   <h3>
                     {current.status === "queued"
                       ? "正在排队"

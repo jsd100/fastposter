@@ -1,9 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { routes, type ResourceDTO } from "@fastposter/api-client";
+import { Pagination } from "antd";
+import {
+  loadCatalogPages,
+  routes,
+  type ResourceDTO,
+} from "@fastposter/api-client";
 import {
   Button,
   Dialog,
+  LoadingState,
   Select,
   Status,
   TextInput,
@@ -23,8 +29,11 @@ function categoryTree(rows: ResourceDTO[]): CategoryNode[] {
   const roots: CategoryNode[] = [];
   for (const row of rows) {
     const node = nodes.get(row.id)!;
-    if (!row.parentId) roots.push(node);
-    else nodes.get(row.parentId)?.children.push(node);
+    /* FP-10 / Ruling 135. A published node whose parent is not in the visible
+       (published) set becomes a selectable root and still carries its visible
+       descendants; real ids and the existing sort order are preserved. */
+    if (!row.parentId || !nodes.has(row.parentId)) roots.push(node);
+    else nodes.get(row.parentId)!.children.push(node);
   }
   const sort = (list: CategoryNode[]) => {
     list.sort(
@@ -49,27 +58,20 @@ export function CopyPicker({
     [path, setPath] = useState<string[]>([]);
   const categories = useQuery({
     queryKey: ["copy-categories", user!.id],
-    queryFn: async () => {
-      const resources: ResourceDTO[] = [];
-      let total = 0;
-      for (let page = 1; page <= 1000; page++) {
-        const reply = await request(routes.ListCatalog, {
+    queryFn: () =>
+      loadCatalogPages((page, pageSize) =>
+        request(routes.ListCatalog, {
           kind: "copy-category",
           page,
-          pageSize: 100,
-        });
-        total = reply.total;
-        resources.push(...reply.resources);
-        if (resources.length >= total || reply.resources.length === 0) break;
-      }
-      return { resources, total };
-    },
+          pageSize,
+        }),
+      ),
     retry: false,
     staleTime: 60_000,
   });
   const roots = useMemo(
-    () => categoryTree(categories.data?.resources ?? []),
-    [categories.data],
+    () => categoryTree(categories.isSuccess ? categories.data : []),
+    [categories.isSuccess, categories.data],
   );
   const levels: CategoryNode[][] = [];
   let current = roots;
@@ -117,7 +119,7 @@ export function CopyPicker({
         选择分类浏览已发布文案。无选区时新建文字块；选中文字时替换选区并沿用当前样式。
       </p>
       <div className="picker-filters">
-        <TextInput variant="bare"
+        <TextInput
           aria-label="搜索文案"
           placeholder="搜索文案标题或内容"
           value={keyword}
@@ -127,7 +129,13 @@ export function CopyPicker({
           }}
         />
       </div>
-      {categories.isPending && <Status>正在加载文案分类…</Status>}
+      {categories.isPending && <LoadingState label="正在加载文案分类…" />}
+      {categories.isError && (
+        <div data-testid="category-error" className="picker-failed">
+          <Status tone="error">分类加载失败，请重新加载</Status>
+          <Button onClick={() => void categories.refetch()}>重新加载</Button>
+        </div>
+      )}
       {levels.length > 0 && (
         <div className="copy-category-path">
           {levels.map((nodes, depth) => (
@@ -159,7 +167,7 @@ export function CopyPicker({
       )}
       <div className="copy-picker-list">
         {copies.data?.resources.map((row) => (
-          <button
+          <Button
             key={row.id}
             aria-label={`使用文案 ${row.title}`}
             disabled={!row.body}
@@ -167,28 +175,31 @@ export function CopyPicker({
           >
             <strong>{row.title}</strong>
             <span>{row.body}</span>
-          </button>
+          </Button>
         ))}
       </div>
-      {copies.isPending && <Status>正在加载文案…</Status>}
+      {copies.isPending && <LoadingState label="正在加载文案…" />}
+      {copies.error && (
+        <div className="picker-failed">
+          <Status tone="error">文案加载失败，当前分类已保留。</Status>
+          <Button onClick={() => void copies.refetch()}>重新加载</Button>
+        </div>
+      )}
       {copies.data?.resources.length === 0 && (
         <p className="picker-empty">
           {selected ? "该分类暂无已发布文案。" : "暂无已发布文案。"}
         </p>
       )}
       {(copies.data?.total ?? 0) > PAGE_SIZE && (
-        <div className="pagination">
-          <Button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-            上一页
-          </Button>
-          <span>{page}</span>
-          <Button
-            disabled={page * PAGE_SIZE >= (copies.data?.total ?? 0)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            下一页
-          </Button>
-        </div>
+        <nav className="picker-pager" aria-label="文案分页">
+          <Pagination
+            current={page}
+            pageSize={PAGE_SIZE}
+            total={copies.data?.total ?? 0}
+            showSizeChanger={false}
+            onChange={setPage}
+          />
+        </nav>
       )}
     </Dialog>
   );

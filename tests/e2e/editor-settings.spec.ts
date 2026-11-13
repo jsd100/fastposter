@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { openPoster, selectScenery } from "./helpers";
+import { inspectorOption, openPoster, selectScenery } from "./helpers";
 
 async function textFontSize(locator: Locator, needle: string) {
   return locator.evaluate((root, needle) => {
@@ -17,9 +17,7 @@ async function savedDocument(page: Page) {
   await expect(page.getByText("待保存", { exact: true })).toBeVisible();
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   const id = page.url().split("/").at(-2)!;
-  const body = await (
-    await page.request.get(`/api/v1/projects/${id}`)
-  ).json();
+  const body = await (await page.request.get(`/api/v1/projects/${id}`)).json();
   return JSON.parse(body.project.document) as {
     textBlocks: { effects: { opacity: number; padding: number } }[];
   };
@@ -46,7 +44,15 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   await sizeDown.click();
   await expect(size).toHaveValue("64");
   await expect(block).toHaveCSS("font-size", "64px");
+  const sizeBox = (await size.boundingBox())!;
 
+  const groups = page.getByRole("radiogroup", { name: "属性分组" });
+  await groups
+    .getByRole("radio", { name: "文字", exact: true })
+    .press("ArrowRight");
+  await expect(
+    groups.getByRole("radio", { name: "段落", exact: true }),
+  ).toBeChecked();
   const lineHeight = page.getByLabel("文字行高", { exact: true });
   const lineUp = page.getByRole("button", {
     name: "增加文字行高",
@@ -71,9 +77,9 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   const lineBox = (await lineHeight.boundingBox())!;
   const spacingBox = (await spacing.boundingBox())!;
   expect(spacingBox.y).toBeGreaterThan(lineBox.y + lineBox.height);
-  expect((await size.boundingBox())!.width).toBeGreaterThan(80);
+  expect(sizeBox.width).toBeGreaterThan(80);
 
-  await page.locator("summary", { hasText: "文字效果" }).click();
+  await inspectorOption(page, "效果").click();
   const opacity = page.getByLabel("透明度", { exact: true });
   await expect(opacity).toHaveValue("100");
   await opacity.fill("50");
@@ -89,6 +95,7 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   const saved = await savedDocument(page);
   expect(saved.textBlocks[0].effects.opacity).toBe(0.55);
 
+  await inspectorOption(page, "文字").click();
   await size.fill("4096");
   await size.blur();
   await expect(sizeUp).toBeDisabled();
@@ -96,12 +103,14 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   await size.blur();
   await expect(sizeDown).toBeDisabled();
 
+  await inspectorOption(page, "位置").click();
+  const width = Number(await page.getByLabel("文本框宽度").inputValue());
+  await inspectorOption(page, "效果").click();
   const padding = page.getByLabel("内边距", { exact: true });
   const paddingUp = page.getByRole("button", {
     name: "增加内边距",
     exact: true,
   });
-  const width = Number(await page.getByLabel("文本框宽度").inputValue());
   const max = Math.max(0, width / 2 - 0.001);
   await padding.fill(String(Math.floor(max) - 1));
   await padding.blur();
@@ -111,10 +120,66 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   expect(finalPadding).toBeLessThanOrEqual(max + 1e-9);
   expect(finalPadding).toBeGreaterThan(max - 2);
   await expect(paddingUp).toBeDisabled();
-  const rendered = await block.evaluate(
-    (el) => Number.parseFloat(getComputedStyle(el).paddingTop),
+  const rendered = await block.evaluate((el) =>
+    Number.parseFloat(getComputedStyle(el).paddingTop),
   );
   expect(Math.abs(rendered - finalPadding)).toBeLessThan(0.01);
+});
+
+test("resize keeps the active selection and raw field draft", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openPoster(page, "resizedraft");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  const size = page.getByLabel("文字字号", { exact: true });
+  await expect(size).toHaveValue("64");
+  await size.fill("12.");
+  await expect(size).toHaveValue("12.");
+  // A trailing decimal point is a draft: neither the document nor the save
+  // state may move until the value becomes a number.
+  expect(await textFontSize(input, "风")).toBe("64px");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await expect(sheet).toBeVisible();
+  // The sheet opens on the same group, whose draft the resize must keep.
+  const mobileSize = sheet.getByLabel("文字字号", { exact: true });
+  await expect(mobileSize).toHaveValue("12.");
+  await expect(
+    sheet.getByRole("radio", { name: "文字", exact: true }),
+  ).toBeChecked();
+  // Focusing a field puts the caret at its start; a person continuing to type
+  // into the same draft would first land at the end of it. End is a jump to the
+  // bound in this control, so place the caret explicitly.
+  await mobileSize.focus();
+  await mobileSize.evaluate((el) => {
+    const input = el as HTMLInputElement;
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
+  await mobileSize.press("5");
+  await expect(mobileSize).toHaveValue("12.5");
+  expect(await textFontSize(input, "风")).toBe("12.5px");
+  expect(await textFontSize(input, "世")).toBe("64px");
+  await mobileSize.blur();
+
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  const block = page.locator("[data-text-block]").first();
+  expect(await textFontSize(block, "你")).toBe("64px");
+  expect(await textFontSize(block, "风")).toBe("12.5px");
+  expect(await textFontSize(block, "世")).toBe("64px");
+
+  // The breakpoint switch and the sheet open/close are view state, so one
+  // undo unwinds the size change itself rather than a layout step.
+  await page.keyboard.press("Control+z");
+  expect(await textFontSize(block, "你")).toBe("64px");
+  expect(await textFontSize(block, "风")).toBe("64px");
+  expect(await textFontSize(block, "世")).toBe("64px");
 });
 
 test("a mixed font-size selection steps from its first character and undoes once", async ({
@@ -131,6 +196,14 @@ test("a mixed font-size selection steps from its first character and undoes once
   );
 
   await input.focus();
+  // Typing the size left the DOM selection inside that field. Tiptap restores
+  // its own selection asynchronously when the canvas regains focus, so wait for
+  // that caret before the keystrokes: sent immediately, the restore lands in the
+  // middle of them and the panel ends up describing a shorter range than the
+  // canvas highlights — a real pointer cannot type that fast.
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+    .toBe("风景");
   await input.press("Home");
   for (let i = 0; i < 4; i++) await input.press("Shift+ArrowRight");
   await expect
@@ -139,9 +212,7 @@ test("a mixed font-size selection steps from its first character and undoes once
   await expect(size).toHaveValue("");
   await expect(size).toHaveAttribute("placeholder", "混合");
 
-  await page
-    .getByRole("button", { name: "增加文字字号", exact: true })
-    .click();
+  await page.getByRole("button", { name: "增加文字字号", exact: true }).click();
   await expect(size).toHaveValue("65");
   expect(await textFontSize(input, "你")).toBe("65px");
   expect(await textFontSize(input, "风")).toBe("65px");
@@ -178,6 +249,21 @@ test("holding a stepper groups its repeats into one undo entry", async ({
   expect(held).toBeGreaterThan(67);
   await expect(block).toHaveCSS("font-size", `${held}px`);
 
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(size).toHaveValue("64");
+  await expect(block).toHaveCSS("font-size", "64px");
+
+  // Two undos observe the boundary: the hold is one entry on top of the
+  // independent click, so it unwinds to 65 and then to 64.
+  await plus.click();
+  await expect(size).toHaveValue("65");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  expect(Number(await size.inputValue())).toBeGreaterThan(68);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(size).toHaveValue("65");
   await page.getByRole("button", { name: "撤销", exact: true }).click();
   await expect(size).toHaveValue("64");
   await expect(block).toHaveCSS("font-size", "64px");
@@ -222,9 +308,108 @@ test.describe("touch steppers", () => {
     await page.getByRole("button", { name: "关闭", exact: true }).click();
     expect(await textFontSize(input, "风")).toBe("66px");
     expect(await textFontSize(input, "你")).toBe("64px");
-    await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+    await page
+      .getByRole("button", { name: "完成文字编辑", exact: true })
+      .click();
     const block = page.locator("[data-text-block]").first();
     expect(await textFontSize(block, "风")).toBe("66px");
     expect(await textFontSize(block, "世")).toBe("64px");
   });
+});
+
+test("number Escape after resize restores original baseline", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openPoster(page, "a03escape");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.locator("[data-text-block]").first().click();
+  await inspectorOption(page, "效果").click();
+  const padding = page.getByLabel("内边距", { exact: true });
+  await expect(padding).toHaveValue("0");
+  // 0 -> 12 (valid) -> "12." (suspended). The session baseline is 0.
+  await padding.fill("12");
+  await padding.fill("12.");
+  // A breakpoint swap unmounts the field but keeps the suspended draft and
+  // its cancel baseline in the edit session.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await expect(sheet).toBeVisible();
+  const mobile = sheet.getByLabel("内边距", { exact: true });
+  await expect(mobile).toHaveValue("12.");
+  await mobile.press("Escape");
+  // Escape cancels the whole input session back to its starting value.
+  await expect(mobile).toHaveValue("0");
+  await expect(page.locator("[data-text-block]").first()).toHaveCSS(
+    "padding-top",
+    "0px",
+  );
+});
+
+test("deleting a block discards its suspended number draft", async ({
+  page,
+}) => {
+  await openPoster(page, "a03delete");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.locator("[data-text-block]").first().click();
+  await inspectorOption(page, "效果").click();
+  const padding = page.getByLabel("内边距", { exact: true });
+  await expect(padding).toHaveValue("0");
+  await padding.fill("12");
+  await padding.fill("12.");
+  // A breakpoint swap unmounts the field without a blur, so the suspended
+  // draft stays in the session while focus is no longer inside an input.
+  await page.setViewportSize({ width: 390, height: 844 });
+  // A detached input can still own document focus after the unmount; move it
+  // to a neutral heading so the canvas shortcut is delivered to a real target.
+  await page.getByRole("heading", { level: 1 }).click();
+  // The shortcut delete reads the live store selection and discards the draft.
+  await page.keyboard.press("Delete");
+  await expect(page.locator("[data-text-block]")).toHaveCount(0);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.locator("[data-text-block]")).toHaveCount(1);
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await inspectorOption(sheet, "效果").click();
+  // Undo restores only the last valid document value, never the old raw draft.
+  await expect(sheet.getByLabel("内边距", { exact: true })).toHaveValue("12");
+});
+
+/** Width of the first block in the cloud document, after autosave settles. */
+async function savedWidth(page: Page): Promise<number | null> {
+  const id = page.url().split("/").at(-2)!;
+  const body = await (await page.request.get(`/api/v1/projects/${id}`)).json();
+  const blocks = JSON.parse(body.project.document).textBlocks as {
+    width: number;
+  }[];
+  return blocks[0]?.width ?? null;
+}
+
+test("position Escape restores the session baseline without an extra undo step", async ({
+  page,
+}) => {
+  await openPoster(page, "a03posescape");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.locator("[data-text-block]").first().click();
+  await inspectorOption(page, "位置").click();
+  const width = page.getByLabel("文本框宽度", { exact: true });
+  const baseline = Number(await width.inputValue());
+  const undo = page.getByRole("button", { name: "撤销", exact: true });
+  // A valid value takes effect and is saved, exactly like the baseline path.
+  await width.fill("650");
+  await expect(width).toHaveValue("650");
+  await expect.poll(() => savedWidth(page)).toBe(650);
+  // Escape cancels the whole input session back to its starting value.
+  await width.press("Escape");
+  await expect(width).toHaveValue(String(baseline));
+  await expect.poll(() => savedWidth(page)).toBe(baseline);
+  // Cancelling must not add a history entry: the undo stack is back to its
+  // pre-session state, so one undo returns to exactly the same state as
+  // undoing before the input session (the work before "添加文字", no block).
+  // A bound position field that instead writes the restore value through a
+  // fresh committed transaction leaves an extra entry, and one undo only
+  // reveals the just-cancelled 650.
+  await undo.click();
+  await expect.poll(() => savedWidth(page)).toBeNull();
 });

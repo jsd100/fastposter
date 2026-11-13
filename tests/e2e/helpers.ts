@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import path from "node:path";
 export async function openPoster(page: Page, prefix = "rich") {
   const name = prefix + "_" + Date.now().toString(36);
@@ -15,10 +15,26 @@ export async function openPoster(page: Page, prefix = "rich") {
     .getByLabel("导入背景图文件")
     .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
   await expect(page).toHaveURL(/\/edit$/);
-  await expect(
-    page.getByRole("button", { name: "添加文字", exact: true }),
-  ).toBeEnabled();
-  await page.getByRole("button", { name: "添加文字", exact: true }).click();
+  const toolbarAdd = page.getByRole("button", {
+    name: "添加文字",
+    exact: true,
+  });
+  const phoneEntry = page.getByRole("button", {
+    name: "文字设置",
+    exact: true,
+  });
+  await expect(toolbarAdd.or(phoneEntry).first()).toBeVisible();
+  if ((await toolbarAdd.count()) > 0) {
+    await expect(toolbarAdd.first()).toBeEnabled();
+    await toolbarAdd.first().click();
+    return;
+  }
+  /* Phones keep the four creation entries at the bottom, so the first block
+     comes from the panel headline rather than a toolbar row. */
+  await page.getByRole("button", { name: "文字设置", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "文字设置" });
+  await sheet.getByRole("button", { name: "添加文字", exact: true }).click();
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
 }
 export async function selectScenery(page: Page) {
   const input = page.getByRole("textbox", { name: "海报文字编辑" });
@@ -34,8 +50,13 @@ export async function selectScenery(page: Page) {
 export function selectTrigger(page: Page, label: string) {
   return page.getByLabel(label, { exact: true });
 }
+export function selectRoot(page: Page, label: string) {
+  return selectTrigger(page, label).locator(
+    'xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]',
+  );
+}
 export function selectValue(page: Page, label: string) {
-  return selectTrigger(page, label).locator("[data-fp-select-value]");
+  return selectRoot(page, label).locator("[data-fp-select-value]");
 }
 export async function chooseOption(
   page: Page,
@@ -44,29 +65,62 @@ export async function chooseOption(
 ) {
   const trigger = selectTrigger(page, label);
   await expect(trigger).toBeEnabled();
-  const tag = await trigger.evaluate((el) => el.tagName);
+  const searchable = await trigger.evaluate(
+    (el) => el instanceof HTMLInputElement && !el.readOnly,
+  );
   await trigger.click();
   const listbox = page.getByRole("listbox");
   await expect(listbox).toBeVisible();
-  if (tag === "INPUT") {
+  if (searchable) {
     await trigger.fill(optionLabel);
     await expect(
       listbox.getByRole("option", { name: optionLabel, exact: true }),
     ).toBeVisible();
-    await listbox
-      .getByRole("option", { name: optionLabel, exact: true })
-      .click();
-    await expect(listbox).toHaveCount(0);
-    await expect(trigger).toHaveValue(optionLabel);
-    return;
   }
   await listbox.getByRole("option", { name: optionLabel, exact: true }).click();
   await expect(listbox).toHaveCount(0);
-  await expect(trigger).toHaveText(optionLabel);
+  await expect(selectValue(page, label)).toHaveText(optionLabel);
+}
+/**
+ * Picks a color through the shared color panel. The hex field accepts six or
+ * eight digits, so callers can exercise both opaque and translucent colors.
+ */
+export async function setColor(page: Page, label: string, hex: string) {
+  const trigger = page.getByLabel(label, { exact: true });
+  await trigger.click();
+  const input = page.locator(".ant-color-picker-hex-input input");
+  await expect(input).toBeVisible();
+  await input.fill(hex.replace(/^#/, ""));
+  // The popover is a click toggle, not an Escape layer like the selects.
+  await trigger.click();
+  await expect(page.locator(".ant-color-picker-hex-input")).toHaveCount(0);
 }
 export async function showOpenOptions(page: Page, label: string) {
   const trigger = selectTrigger(page, label);
   await trigger.click();
   await expect(page.getByRole("listbox")).toBeVisible();
   return page.getByRole("listbox");
+}
+/**
+ * Chooses one item from a poster card menu and waits for the popup to leave.
+ * antd fades the old menu out for a moment, and opening the next menu within
+ * that window puts two matches on screen for every role query.
+ */
+export async function chooseCardAction(
+  page: Page,
+  trigger: Locator,
+  item: string,
+) {
+  await trigger.click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toHaveCount(1);
+  await menu.getByRole("menuitem", { name: item, exact: true }).click();
+  await expect(menu).toHaveCount(0);
+}
+
+/** Segmented uses a visually hidden radio and a clickable label. */
+export function inspectorOption(scope: Page | Locator, name: string) {
+  return scope
+    .getByRole("radiogroup", { name: "属性分组" })
+    .getByText(name, { exact: true });
 }

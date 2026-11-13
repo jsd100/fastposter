@@ -7,6 +7,12 @@ function buttonCount(html: string): number {
   return (html.match(/<button/g) ?? []).length;
 }
 
+function classListOf(html: string): string[] {
+  const match = /<button[^>]*class="([^"]*)"/.exec(html);
+  expect(match, "no button rendered").not.toBeNull();
+  return match![1].trim().split(/\s+/).filter(Boolean);
+}
+
 describe("ToggleButton contract", () => {
   it("exposes the pressed state and never submits an enclosing form", () => {
     const html = renderToStaticMarkup(
@@ -28,6 +34,9 @@ describe("ToggleButton contract", () => {
     expect(html).toContain('type="button"');
     expect(html).toContain("button button-secondary");
     expect(html).not.toContain("onChange");
+    // The shared button is now an antd Button, so a toggle has to keep both the
+    // framework classes and the pressed state on the same element.
+    expect(classListOf(html)).toContain("ant-btn");
   });
 
   it("stays unpressed and can be disabled without losing its name", () => {

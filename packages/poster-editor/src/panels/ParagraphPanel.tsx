@@ -1,19 +1,24 @@
 import type { TextBlock } from "@fastposter/poster-schema";
-import { NumberField, ToggleButton } from "@fastposter/ui";
+import {
+  NumberField,
+  ToggleButton,
+  type NumberDraftBinding,
+} from "@fastposter/ui";
 export function ParagraphPanel({
   block,
   update,
   onNumericStart,
   onNumericEnd,
+  draft,
 }: {
   block: TextBlock;
   update: (change: (b: TextBlock) => TextBlock) => void;
   onNumericStart: () => void;
-  onNumericEnd: () => void;
+  onNumericEnd: (action: "commit" | "cancel") => void;
+  draft: (field: string) => NumberDraftBinding;
 }) {
   return (
-    <section>
-      <h3>段落</h3>
+    <div className="paragraph-panel">
       <div className="format-buttons">
         {(["left", "center", "right"] as const).map((align, i) => (
           <ToggleButton
@@ -44,6 +49,7 @@ export function ParagraphPanel({
               min={key === "lineHeight" ? 0.5 : -100}
               max={key === "lineHeight" ? 5 : 1000}
               value={block.paragraphStyle[key]}
+              {...draft(key)}
               onInteractionStart={onNumericStart}
               onInteractionEnd={onNumericEnd}
               onValueChange={(n) =>
@@ -56,6 +62,6 @@ export function ParagraphPanel({
           </label>
         ))}
       </div>
-    </section>
+    </div>
   );
 }

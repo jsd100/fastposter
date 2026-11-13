@@ -1,6 +1,7 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Browser, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import { chooseCardAction, inspectorOption } from "./helpers";
 
 // Playwright wipes test-results/ before every run, so a before/after comparison
 // needs FP_UI_BASELINE_OUT pointed somewhere outside it.
@@ -10,12 +11,9 @@ if (capture) fs.mkdirSync(OUT, { recursive: true });
 const describeCapture = capture ? test.describe : test.describe.skip;
 const FIXTURE = path.resolve("tests/fixtures/images/editor.png");
 const FREEZE =
-  "*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}";
+  "*,*::before,*::after{transition:none!important;scroll-behavior:auto!important}";
 
 async function settle(page: Page) {
-  await page.addStyleTag({
-    content: FREEZE + "html{cursor:default!important}",
-  });
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(
@@ -29,12 +27,40 @@ async function settle(page: Page) {
         ),
     );
   });
+  // antd marks an entering overlay with a motion class whose base style is
+  // opacity 0 and removes it on animationend. Freezing animation before that
+  // point captures an invisible dialog, so wait for motion to finish instead.
+  await page.waitForFunction(
+    () => {
+      if (
+        document.querySelector(
+          '[class*="ant-zoom-appear"], [class*="ant-zoom-enter"], [class*="ant-fade-appear"], [class*="ant-fade-enter"], [class*="ant-slide-appear"], [class*="ant-slide-enter"], [class*="ant-motion-collapse"]',
+        )
+      )
+        return false;
+      return document.getAnimations().every((animation) => {
+        if (animation.effect?.getTiming().iterations === Infinity) return true;
+        return (
+          animation.playState === "finished" || animation.playState === "idle"
+        );
+      });
+    },
+    undefined,
+    { timeout: 10_000 },
+  );
+  const freeze = await page.addStyleTag({
+    content: FREEZE + "html{cursor:default!important}",
+  });
   await page.waitForTimeout(200);
+  return freeze;
 }
 
 async function shoot(page: Page, name: string) {
-  await settle(page);
+  const freeze = await settle(page);
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: false });
+  // Keep the transition freeze only for the shot; later interactions need
+  // their hover and focus states to animate normally.
+  await freeze.evaluate((node) => node.remove());
 }
 
 async function adminLoginPage(page: Page) {
@@ -46,9 +72,7 @@ async function submitAdminLogin(page: Page) {
   await page
     .getByLabel("密码", { exact: true })
     .fill("fastposter-test-only-password");
-  await page
-    .getByRole("button", { name: "登录管理后台", exact: true })
-    .click();
+  await page.getByRole("button", { name: "登录管理后台", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/overview$/);
 }
 
@@ -152,7 +176,38 @@ describeCapture("desktop 1440x1000", () => {
       admin.getByTestId("template-card").filter({ hasText: "夏日特惠" }),
     ).toBeVisible();
 
+    const adminSearch = admin.getByRole("textbox", { name: "搜索模板" });
+    await expect(adminSearch).toBeVisible();
+    expect((await adminSearch.boundingBox())!.width).toBeLessThanOrEqual(320);
+    await shoot(admin, "d-admin-templates");
+    const templateActions = admin
+      .getByTestId("template-card")
+      .filter({ hasText: "夏日特惠" });
+    await templateActions
+      .getByRole("button", { name: "更多操作" })
+      .press("Enter");
+    await expect(
+      admin.getByRole("menuitem", { name: "删除", exact: true }),
+    ).toBeVisible();
+    await shoot(admin, "d-admin-template-actions");
+    await admin.keyboard.press("Escape");
+    await expect(
+      admin.getByRole("menuitem", { name: "删除", exact: true }),
+    ).toHaveCount(0);
+    await admin.getByRole("link", { name: "文案库", exact: true }).click();
+    await expect(
+      admin.getByRole("button", { name: "编辑分类 旅行的意义" }).locator("svg"),
+    ).toBeVisible();
+    await shoot(admin, "d-admin-copy-actions");
+    await admin.getByRole("link", { name: "用户管理", exact: true }).click();
+    const usersSearch = admin.getByRole("textbox", { name: "搜索用户" });
+    await expect(usersSearch).toBeVisible();
+    expect((await usersSearch.boundingBox())!.width).toBeLessThanOrEqual(320);
+    await shoot(admin, "d-admin-users");
+
     await admin.goto("http://127.0.0.1:15174/admin/backgrounds");
+    await expect(admin.getByTestId("resource-card").first()).toBeVisible();
+    await shoot(admin, "d-admin-backgrounds");
     await admin.getByRole("button", { name: "添加背景", exact: true }).click();
     await admin.getByLabel("素材名称", { exact: true }).fill("晨雾山谷");
     await shoot(admin, "d-08-admin-background-form");
@@ -181,18 +236,23 @@ describeCapture("desktop 1440x1000", () => {
     await expect(page).toHaveURL(/\/projects\/[^/]+\/edit/);
     await page.getByRole("link", { name: "返回作品", exact: true }).click();
     await expect(page.getByTestId("project-card")).toHaveCount(1);
-    await page.getByLabel("editor 的操作").click();
-    await page.getByRole("button", { name: "重命名", exact: true }).click();
+    await chooseCardAction(page, page.getByLabel("editor 的操作"), "重命名");
     await page.getByLabel("作品名称").fill("旅行日记");
     await page.getByRole("button", { name: "保存名称", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "旅行日记", exact: true }),
     ).toBeVisible();
-    await page.getByLabel("旅行日记 的操作").click();
-    await page.getByRole("button", { name: "复制作品", exact: true }).click();
+    await chooseCardAction(
+      page,
+      page.getByLabel("旅行日记 的操作"),
+      "复制作品",
+    );
     await expect(page.getByTestId("project-card")).toHaveCount(2);
-    await page.getByLabel("旅行日记 副本 的操作").click();
-    await page.getByRole("button", { name: "重命名", exact: true }).click();
+    await chooseCardAction(
+      page,
+      page.getByLabel("旅行日记 副本 的操作"),
+      "重命名",
+    );
     await page.getByLabel("作品名称").fill("春日明信片");
     await page.getByRole("button", { name: "保存名称", exact: true }).click();
     await expect(
@@ -201,11 +261,24 @@ describeCapture("desktop 1440x1000", () => {
     await page.reload();
     await expect(page.getByTestId("project-card")).toHaveCount(2);
     await shoot(page, "d-02-projects");
+    await page.getByRole("button", { name: "新建海报", exact: true }).click();
+    const create = page.getByRole("dialog", { name: "新建海报" });
+    await expect(create).toBeVisible();
+    expect((await create.boundingBox())!.width).toBeLessThanOrEqual(400);
+    await shoot(page, "d-create-poster");
+    await create.getByRole("button", { name: "取消", exact: true }).click();
 
     await page.getByRole("button", { name: "模板库", exact: true }).click();
-    await expect(
-      page.getByRole("dialog", { name: "模板库" }),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "模板库" })).toBeVisible();
+    const templateSearch = page.getByRole("textbox", { name: "搜索模板" });
+    expect((await templateSearch.boundingBox())!.width).toBeLessThanOrEqual(
+      280,
+    );
+    const templatePreview = page.getByRole("img", { name: "夏日特惠 预览" });
+    await expect(templatePreview).toBeVisible();
+    expect((await templatePreview.boundingBox())!.height).toBeLessThanOrEqual(
+      153,
+    );
     await shoot(page, "d-03-template-picker");
     await page.getByRole("textbox", { name: "搜索模板" }).focus();
     await shoot(page, "d-09-template-search-focus");
@@ -228,6 +301,12 @@ describeCapture("desktop 1440x1000", () => {
       .poll(() => page.evaluate(() => window.getSelection()?.toString()))
       .toBe("风景");
     await shoot(page, "d-04-editor-panel");
+    await inspectorOption(page, "位置").click();
+    await expect(
+      page.getByRole("spinbutton", { name: "文本框宽度" }),
+    ).toBeVisible();
+    await shoot(page, "d-editor-position");
+    await inspectorOption(page, "文字").click();
 
     const font = page.getByLabel("文字字体", { exact: true });
     await font.click();
@@ -253,27 +332,22 @@ describeCapture("desktop 1440x1000", () => {
 
     await font.click();
     await expect(page.getByRole("listbox")).toBeVisible();
-    await page
+    const interOption = page
       .getByRole("listbox")
-      .getByRole("option", { name: "Inter", exact: true })
-      .click();
-    await expect(
-      page.getByTestId("notice").filter({ hasText: "缺少字形" }),
-    ).toBeVisible();
-    await shoot(page, "d-11-font-rejection-toast");
-    await page.getByTestId("notice-close").click();
+      .getByRole("option", { name: "Inter", exact: true });
+    await expect(interOption).toBeDisabled();
+    await interOption.scrollIntoViewIfNeeded();
+    await shoot(page, "d-11-font-unavailable");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
 
     await page.getByRole("button", { name: "背景库", exact: true }).click();
-    await expect(
-      page.getByRole("dialog", { name: "背景库" }),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "背景库" })).toBeVisible();
     await shoot(page, "d-05-background-picker");
     await page.getByRole("button", { name: "关闭", exact: true }).click();
 
     await page.getByRole("button", { name: "文案", exact: true }).click();
-    await expect(
-      page.getByRole("dialog", { name: "文案库" }),
-    ).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "文案库" })).toBeVisible();
     await shoot(page, "d-06-copy-picker");
     await page.getByRole("button", { name: "关闭", exact: true }).click();
   });
@@ -312,10 +386,17 @@ describeCapture("mobile 390x844", () => {
     await page
       .getByRole("link", { name: "编辑 春日明信片", exact: true })
       .click();
+    /* Phones keep the creation entry inside the 文字设置 sheet. */
+    await page.getByRole("button", { name: "文字设置", exact: true }).click();
+    const creation = page.getByRole("dialog", { name: "文字设置" });
+    await expect(creation).toBeVisible();
+    await creation
+      .getByRole("button", { name: "添加文字", exact: true })
+      .click();
+    await page.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "添加文字", exact: true }),
+      page.getByRole("button", { name: "编辑文字", exact: true }),
     ).toBeEnabled();
-    await page.getByRole("button", { name: "添加文字", exact: true }).click();
     await page.getByRole("button", { name: "编辑文字", exact: true }).click();
     const input = page.getByRole("textbox", { name: "海报文字编辑" });
     await input.fill("你好风景世界");
@@ -354,20 +435,28 @@ describeCapture("mobile 390x844", () => {
 
     await font.click();
     await expect(page.getByRole("listbox")).toBeVisible();
-    await page
+    const interOption = page
       .getByRole("listbox")
-      .getByRole("option", { name: "Inter", exact: true })
-      .click();
-    await expect(
-      page.getByTestId("notice").filter({ hasText: "缺少字形" }),
-    ).toBeVisible();
-    await shoot(page, "m-11-font-rejection-toast");
-    await page.getByTestId("notice-close").click();
+      .getByRole("option", { name: "Inter", exact: true });
+    await expect(interOption).toBeDisabled();
+    await interOption.scrollIntoViewIfNeeded();
+    await shoot(page, "m-11-font-unavailable");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
 
     await page.getByRole("button", { name: "关闭", exact: true }).click();
-    await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+    await page
+      .getByRole("button", { name: "完成文字编辑", exact: true })
+      .click();
 
-    await page.getByRole("button", { name: "背景库", exact: true }).click();
+    await page.getByRole("button", { name: "更换背景", exact: true }).click();
+    const backgroundChooser = page.getByRole("dialog", {
+      name: "更换背景",
+    });
+    await expect(backgroundChooser).toBeVisible();
+    await backgroundChooser
+      .getByRole("button", { name: "从背景库选择", exact: true })
+      .click();
     await expect(page.getByRole("dialog", { name: "背景库" })).toBeVisible();
     await shoot(page, "m-06-background-picker");
     await page.getByRole("button", { name: "关闭", exact: true }).click();
@@ -384,10 +473,173 @@ describeCapture("mobile 390x844", () => {
     });
     const admin = await adminContext.newPage();
     await loginAdmin(admin);
+    /* The phone layout hides the sidebar; the same links live in the drawer. */
+    await admin.getByRole("button", { name: "导航菜单", exact: true }).click();
     await admin.getByRole("link", { name: "背景库", exact: true }).click();
     await admin.getByRole("button", { name: "添加背景", exact: true }).click();
     await admin.getByLabel("素材名称", { exact: true }).fill("晨雾山谷");
     await shoot(admin, "m-08-admin-background-form");
     await adminContext.close();
   });
+});
+
+// A10.1 — three additional widths. Screenshots stay behind the capture flag;
+// shoot()/settle() and the 22 existing shot names above are untouched.
+async function captureWidthStates(
+  browser: Browser,
+  page: Page,
+  prefix: string,
+  viewport: { width: number; height: number },
+) {
+  test.setTimeout(240_000);
+  await page.goto("/login");
+  await shoot(page, `${prefix}-01-login`);
+
+  await page.getByLabel("用户名", { exact: true }).fill("ui_baseline");
+  await page.getByLabel("密码", { exact: true }).fill("a secure test password");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page.getByTestId("project-card")).toHaveCount(2);
+  await shoot(page, `${prefix}-02-projects`);
+
+  await page.getByRole("button", { name: "模板库", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "模板库" })).toBeVisible();
+  await shoot(page, `${prefix}-03-template-picker`);
+  await page.getByRole("button", { name: "关闭", exact: true }).click();
+
+  await page
+    .getByRole("link", { name: "编辑 春日明信片", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/edit$/);
+  await expect(page.locator(".poster-canvas")).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(viewport.width);
+  // No PNG export step is introduced here (Ruling 137/162).
+  await shoot(page, `${prefix}-04-editor`);
+
+  // The copy/background library buttons only exist inside the editor, not on
+  // the project list, and submitting the admin login repeatedly in one shared
+  // stack can hit the registration throttle. Only the public auth surfaces
+  // are captured here; the original two widths already cover the backoffice
+  // form and shell.
+  const adminContext = await browser.newContext({ viewport });
+  const admin = await adminContext.newPage();
+  await adminLoginPage(admin);
+  await shoot(admin, `${prefix}-05-admin-login`);
+  await adminContext.close();
+}
+
+describeCapture("tablet landscape 1024x768", () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+  test("capture representative states at 1024x768", async ({
+    browser,
+    page,
+  }) => {
+    await captureWidthStates(browser, page, "t1", {
+      width: 1024,
+      height: 768,
+    });
+  });
+});
+
+describeCapture("tablet portrait 768x1024", () => {
+  test.use({ viewport: { width: 768, height: 1024 } });
+  test("capture representative states at 768x1024", async ({
+    browser,
+    page,
+  }) => {
+    await captureWidthStates(browser, page, "t2", {
+      width: 768,
+      height: 1024,
+    });
+  });
+});
+
+describeCapture("mobile 320x700", () => {
+  test.use({
+    viewport: { width: 320, height: 700 },
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  test("capture representative states at 320x700", async ({
+    browser,
+    page,
+  }) => {
+    await captureWidthStates(browser, page, "n3", {
+      width: 320,
+      height: 700,
+    });
+  });
+});
+
+// A10.1 — default-runnable layout guards. Kept outside describeCapture so a
+// plain `pnpm test:e2e tests/e2e/ui-baseline.spec.ts` run exercises them even
+// when FP_UI_BASELINE is unset (Ruling 161).
+const GUARD_VIEWPORTS = [
+  { name: "1440x1000", width: 1440, height: 1000 },
+  { name: "1024x768", width: 1024, height: 768 },
+  { name: "768x1024", width: 768, height: 1024 },
+  { name: "390x844", width: 390, height: 844 },
+  { name: "320x700", width: 320, height: 700 },
+];
+
+test.describe("five-width layout guards (default runnable)", () => {
+  for (const vp of GUARD_VIEWPORTS) {
+    test(`${vp.name}: no horizontal overflow, visible selection, reachable actions`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      // Public auth pages need no seeded account, so this guard is standalone.
+      await page.goto("/login");
+      await expect(
+        page.getByRole("button", { name: "登录", exact: true }),
+      ).toBeVisible();
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+
+      const selection = await page.evaluate(() => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+        );
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          const text = (node.textContent ?? "").trim();
+          const parent = node.parentElement;
+          if (
+            text.length >= 2 &&
+            parent &&
+            parent.getClientRects().length > 0
+          ) {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const sel = window.getSelection()!;
+            sel.removeAllRanges();
+            sel.addRange(range);
+            const rect = range.getBoundingClientRect();
+            return {
+              text: sel.toString().trim(),
+              left: rect.left,
+              right: rect.right,
+              innerWidth: window.innerWidth,
+            };
+          }
+        }
+        return null;
+      });
+      expect(selection, "a visible text selection must exist").not.toBeNull();
+      expect(selection!.text.length).toBeGreaterThan(0);
+      expect(selection!.left).toBeGreaterThanOrEqual(-1);
+      expect(selection!.right).toBeLessThanOrEqual(selection!.innerWidth + 1);
+
+      await expect(
+        page.getByRole("button", { name: "登录", exact: true }),
+      ).toBeInViewport();
+      await expect(page.getByLabel("用户名", { exact: true })).toBeInViewport();
+    });
+  }
 });

@@ -1,118 +1,32 @@
-.trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.select {
   min-width: 0;
-  width: auto;
-  text-align: left;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-  font-family: inherit;
-  padding: 0 10px;
 }
-.value {
-  flex: 1;
+
+.value,
+.optionLabel {
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: pre;
-}
-.icon {
-  display: flex;
-  flex: none;
-}
-.trigger[data-focus-visible],
-.trigger:focus-visible {
-  border-color: var(--fp-focus-line);
-  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
-}
-.trigger[data-disabled] {
-  opacity: 0.55;
-  cursor: default;
-}
-.compact {
-  min-height: 30px;
-  padding: 0 8px;
-  font-size: 10px;
-}
-.positioner {
-  width: max(var(--anchor-width), 15rem);
-  max-width: var(--available-width);
-  max-height: var(--available-height);
-  z-index: 60;
-}
-.popup {
-  display: flex;
-  max-height: inherit;
-  border: 1px solid var(--fp-line);
-  border-radius: var(--fp-radius-menu);
-  box-shadow: 0 12px 30px var(--fp-dialog-shadow);
-  background: var(--fp-surface);
-  padding: 5px;
-  color: var(--fp-field-ink);
-}
-.list {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  max-height: inherit;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 32px;
-  padding: 0 9px;
-  border-radius: var(--fp-radius-select);
-  font-size: 11px;
-  line-height: 1.6;
-  cursor: pointer;
-  outline: none;
-}
-.item > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: pre;
-}
-.item[data-highlighted] {
-  background: var(--fp-surface-hover);
-}
-.item[data-disabled] {
-  color: var(--fp-icon-ink);
-  cursor: default;
-}
-.indicator {
-  display: flex;
-  flex: none;
-  color: var(--fp-green);
-}
-@media (pointer: coarse) {
-  /* The menu rows are what a thumb hits, so they take the same 44px target and
-     text size the package gives its buttons and fields on a touch screen. */
-  .item {
-    min-height: var(--fp-tap-target);
-    font-size: 16px;
-  }
 }
 
 .swatch {
   display: inline-block;
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
-  border: 1px solid #00000020;
-  border-radius: 3px;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  vertical-align: middle;
 }
 
-.optionLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.popup {
+  pointer-events: auto;
+}
+
+@media (pointer: coarse) {
+  .popup :global(.ant-select-item-option) {
+    min-height: 44px;
+    font-size: 16px;
+  }
 }

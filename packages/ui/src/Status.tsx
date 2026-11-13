@@ -1,5 +1,8 @@
+import { Alert } from "antd";
 import type { ReactNode } from "react";
 import styles from "./Status.module.css";
+
+const ROLE = { error: "alert", info: "status", success: "status" } as const;
 
 export function Status({
   children,
@@ -9,11 +12,15 @@ export function Status({
   tone?: "info" | "error" | "success";
 }) {
   return (
-    <div
-      role={tone === "error" ? "alert" : "status"}
-      className={`status status-${tone} ${styles.status}`}
-    >
-      {children}
-    </div>
+    <Alert
+      /* The pages select on `.status-error` and read the live region through
+         `role`, so the tone hooks and the announcement stay on the antd alert. */
+      type={tone}
+      title={<div className={styles.text}>{children}</div>}
+      showIcon={false}
+      role={ROLE[tone]}
+      data-fp-status=""
+      className={`status status-${tone}`}
+    />
   );
 }

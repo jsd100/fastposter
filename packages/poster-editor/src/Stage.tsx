@@ -13,8 +13,10 @@ import {
   pinchView,
   moveTextBlock,
   resizeTextWidth,
+  fitSelectionIntoViewport,
   clamp,
   type Point,
+  type Rect,
   type ViewTransform,
 } from "./geometry";
 import type { EditorStore, EditorState } from "./store";
@@ -29,19 +31,73 @@ type Gesture =
       height: number;
       scale: number;
     };
+/**
+ * A press on a control must not read as a press on empty canvas: it would pan
+ * the view or drop the selection while the user is only choosing a zoom level.
+ * Tag names no longer tell — the shared select renders as a div with an inner
+ * input — so the test follows the hooks every shared control carries.
+ */
+function isControlPress(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest("button,select,[data-fp-control],[data-fp-input]") !== null
+  );
+}
+/**
+ * A block taller than the visible band keeps the line being edited (or the
+ * leading part of a live range) in view instead of the whole block. Bounds
+ * and the viewport are in different spaces, so a DOM range is projected back
+ * into document pixels through the current view.
+ */
+function focusRect(
+  bounds: Rect,
+  block: Block | undefined,
+  editing: boolean,
+  frame: HTMLElement | null,
+  view: ViewTransform,
+  viewport: Rect,
+): Rect {
+  if (bounds.height * view.scale <= viewport.height) return bounds;
+  const selection = window.getSelection();
+  const anchor = selection?.anchorNode;
+  if (editing && frame && anchor instanceof Node && frame.contains(anchor)) {
+    const rects = selection?.rangeCount
+      ? selection.getRangeAt(0).getClientRects()
+      : null;
+    const first = rects?.length ? rects[0] : null;
+    if (first && (first.width > 1 || first.height > 1)) {
+      const frameRect = frame.getBoundingClientRect();
+      return {
+        x: (first.left - frameRect.left) / view.scale,
+        y: (first.top - frameRect.top) / view.scale,
+        width: Math.max(1, first.width / view.scale),
+        height: Math.max(1, first.height / view.scale),
+      };
+    }
+  }
+  const line = block
+    ? block.defaultStyle.fontSize * block.paragraphStyle.lineHeight
+    : bounds.height;
+  return { ...bounds, height: Math.min(bounds.height, Math.max(1, line)) };
+}
 export function Stage({
   store,
   state,
   renderEditing,
   onLayout,
+  visibleViewport,
 }: {
   store: EditorStore;
   state: EditorState;
   renderEditing?: (block: Block) => ReactNode;
   onLayout?: (report: LayoutReport) => void;
+  /** Visible stage band while the phone inspector covers its lower part. */
+  visibleViewport?: Rect | null;
 }) {
   const outer = useRef<HTMLDivElement>(null),
     canvas = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<Rect | null>(null);
+  viewportRef.current = visibleViewport ?? null;
   const gesture = useRef<Gesture | null>(null);
   const touches = useRef(new Map<number, Point>());
   const pinch = useRef<{ view: ViewTransform; a: Point; b: Point } | null>(
@@ -65,18 +121,22 @@ export function Stage({
     function fit() {
       const width = root.clientWidth,
         height = root.clientHeight;
+      // A size change re-fits to the currently visible band. The band is read
+      // from a ref so opening or closing the sheet never re-fits on its own:
+      // that adjustment belongs to the sheet lifecycle, not to the stage size.
+      const area = viewportRef.current ?? { x: 0, y: 0, width, height };
       const scale = clamp(
         Math.min(
-          (width - 80) / d.canvas.width,
-          (height - 80) / d.canvas.height,
+          (area.width - 80) / d.canvas.width,
+          (area.height - 80) / d.canvas.height,
           1,
         ),
         0.02,
         3,
       );
       store.setView({
-        x: (width - d.canvas.width * scale) / 2,
-        y: (height - d.canvas.height * scale) / 2,
+        x: area.x + (area.width - d.canvas.width * scale) / 2,
+        y: area.y + (area.height - d.canvas.height * scale) / 2,
         scale,
       });
     }
@@ -100,6 +160,32 @@ export function Stage({
       .forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, [d, view.scale, store, onLayout]);
+  useLayoutEffect(() => {
+    if (!visibleViewport || !layout || !state.selectedId) return;
+    const bounds = layout.blocks.find((b) => b.id === state.selectedId);
+    if (!bounds) return;
+    const block = d.textBlocks.find((b) => b.id === state.selectedId);
+    const next = fitSelectionIntoViewport(
+      view,
+      focusRect(
+        bounds,
+        block,
+        state.mode === "edit",
+        canvas.current,
+        view,
+        visibleViewport,
+      ),
+      visibleViewport,
+    );
+    if (
+      Math.abs(next.x - view.x) < 0.01 &&
+      Math.abs(next.y - view.y) < 0.01 &&
+      Math.abs(next.scale - view.scale) < 0.0001
+    )
+      return;
+    // Pure view: no document write and no history entry.
+    store.setView(next);
+  }, [visibleViewport, layout, state.selectedId, state.mode, view, d, store]);
   function downBlock(block: Block, e: PointerEvent<HTMLDivElement>) {
     if (state.mode === "edit" && state.selectedId === block.id) return;
     e.stopPropagation();
@@ -207,7 +293,7 @@ export function Stage({
           !e.currentTarget.contains(e.target as Node) ||
           e.pointerType !== "touch" ||
           state.mode === "edit" ||
-          (e.target as HTMLElement).closest("button,select")
+          isControlPress(e.target)
         )
           return;
         const rect = e.currentTarget.getBoundingClientRect();
@@ -229,7 +315,8 @@ export function Stage({
         if (
           e.button !== 0 ||
           !e.currentTarget.contains(e.target as Node) ||
-          (e.target as HTMLElement).closest("button,[data-text-block]")
+          isControlPress(e.target) ||
+          (e.target as HTMLElement).closest("[data-text-block]")
         )
           return;
         store.select(null);

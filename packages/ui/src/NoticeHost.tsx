@@ -1,4 +1,4 @@
-import { Toast } from "@base-ui/react/toast";
+import { App, Button, Typography } from "antd";
 import {
   createContext,
   useCallback,
@@ -13,9 +13,9 @@ import {
 import {
   createNoticeStore,
   type Notice,
+  type NoticeEntry,
   type NoticeStore,
 } from "./notifications";
-import { subscribeModalLayers, topModalLayer } from "./modal-layer";
 import styles from "./NoticeHost.module.css";
 
 const NotificationsContext = createContext<NoticeStore | null>(null);
@@ -25,83 +25,74 @@ export function NotificationsProvider({
 }: {
   children: ReactNode;
 }): ReactElement {
-  const manager = useMemo(() => Toast.createToastManager(), []);
-  const store = useMemo(
-    () =>
-      createNoticeStore({
-        upsert(entry) {
-          manager.add({
-            id: entry.id,
-            title: entry.title,
-            description: entry.description,
-            type: entry.tone,
-            timeout: entry.timeout,
-            actionProps: entry.action
-              ? {
-                  children: entry.action.label,
-                  onClick: entry.action.onClick,
-                }
-              : undefined,
-            data: { generation: entry.generation },
-          });
-        },
-        dismiss(id) {
-          manager.close(id);
-        },
-      }),
-    [manager],
-  );
-  const container = useSyncExternalStore(
-    subscribeModalLayers,
-    topModalLayer,
-    () => null,
-  );
+  const { message } = App.useApp();
+  const store = useMemo(() => {
+    let storeRef: NoticeStore;
+    const created = createNoticeStore({
+      upsert(entry) {
+        message.open({
+          key: entry.id,
+          content: (
+            <NoticeCard
+              entry={entry}
+              onDismiss={() => storeRef.close(entry.id)}
+            />
+          ),
+          duration: entry.timeout / 1000,
+          type: entry.tone,
+        });
+      },
+      dismiss(id) {
+        message.destroy(id);
+      },
+    });
+    storeRef = created;
+    return created;
+  }, [message]);
   return (
     <NotificationsContext.Provider value={store}>
-      <Toast.Provider toastManager={manager} limit={3} timeout={4000}>
-        {children}
-        <Toast.Portal container={container ?? undefined}>
-          <ToastList />
-        </Toast.Portal>
-      </Toast.Provider>
+      {children}
     </NotificationsContext.Provider>
   );
 }
 
-function ToastList() {
-  const { toasts, close } = Toast.useToastManager();
+function NoticeCard({
+  entry,
+  onDismiss,
+}: {
+  entry: NoticeEntry;
+  onDismiss: () => void;
+}) {
   return (
-    <Toast.Viewport aria-label="通知" className={styles.viewport}>
-      {toasts.map((toast) => (
-        <Toast.Root
-          key={toast.id}
-          toast={toast}
-          className={`${styles.toast} ${styles[toast.type ?? "info"]}`}
-          data-testid="notice"
+    <div className={styles.toast} data-testid="notice">
+      <div className={styles.copy}>
+        <Typography.Text>{entry.title}</Typography.Text>
+        {entry.description && (
+          <Typography.Text type="secondary">
+            {entry.description}
+          </Typography.Text>
+        )}
+      </div>
+      {entry.action && (
+        <Button
+          size="small"
+          type="link"
+          data-testid="notice-action"
+          onClick={entry.action.onClick}
         >
-          <div className={styles.copy}>
-            <Toast.Title className={styles.title}>{toast.title}</Toast.Title>
-            {toast.description ? (
-              <Toast.Description className={styles.description}>
-                {toast.description}
-              </Toast.Description>
-            ) : null}
-          </div>
-          {toast.actionProps ? (
-            <Toast.Action className={styles.action} data-testid="notice-action" />
-          ) : null}
-          <button
-            type="button"
-            className={styles.close}
-            aria-label="关闭通知"
-            data-testid="notice-close"
-            onClick={() => close(toast.id)}
-          >
-            ×
-          </button>
-        </Toast.Root>
-      ))}
-    </Toast.Viewport>
+          {entry.action.label}
+        </Button>
+      )}
+      <Button
+        size="small"
+        type="text"
+        aria-label="关闭通知"
+        data-testid="notice-close"
+        onClick={onDismiss}
+      >
+        ×
+      </Button>
+    </div>
   );
 }
 

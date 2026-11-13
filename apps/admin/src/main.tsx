@@ -1,5 +1,17 @@
+import { Card, Typography } from "antd";
 import { BrandIcon } from "@fastposter/ui";
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  createContext,
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
   QueryClient,
@@ -11,34 +23,137 @@ import { apiClient, routes, type UserDTO } from "@fastposter/api-client";
 import {
   Button,
   FormField,
+  LoadingState,
   NotificationsProvider,
   Status,
+  UIProvider,
   useErrorNotice,
   useNotificationScope,
   useNotify,
 } from "@fastposter/ui";
 import { AdminLayout } from "./AdminLayout";
-import {
-  Overview,
-  UsersPage,
-  ProjectsPage,
-  JobsPage,
-  AuditPage,
-} from "./features/Metadata";
-import { ResourcesPage } from "./features/Resources";
-import { TemplatesPage } from "./features/templates/TemplateList";
-import { CopyPage } from "./features/copy/CopyPage";
 import { navigate, usePath } from "./router";
 import { errorMessage } from "./api";
+import "antd/dist/reset.css";
+import "@fastposter/ui/styles.css";
 import "./styles.css";
+
+const Overview = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.Overview,
+  })),
+);
+const UsersPage = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.UsersPage,
+  })),
+);
+const ProjectsPage = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.ProjectsPage,
+  })),
+);
+const JobsPage = lazy(() =>
+  import("./features/ExportJobs").then((module) => ({
+    default: module.JobsPage,
+  })),
+);
+const AuditPage = lazy(() =>
+  import("./features/Metadata").then((module) => ({
+    default: module.AuditPage,
+  })),
+);
+const ResourcesPage = lazy(() =>
+  import("./features/Resources").then((module) => ({
+    default: module.ResourcesPage,
+  })),
+);
+const TemplatesPage = lazy(() =>
+  import("./features/templates/TemplateList").then((module) => ({
+    default: module.TemplatesPage,
+  })),
+);
+const CopyPage = lazy(() =>
+  import("./features/copy/CopyPage").then((module) => ({
+    default: module.CopyPage,
+  })),
+);
 const cache = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
+
+/* FP-10 / Ruling 126. The authorized reset session lives only in this app's
+   memory: a phase plus a one-time token that is never persisted. Defining the
+   provider, context and exported hook here (no new file) lets UsersPage and
+   the admin shell consume the very same instance across in-app navigation. */
+type ResetPhase = "idle" | "running" | "result" | "unknown";
+type ResetSession = {
+  phase: ResetPhase;
+  token: string;
+  start: () => void;
+  succeed: (token: string) => void;
+  fail: () => void;
+  finish: () => void;
+  clear: () => void;
+};
+const ResetSessionContext = createContext<ResetSession | null>(null);
+
+export function ResetSessionProvider({ children }: { children: ReactNode }) {
+  const [phase, setPhase] = useState<ResetPhase>("idle");
+  const [token, setToken] = useState("");
+  const start = useCallback(() => {
+    setToken("");
+    setPhase("running");
+  }, []);
+  const succeed = useCallback((value: string) => {
+    setToken(value);
+    setPhase("result");
+  }, []);
+  /* An unconfirmed outcome (5xx / network / non-JSON) is NOT a retryable
+     business rejection: old credentials may already be revoked. */
+  const fail = useCallback(() => {
+    setToken("");
+    setPhase("unknown");
+  }, []);
+  const clear = useCallback(() => {
+    setToken("");
+    setPhase("idle");
+  }, []);
+  /* "完成" is the only user action that releases the navigation lock. */
+  const finish = useCallback(() => {
+    setToken("");
+    setPhase("idle");
+  }, []);
+  const value = useMemo<ResetSession>(
+    () => ({ phase, token, start, succeed, fail, finish, clear }),
+    [phase, token, start, succeed, fail, finish, clear],
+  );
+  return (
+    <ResetSessionContext.Provider value={value}>
+      {children}
+    </ResetSessionContext.Provider>
+  );
+}
+
+export function useResetSession(): ResetSession {
+  const session = useContext(ResetSessionContext);
+  if (!session)
+    throw new Error("useResetSession requires ResetSessionProvider");
+  return session;
+}
+
 function AdminApp() {
   const path = usePath();
   const client = useQueryClient();
   const [user, setUser] = useState<UserDTO | null>();
   const notify = useNotify();
+  const { clear, phase } = useResetSession();
+  /* FP-10 / Ruling 142. An active reset flow must keep UsersPage (and its
+     token Dialog) mounted regardless of `path`. This structurally covers the
+     brand link, popstate/history and any internal navigate() that bypasses the
+     Link onClick guard, so in-app navigation cannot lose the running result. */
+  const resetActive =
+    phase === "running" || phase === "result" || phase === "unknown";
   useNotificationScope(user ? user.id : "anonymous");
   useEffect(() => {
     let active = true;
@@ -51,6 +166,7 @@ function AdminApp() {
         if (active) setUser(null);
       });
     const expire = () => {
+      clear();
       client.clear();
       setUser(null);
       navigate("/admin/login", true);
@@ -60,7 +176,7 @@ function AdminApp() {
       active = false;
       window.removeEventListener("session-expired", expire);
     };
-  }, [client]);
+  }, [client, clear]);
   useEffect(() => {
     if (user === null && path !== "/admin/login")
       navigate("/admin/login", true);
@@ -73,13 +189,14 @@ function AdminApp() {
   if (user === undefined)
     return (
       <main className="app-loading">
-        <Status>正在打开管理后台…</Status>
+        <LoadingState label="正在打开管理后台…" />
       </main>
     );
   if (!user)
     return (
       <Login
         onUser={(u) => {
+          clear();
           client.clear();
           setUser(u);
           navigate("/admin/overview");
@@ -93,6 +210,7 @@ function AdminApp() {
         <Button
           onClick={() =>
             void apiClient.request(routes.Logout, {}).then(() => {
+              clear();
               client.clear();
               setUser(null);
             })
@@ -110,6 +228,7 @@ function AdminApp() {
         void apiClient
           .request(routes.Logout, {})
           .then(() => {
+            clear();
             client.clear();
             setUser(null);
             navigate("/admin/login");
@@ -117,25 +236,27 @@ function AdminApp() {
           .catch((e) => notify.show({ tone: "error", title: errorMessage(e) }))
       }
     >
-      {path === "/admin/users" ? (
-        <UsersPage />
-      ) : path === "/admin/projects" ? (
-        <ProjectsPage />
-      ) : path === "/admin/backgrounds" ? (
-        <ResourcesPage key="background" kind="background" />
-      ) : path === "/admin/templates" ? (
-        <TemplatesPage />
-      ) : path === "/admin/copy" ? (
-        <CopyPage />
-      ) : path === "/admin/fonts" ? (
-        <ResourcesPage key="font" kind="font" />
-      ) : path === "/admin/jobs" ? (
-        <JobsPage />
-      ) : path === "/admin/audit" ? (
-        <AuditPage />
-      ) : (
-        <Overview />
-      )}
+      <Suspense fallback={<LoadingState label="正在加载页面…" />}>
+        {resetActive || path === "/admin/users" ? (
+          <UsersPage />
+        ) : path === "/admin/projects" ? (
+          <ProjectsPage />
+        ) : path === "/admin/backgrounds" ? (
+          <ResourcesPage key="background" kind="background" />
+        ) : path === "/admin/templates" ? (
+          <TemplatesPage />
+        ) : path === "/admin/copy" ? (
+          <CopyPage />
+        ) : path === "/admin/fonts" ? (
+          <ResourcesPage key="font" kind="font" />
+        ) : path === "/admin/jobs" ? (
+          <JobsPage />
+        ) : path === "/admin/audit" ? (
+          <AuditPage />
+        ) : (
+          <Overview />
+        )}
+      </Suspense>
     </AdminLayout>
   );
 }
@@ -165,41 +286,45 @@ function Login({ onUser }: { onUser: (user: UserDTO) => void }) {
         <BrandIcon />
         FastPoster<small>管理后台</small>
       </div>
-      <form className="panel" onSubmit={submit}>
-        <span className="eyebrow">CONTENT & OPERATIONS</span>
-        <h1>管理你的创作资源。</h1>
-        <p>使用管理员账号登录。</p>
-        <FormField
-          label="用户名"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-          required
-          autoFocus
-        />
-        <FormField
-          label="密码"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-          required
-        />
-        <Button variant="primary" busy={busy} type="submit">
-          {" "}
-          登录管理后台
-        </Button>
-      </form>
-      <p className="admin-login-note">
+      <Card className="auth-card">
+        <Typography.Title level={2}>管理后台登录</Typography.Title>
+        <form className="auth-form" onSubmit={submit}>
+          <FormField
+            label="用户名"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+            autoFocus
+          />
+          <FormField
+            label="密码"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          <Button variant="primary" busy={busy} type="submit">
+            {" "}
+            登录管理后台
+          </Button>
+        </form>
+      </Card>
+      <Typography.Text type="secondary">
         管理员账号由本机命令行创建，不开放后台注册。
-      </p>
+      </Typography.Text>
     </main>
   );
 }
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={cache}>
-    <NotificationsProvider>
-      <AdminApp />
-    </NotificationsProvider>
+    <UIProvider>
+      <NotificationsProvider>
+        <ResetSessionProvider>
+          <AdminApp />
+        </ResetSessionProvider>
+      </NotificationsProvider>
+    </UIProvider>
   </QueryClientProvider>,
 );

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isDeletionComplete,
   mergeDeletionStatus,
+  replaceDeletionTask,
   type ProjectDeletionDTO,
 } from "./index";
 
@@ -40,5 +41,16 @@ describe("project deletion helpers", () => {
     const first = task({ id: "task-1", state: "retry_wait" });
     const second = task({ id: "task-2", state: "running" });
     expect(mergeDeletionStatus(first, second)).toBe(second);
+  });
+
+  it("replaces only the matching task when one item is retried", () => {
+    const first = task({ id: "task-1", state: "retry_wait", title: "第一件" });
+    const second = task({ id: "task-2", state: "pending", title: "第二件" });
+    const updated = task({ id: "task-1", state: "pending" });
+    const list = replaceDeletionTask([first, second], updated);
+    expect(list.map((item) => item.id)).toEqual(["task-1", "task-2"]);
+    expect(list[0].state).toBe("pending");
+    expect(list[1]).toBe(second);
+    expect(list[1].title).toBe("第二件");
   });
 });

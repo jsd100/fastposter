@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { Card, Tag } from "antd";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProjectMetadataDTO } from "@fastposter/api-client";
 import { routes } from "@fastposter/api-client";
-import { Button, ProjectDeletionStatus, useErrorNotice } from "@fastposter/ui";
+import { ProjectDeletionStatus, useErrorNotice } from "@fastposter/ui";
 import { errorMessage, request } from "../../api";
+import { PAGE_SIZE, RecordPager } from "../records";
+import { pageAfterShrink } from "./pagination";
 
-const PAGE_SIZE = 24;
 const POLL_INTERVAL = 2000;
 
 export function canPermanentlyDelete(
@@ -35,6 +37,16 @@ export function ProjectDeletionQueue() {
     action: { label: "重新加载", onClick: () => void q.refetch() },
   });
   useErrorNotice("admin:deletion-action", actionError || null);
+  useEffect(() => {
+    if (!q.data) return;
+    const next = pageAfterShrink(
+      page,
+      q.data.total,
+      q.data.deletions.length,
+      PAGE_SIZE,
+    );
+    if (next !== page) setPage(next);
+  }, [page, q.data]);
 
   async function refresh() {
     await Promise.all([
@@ -68,14 +80,14 @@ export function ProjectDeletionQueue() {
       <div className="admin-queue-head">
         <div>
           <h2>
-            待清理作品<span className="badge">{total}</span>
+            待清理作品<Tag>{total}</Tag>
           </h2>
           <p>作品已不可恢复，文件清理会在后台继续；重试按管理员权限执行。</p>
         </div>
       </div>
       <div className="admin-queue-list">
         {tasks.map((task) => (
-          <article className="admin-queue-item" key={task.id}>
+          <Card className="admin-queue-item" key={task.id}>
             <div className="admin-queue-info">
               <h3>{task.title || "已删除作品"}</h3>
               <p>
@@ -91,25 +103,15 @@ export function ProjectDeletionQueue() {
               busy={busy}
               onRetry={() => void retry(task.id)}
             />
-          </article>
+          </Card>
         ))}
       </div>
-      {total > PAGE_SIZE && (
-        <div className="pagination">
-          <Button disabled={page === 1} onClick={() => setPage(page - 1)}>
-            上一页
-          </Button>
-          <span>
-            第 {page} 页 · 共 {total} 项
-          </span>
-          <Button
-            disabled={page * PAGE_SIZE >= total}
-            onClick={() => setPage(page + 1)}
-          >
-            下一页
-          </Button>
-        </div>
-      )}
+      <RecordPager
+        page={page}
+        total={total}
+        onPage={setPage}
+        label="待清理作品分页"
+      />
     </section>
   );
 }

@@ -1,9 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
 import {
+  inspectorOption,
   chooseOption,
   openPoster,
   selectScenery,
   selectValue,
+  setColor,
 } from "./helpers";
 
 type SavedMark = {
@@ -12,7 +14,10 @@ type SavedMark = {
 };
 type SavedRun = { text?: string; marks?: SavedMark[] };
 type SavedDocument = {
-  textBlocks: { content: { content: { content?: SavedRun[] }[] } }[];
+  textBlocks: {
+    content: { content: { content?: SavedRun[] }[] };
+    effects?: { backgroundColor?: string };
+  }[];
 };
 
 function runsOf(saved: SavedDocument): SavedRun[] {
@@ -74,6 +79,11 @@ test("font search locates Chinese families and previews a highlight without touc
   await expect(fontOption(page, "思源宋体")).toBeVisible();
   await expect(listbox.getByRole("option")).toHaveCount(1);
   await font.fill("文楷");
+  // The trigger hides the selected label while searching, so the typed query
+  // itself has to stay legible in the input.
+  await expect
+    .poll(() => font.evaluate((node) => getComputedStyle(node).color))
+    .not.toBe("rgba(0, 0, 0, 0)");
   await expect(fontOption(page, "霞鹜文楷")).toBeVisible();
   await expect(listbox.getByRole("option")).toHaveCount(1);
   await fontOption(page, "霞鹜文楷").hover();
@@ -92,7 +102,7 @@ test("font search locates Chinese families and previews a highlight without touc
   await expect(
     input.locator('span[data-font-id="builtin-lxgw-wenkai-400"]'),
   ).toHaveCount(0);
-  await expect(font).toHaveValue("思源黑体");
+  await expect(selectValue(page, "文字字体")).toHaveText("思源黑体");
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "保存作品", exact: true }),
@@ -116,7 +126,7 @@ test("Latin-only fonts are disabled for a Chinese selection before a request is 
   await font.click();
   await expect(fontOption(page, "Inter")).toBeDisabled();
   await page.keyboard.press("Escape");
-  await expect(font).toHaveValue("思源黑体");
+  await expect(selectValue(page, "文字字体")).toHaveText("思源黑体");
   expect(checks).toBe(0);
   expect(await projectRevision(page)).toBe(before);
 });
@@ -243,7 +253,7 @@ test("stale font checks neither apply nor toast after the selection or workspace
   await expect(
     input.locator('span[data-font-id="builtin-zcool-kuaile-400"]'),
   ).toHaveCount(0);
-  await expect(font).toHaveValue("思源黑体");
+  await expect(selectValue(page, "文字字体")).toHaveText("思源黑体");
 
   // A finished failing check must not raise a toast either.
   await pickKuaile();
@@ -414,6 +424,33 @@ test("a preset color changes only selected text and survives saving and reload",
   await expect(
     page.locator("[data-text-block]").getByText("风景", { exact: true }),
   ).toHaveCSS("color", "rgb(181, 143, 145)");
+});
+
+test("an effect color keeps its alpha, one undo step and the transparent sentinel", async ({
+  page,
+}) => {
+  await openPoster(page, "coloralpha");
+  const block = page.locator("[data-text-block]").first();
+  await inspectorOption(page, "效果").click();
+  await setColor(page, "文字背景色", "ff000080");
+  await expect(block).toHaveCSS("background-color", "rgba(255, 0, 0, 0.5)");
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(block).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await expect(block).toHaveCSS("background-color", "rgba(255, 0, 0, 0.5)");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const saved = await savedDocument(page);
+  expect(saved.textBlocks[0]?.effects?.backgroundColor).toBe("#ff000080");
+  const backgroundField = page
+    .locator("label.panel-field")
+    .filter({ has: page.getByLabel("文字背景色", { exact: true }) });
+  await backgroundField
+    .getByRole("button", { name: "设为透明", exact: true })
+    .click();
+  await expect(block).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const cleared = await savedDocument(page);
+  expect(cleared.textBlocks[0]?.effects?.backgroundColor).toBe("#00000000");
 });
 
 test("new bundled Chinese families load and the final choice saves, reloads and exports", async ({

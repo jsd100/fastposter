@@ -1,4 +1,4 @@
-import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
+import { Select } from "antd";
 import {
   useEffect,
   useMemo,
@@ -7,7 +7,8 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import styles from "./Combobox.module.css";
+import { registerPopupLayer } from "./modal-layer";
+import menu from "./Select.module.css";
 
 export type ComboboxOption = {
   value: string;
@@ -15,8 +16,6 @@ export type ComboboxOption = {
   group?: string;
   disabled?: boolean;
 };
-
-type ComboboxGroup = { value: string; items: ComboboxOption[] };
 
 export type ComboboxProps = {
   value: string;
@@ -30,6 +29,33 @@ export type ComboboxProps = {
   className?: string;
 };
 
+type ComboboxEntry = { value: string; label: string; disabled?: boolean };
+type ComboboxGroup = { label: string; options: ComboboxEntry[] };
+
+function groupOptions(
+  options: readonly ComboboxOption[],
+): (ComboboxEntry | ComboboxGroup)[] {
+  const entries: (ComboboxEntry | ComboboxGroup)[] = [];
+  for (const option of options) {
+    const entry = {
+      value: option.value,
+      label: option.label,
+      disabled: option.disabled,
+    };
+    if (!option.group) {
+      entries.push(entry);
+      continue;
+    }
+    const group = entries.find(
+      (item): item is ComboboxGroup =>
+        "options" in item && item.label === option.group,
+    );
+    if (group) group.options.push(entry);
+    else entries.push({ label: option.group, options: [entry] });
+  }
+  return entries;
+}
+
 export function Combobox({
   value,
   options,
@@ -41,120 +67,82 @@ export function Combobox({
   disabled,
   className = "",
 }: ComboboxProps): ReactElement {
-  const input = useRef<HTMLInputElement | null>(null);
-  const [container, setContainer] = useState<HTMLElement | undefined>();
-  useEffect(() => {
-    const anchor = input.current;
-    if (!anchor) return;
-    const overlay = anchor.closest<HTMLElement>("[data-fp-overlay]");
-    setContainer(overlay ?? undefined);
-  }, []);
-  const selected = options.find((option) => option.value === value) ?? null;
-  const groups = useMemo(() => {
-    const result: ComboboxGroup[] = [];
-    for (const option of options) {
-      const name = option.group ?? "";
-      const group = result.find((candidate) => candidate.value === name);
-      if (group) group.items.push(option);
-      else result.push({ value: name, items: [option] });
-    }
-    return result;
-  }, [options]);
+  const releasePopup = useRef<(() => void) | null>(null);
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  useEffect(
+    () => () => {
+      releasePopup.current?.();
+      releasePopup.current = null;
+    },
+    [],
+  );
+  const selected = options.find((option) => option.value === value);
+  // A single select treats `undefined` as "no value" and shows the placeholder.
+  // An empty string is a real option value wherever the list provides one.
+  const isEmpty =
+    value === "" && !options.some((option) => option.value === "");
+  const entries = useMemo(() => groupOptions(options), [options]);
   return (
-    <ComboboxPrimitive.Root<ComboboxOption, false, ComboboxOption>
-      items={groups}
-      value={selected}
-      disabled={disabled}
-      modal={false}
-      autoHighlight={false}
-      itemToStringLabel={(item) => item.label}
-      itemToStringValue={(item) => item.value}
-      isItemEqualToValue={(item, current) => item.value === current.value}
-      onValueChange={(next) => {
-        if (next && next.value !== value) onValueChange(next.value);
+    <Select
+      value={isEmpty ? undefined : value}
+      options={entries}
+      showSearch={{
+        searchValue: search,
+        onSearch: setSearch,
+        optionFilterProp: "label",
       }}
-      onItemHighlighted={(item) => onHighlightChange?.(item ? item.value : null)}
-    >
-      <ComboboxPrimitive.InputGroup className={styles.group}>
-        <ComboboxPrimitive.Input
-          ref={input}
-          aria-label={ariaLabel}
-          placeholder={placeholder}
-          disabled={disabled}
-          data-fp-control=""
-          className={`select ${styles.input} ${className}`}
-        />
-        <ComboboxPrimitive.Icon className={styles.icon} aria-hidden="true">
-          <svg width="10" height="10" viewBox="0 0 10 10" focusable="false">
-            <path
-              d="M2.2 3.9 5 6.5l2.8-2.6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.3"
-              strokeLinecap="round"
-            />
-          </svg>
-        </ComboboxPrimitive.Icon>
-      </ComboboxPrimitive.InputGroup>
-      <ComboboxPrimitive.Portal container={container}>
-        <ComboboxPrimitive.Positioner
-          align="start"
-          sideOffset={6}
-          className={styles.positioner}
-        >
-          <ComboboxPrimitive.Popup className={styles.popup} data-fp-popup="">
-            {preview}
-            <ComboboxPrimitive.List className={styles.list}>
-              {(group: ComboboxGroup) => (
-                <ComboboxPrimitive.Group
-                  key={group.value}
-                  items={group.items}
-                  className={styles.groupSection}
-                >
-                  {group.value ? (
-                    <ComboboxPrimitive.GroupLabel className={styles.groupLabel}>
-                      {group.value}
-                    </ComboboxPrimitive.GroupLabel>
-                  ) : null}
-                  <ComboboxPrimitive.Collection>
-                    {(item: ComboboxOption) => (
-                      <ComboboxPrimitive.Item
-                        key={item.value}
-                        value={item}
-                        disabled={item.disabled}
-                        className={styles.item}
-                      >
-                        <span className={styles.itemText}>{item.label}</span>
-                        <ComboboxPrimitive.ItemIndicator
-                          className={styles.indicator}
-                        >
-                          <svg
-                            width="11"
-                            height="11"
-                            viewBox="0 0 11 11"
-                            focusable="false"
-                          >
-                            <path
-                              d="M2.4 5.9 4.5 8 8.6 3.2"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.4"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                        </ComboboxPrimitive.ItemIndicator>
-                      </ComboboxPrimitive.Item>
-                    )}
-                  </ComboboxPrimitive.Collection>
-                </ComboboxPrimitive.Group>
-              )}
-            </ComboboxPrimitive.List>
-            <ComboboxPrimitive.Empty className={styles.empty}>
-              没有匹配的字体
-            </ComboboxPrimitive.Empty>
-          </ComboboxPrimitive.Popup>
-        </ComboboxPrimitive.Positioner>
-      </ComboboxPrimitive.Portal>
-    </ComboboxPrimitive.Root>
+      virtual={false}
+      defaultActiveFirstOption={false}
+      placeholder={placeholder}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      data-fp-control=""
+      className={`select ${menu.select} ${className}`}
+      labelRender={({ value: optionValue }) =>
+        search ? (
+          ""
+        ) : (
+          <span
+            className={menu.value}
+            data-fp-select-value=""
+            title={selected?.label}
+          >
+            {selected?.label ?? String(optionValue ?? "")}
+          </span>
+        )
+      }
+      onChange={(next) => {
+        if (next !== undefined && next !== value) onValueChange(next);
+      }}
+      onActive={(next) =>
+        onHighlightChange?.(next == null ? null : String(next))
+      }
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          if (!releasePopup.current)
+            releasePopup.current = registerPopupLayer();
+          return;
+        }
+        // rc-select keeps the typed search value after a blur or Escape, which
+        // would filter the next open menu down to the previous query.
+        setSearch("");
+        onHighlightChange?.(null);
+        releasePopup.current?.();
+        releasePopup.current = null;
+      }}
+      notFoundContent={"没有匹配的字体"}
+      getPopupContainer={(node) =>
+        (node.closest("[data-fp-overlay]") as HTMLElement | null) ??
+        document.body
+      }
+      popupRender={(list) => (
+        <div className={menu.popup} data-fp-popup="">
+          {open ? preview : null}
+          {list}
+        </div>
+      )}
+    />
   );
 }

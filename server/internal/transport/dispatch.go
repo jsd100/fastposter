@@ -85,12 +85,21 @@ func (g *Gateway) dispatch(ctx context.Context, r *app.RequestContext, name stri
 	case "AdminDeleteResource":
 		id := r.Param("id")
 		return g.RPC.Catalog(ctx, &common.CatalogCall{Context: c, Action: name, Id: &id})
+	case "AdminGetResource":
+		id := r.Param("id")
+		return g.RPC.Catalog(ctx, &common.CatalogCall{Context: c, Action: name, Id: &id})
 	case "AdminMoveResource":
 		input, e := bindInput[common.MoveResourceInput](r)
 		if e != nil {
 			return badInput(c, e)
 		}
 		return g.RPC.Catalog(ctx, &common.CatalogCall{Context: c, Action: name, Move: input})
+	case "AdminPublishResource":
+		input, e := bindInput[common.PublishResourceInput](r)
+		if e != nil {
+			return badInput(c, e)
+		}
+		return g.RPC.Catalog(ctx, &common.CatalogCall{Context: c, Action: name, Publication: input})
 	case "ApplyTemplate":
 		input, e := bindInput[common.ApplyTemplateInput](r)
 		if e != nil {

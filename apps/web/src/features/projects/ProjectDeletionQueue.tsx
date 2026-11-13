@@ -1,6 +1,7 @@
+import { Card, Tag } from "antd";
 import type { ProjectDeletionDTO } from "@fastposter/api-client";
-import { Button, ProjectDeletionStatus } from "@fastposter/ui";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ProjectDeletionStatus } from "@fastposter/ui";
+import { Pagination } from "antd";
 import { DELETION_PAGE_SIZE } from "./useProjectDeletion";
 
 type Props = {
@@ -27,14 +28,14 @@ export function ProjectDeletionQueue({
         <div>
           <h2>
             待清理作品
-            <span className="count-badge">{total}</span>
+            <Tag>{total}</Tag>
           </h2>
           <p>作品已不可恢复，文件清理会在后台继续，离开页面不影响。</p>
         </div>
       </div>
       <div className="deletion-queue-list">
         {tasks.map((task) => (
-          <article
+          <Card
             key={task.id}
             className="deletion-queue-item"
             data-testid="deletion-task"
@@ -60,29 +61,19 @@ export function ProjectDeletionQueue({
               onRetry={() => onRetry(task.id)}
               busy={busy}
             />
-          </article>
+          </Card>
         ))}
       </div>
       {total > DELETION_PAGE_SIZE && (
-        <div className="pagination">
-          <Button
-            disabled={page === 1}
-            onClick={() => onPage(page - 1)}
-            aria-label="待清理作品上一页"
-          >
-            <ArrowLeft size={16} />
-            上一页
-          </Button>
-          <span>第 {page} 页</span>
-          <Button
-            disabled={page * DELETION_PAGE_SIZE >= total}
-            onClick={() => onPage(page + 1)}
-            aria-label="待清理作品下一页"
-          >
-            下一页
-            <ArrowRight size={16} />
-          </Button>
-        </div>
+        <nav className="gallery-pager" aria-label="待清理作品分页">
+          <Pagination
+            current={page}
+            pageSize={DELETION_PAGE_SIZE}
+            total={total}
+            showSizeChanger={false}
+            onChange={onPage}
+          />
+        </nav>
       )}
     </section>
   );

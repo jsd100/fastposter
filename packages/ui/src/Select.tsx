@@ -1,11 +1,6 @@
-import { Select as SelectPrimitive } from "@base-ui/react/select";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactElement,
-  type Ref,
-} from "react";
+import { Select as AntSelect } from "antd";
+import { useEffect, useRef, type ReactElement } from "react";
+import { registerPopupLayer } from "./modal-layer";
 import styles from "./Select.module.css";
 
 export type SelectOption<T extends string | number> = {
@@ -20,16 +15,13 @@ export type SelectProps<T extends string | number> = {
   value: T;
   onValueChange: (value: T) => void;
   id?: string;
-  name?: string;
   "aria-label"?: string;
   "aria-labelledby"?: string;
   disabled?: boolean;
-  required?: boolean;
   /** Trigger text used when `value` is not one of `options`; keeps `options` stable. */
   valueLabel?: string;
   className?: string;
   density?: "normal" | "compact";
-  ref?: Ref<HTMLButtonElement>;
 };
 
 export function Select<T extends string | number>({
@@ -38,125 +30,87 @@ export function Select<T extends string | number>({
   onValueChange,
   valueLabel,
   id,
-  name,
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy,
   disabled,
-  required,
   className = "",
   density = "normal",
-  ref,
 }: SelectProps<T>): ReactElement {
-  const internal = useRef<HTMLButtonElement | null>(null);
-  const [container, setContainer] = useState<HTMLElement | undefined>();
-  useEffect(() => {
-    const anchor = internal.current;
-    if (!anchor) return;
-    const overlay = anchor.closest<HTMLElement>("[data-fp-overlay]");
-    setContainer(overlay ?? undefined);
-  }, []);
-  const attach = (node: HTMLButtonElement | null) => {
-    internal.current = node;
-    if (typeof ref === "function") ref(node);
-    else if (ref) ref.current = node;
-  };
+  const releasePopup = useRef<(() => void) | null>(null);
+  useEffect(
+    () => () => {
+      releasePopup.current?.();
+      releasePopup.current = null;
+    },
+    [],
+  );
   const selected = options.find((option) => option.value === value);
-  const current =
-    valueLabel ?? options.find((option) => option.value === value)?.label;
+  const current = valueLabel ?? selected?.label ?? String(value);
   return (
-    <SelectPrimitive.Root
+    <AntSelect
       value={value}
-      items={options}
-      name={name}
+      options={options.map((option) => ({
+        value: option.value,
+        label: option.label,
+        disabled: option.disabled,
+        title: option.label,
+      }))}
+      virtual={false}
+      id={id}
       disabled={disabled}
-      required={required}
-      modal={false}
-      onValueChange={(next) => {
-        if (next !== null && next !== value) onValueChange(next as T);
-      }}
-    >
-      <SelectPrimitive.Trigger
-        ref={attach}
-        id={id}
-        aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledBy}
-        title={current}
-        data-fp-control=""
-        className={`select ${styles.trigger}${
-          density === "compact" ? ` ${styles.compact}` : ""
-        } ${className}`}
-      >
-        {selected?.swatch && (
-          <span
-            aria-hidden="true"
-            className={styles.swatch}
-            style={{ backgroundColor: selected.swatch }}
-          />
-        )}
-        <SelectPrimitive.Value className={styles.value} data-fp-select-value="">
-          {valueLabel ?? null}
-        </SelectPrimitive.Value>
-        <SelectPrimitive.Icon className={styles.icon} aria-hidden="true">
-          <svg width="10" height="10" viewBox="0 0 10 10" focusable="false">
-            <path
-              d="M2.2 3.9 5 6.5l2.8-2.6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.3"
-              strokeLinecap="round"
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      data-fp-control=""
+      size={density === "compact" ? "small" : undefined}
+      className={`select ${styles.select} ${className}`}
+      labelRender={({ label }) => (
+        <span className={styles.value} data-fp-select-value="" title={current}>
+          {selected?.swatch && (
+            <span
+              aria-hidden="true"
+              className={styles.swatch}
+              style={{ backgroundColor: selected.swatch }}
             />
-          </svg>
-        </SelectPrimitive.Icon>
-      </SelectPrimitive.Trigger>
-      <SelectPrimitive.Portal container={container}>
-        <SelectPrimitive.Positioner
-          align="start"
-          sideOffset={6}
-          alignItemWithTrigger={false}
-          className={styles.positioner}
-        >
-          <SelectPrimitive.Popup className={styles.popup} data-fp-popup="">
-            <SelectPrimitive.List className={styles.list}>
-              {options.map((option) => (
-                <SelectPrimitive.Item
-                  key={String(option.value)}
-                  value={option.value}
-                  disabled={option.disabled}
-                  title={option.label}
-                  className={styles.item}
-                >
-                  <SelectPrimitive.ItemText className={styles.optionLabel}>
-                    {option.swatch && (
-                      <span
-                        aria-hidden="true"
-                        className={styles.swatch}
-                        style={{ backgroundColor: option.swatch }}
-                      />
-                    )}
-                    {option.label}
-                  </SelectPrimitive.ItemText>
-                  <SelectPrimitive.ItemIndicator className={styles.indicator}>
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 11 11"
-                      focusable="false"
-                    >
-                      <path
-                        d="M2.4 5.9 4.5 8 8.6 3.2"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </SelectPrimitive.ItemIndicator>
-                </SelectPrimitive.Item>
-              ))}
-            </SelectPrimitive.List>
-          </SelectPrimitive.Popup>
-        </SelectPrimitive.Positioner>
-      </SelectPrimitive.Portal>
-    </SelectPrimitive.Root>
+          )}
+          {valueLabel ?? (label as string) ?? String(value)}
+        </span>
+      )}
+      optionRender={(option) => {
+        const entry = options.find((item) => item.value === option.value);
+        return (
+          <span className={styles.optionLabel}>
+            {entry?.swatch && (
+              <span
+                aria-hidden="true"
+                className={styles.swatch}
+                style={{ backgroundColor: entry.swatch }}
+              />
+            )}
+            {option.label}
+          </span>
+        );
+      }}
+      onChange={(next) => {
+        if (next !== value) onValueChange(next as T);
+      }}
+      onOpenChange={(open) => {
+        if (open) {
+          if (!releasePopup.current)
+            releasePopup.current = registerPopupLayer();
+          return;
+        }
+        releasePopup.current?.();
+        releasePopup.current = null;
+      }}
+      getPopupContainer={(node) =>
+        (node.closest("[data-fp-overlay]") as HTMLElement | null) ??
+        document.body
+      }
+      popupRender={(menu) => (
+        <div className={styles.popup} data-fp-popup="">
+          {menu}
+        </div>
+      )}
+    />
   );
 }
