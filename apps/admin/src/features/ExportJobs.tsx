@@ -30,18 +30,10 @@ const STATUS: Record<string, { label: string; tone?: string }> = {
 
 function JobStatus({ status }: { status: string }) {
   const known = STATUS[status];
-  return (
-    <Tag color={known?.tone}>{known?.label ?? status}</Tag>
-  );
+  return <Tag color={known?.tone}>{known?.label ?? status}</Tag>;
 }
 
-function JobDetails({
-  job,
-  onClose,
-}: {
-  job: JobDTO;
-  onClose: () => void;
-}) {
+function JobDetails({ job, onClose }: { job: JobDTO; onClose: () => void }) {
   return (
     <Dialog title="导出任务失败详情" closable={false} onClose={onClose}>
       <dl className="admin-job-meta" data-testid="job-meta">
@@ -129,7 +121,7 @@ export function JobsPage() {
       key: "action",
       render: (_value, job) =>
         job.status === "failed" && (
-          <Button variant="ghost" onClick={() => setDetail(job)}>
+          <Button variant="link" onClick={() => setDetail(job)}>
             查看失败原因
           </Button>
         ),
@@ -137,9 +129,7 @@ export function JobsPage() {
   ];
   return (
     <>
-      <h1>
-        导出任务<span>.</span>
-      </h1>
+      <h1>导出任务</h1>
       <p className="admin-subtitle">
         查看队列状态与错误类型。结果图片和正文详情仅作品所有者可读取。
       </p>
@@ -174,7 +164,7 @@ export function JobsPage() {
                     </dl>
                     {job.status === "failed" && (
                       <Button
-                        variant="ghost"
+                        variant="link"
                         onClick={() => setDetail(job)}
                         className="admin-summary-action"
                       >
@@ -210,9 +200,7 @@ export function JobsPage() {
           label="导出任务分页"
         />
       </RecordSection>
-      {detail && (
-        <JobDetails job={detail} onClose={() => setDetail(null)} />
-      )}
+      {detail && <JobDetails job={detail} onClose={() => setDetail(null)} />}
     </>
   );
 }

@@ -173,7 +173,7 @@ export function CategoryForm({
             <span>删除后无法恢复，确认删除这个空分类？</span>
             <Button
               type="button"
-              variant="primary"
+              variant="danger"
               busy={busy}
               onClick={() => void remove()}
             >
@@ -213,7 +213,7 @@ export function CategoryForm({
           {category && !confirming && (
             <Button
               type="button"
-              variant="ghost"
+              variant="danger-outline"
               disabled={busy}
               onClick={() => setConfirming(true)}
             >
@@ -333,7 +333,6 @@ export function CopyForm({
         <label className="form-field">
           文案正文
           <Textarea
-            variant="bare"
             aria-label="文案正文"
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -378,7 +377,7 @@ export function CopyForm({
             <span>确认删除这条文案？</span>
             <Button
               type="button"
-              variant="primary"
+              variant="danger"
               busy={busy}
               onClick={() => void remove()}
             >
@@ -418,7 +417,7 @@ export function CopyForm({
           {copy && !confirming && (
             <Button
               type="button"
-              variant="ghost"
+              variant="danger-outline"
               disabled={busy}
               onClick={() => setConfirming(true)}
             >

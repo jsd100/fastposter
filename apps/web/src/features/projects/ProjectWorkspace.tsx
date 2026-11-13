@@ -327,6 +327,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         <SaveStatus status={auto.state.status} />
         <Button
           aria-label="保存作品"
+          title="保存作品"
           disabled={
             auto.state.status === "saved" ||
             auto.state.status === "blocked" ||
@@ -340,6 +341,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
         </Button>
         <Button
           aria-label="导出模板包"
+          title="导出模板包"
           busy={packBusy}
           disabled={
             auto.state.status === "blocked" ||

@@ -1,3 +1,4 @@
+import { Button as AntButton, Card, Dropdown, Empty, Tag } from "antd";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -24,7 +25,16 @@ import {
   type FontSource,
 } from "@fastposter/poster-renderer";
 import { parseDocument, type PosterDocument } from "@fastposter/poster-schema";
-import { Download, LayoutTemplate, Plus, Upload } from "lucide-react";
+import {
+  Archive,
+  Download,
+  Ellipsis,
+  Eye,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import {
   download,
   errorMessage,
@@ -261,10 +271,7 @@ export function TemplatesPage() {
     <>
       <div className="admin-title-row">
         <div>
-          <span className="eyebrow">PORTABLE POSTER TEMPLATES</span>
-          <h1>
-            模板<span>.</span>
-          </h1>
+          <h1>模板</h1>
           <p className="admin-subtitle">
             使用共享编辑器维护模板草稿；FastPoster 模板包不嵌入字体或脚本。
           </p>
@@ -291,7 +298,6 @@ export function TemplatesPage() {
       </div>
       <div className="admin-filters">
         <TextInput
-          variant="bare"
           className="admin-search"
           aria-label="搜索模板"
           placeholder="搜索模板名称"
@@ -359,33 +365,32 @@ export function TemplatesPage() {
         {q.data?.resources.map((resource) => {
           const document = documents.get(resource.id);
           return (
-            <article
+            <Card
               className="admin-resource-card"
               data-testid="template-card"
               key={resource.id}
+              size="small"
+              cover={
+                <div className="admin-resource-preview">
+                  {document && (
+                    <PosterThumbnail
+                      document={document}
+                      backgroundUrl={resource.asset?.previewUrl}
+                      maxHeight={164}
+                      alt={`${resource.title} 预览`}
+                    />
+                  )}
+                  <Tag
+                    className="resource-state"
+                    color={resource.published ? "success" : undefined}
+                  >
+                    {resource.published ? "已发布" : "已下架"}
+                  </Tag>
+                </div>
+              }
             >
-              <div className="admin-resource-preview template-preview">
-                {document ? (
-                  <PosterThumbnail
-                    document={document}
-                    backgroundUrl={resource.asset?.previewUrl}
-                    alt={`${resource.title} 预览`}
-                  />
-                ) : (
-                  <div className="template-preview-fallback" />
-                )}
-                <span
-                  className={
-                    resource.published
-                      ? "resource-state published"
-                      : "resource-state"
-                  }
-                >
-                  {resource.published ? "已发布" : "已下架"}
-                </span>
-              </div>
               <div className="resource-card-details">
-                <h2>{resource.title}</h2>
+                <h2 title={resource.title}>{resource.title}</h2>
                 <p>
                   版本 {resource.version}
                   {document
@@ -393,46 +398,77 @@ export function TemplatesPage() {
                     : ""}
                 </p>
                 <div className="resource-actions">
-                  <Button variant="ghost" onClick={() => setEditing(resource)}>
+                  <AntButton
+                    size="small"
+                    type="primary"
+                    ghost
+                    icon={<Pencil size={14} />}
+                    onClick={() => setEditing(resource)}
+                  >
                     编辑
-                  </Button>
-                  <Button variant="ghost" onClick={() => setPreview(resource)}>
+                  </AntButton>
+                  <AntButton
+                    size="small"
+                    icon={<Eye size={14} />}
+                    onClick={() => setPreview(resource)}
+                  >
                     预览
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy !== ""}
-                    onClick={() => void toggle(resource)}
+                  </AntButton>
+                  <Dropdown
+                    trigger={["click"]}
+                    placement="bottomRight"
+                    destroyOnHidden
+                    autoFocus
+                    menu={{
+                      items: [
+                        {
+                          key: "publication",
+                          label: resource.published ? "下架" : "发布",
+                          icon: resource.published ? (
+                            <Archive size={14} />
+                          ) : (
+                            <Upload size={14} />
+                          ),
+                          disabled: busy !== "",
+                          onClick: () => void toggle(resource),
+                        },
+                        {
+                          key: "export",
+                          label: "导出",
+                          icon: <Download size={14} />,
+                          disabled: busy !== "",
+                          onClick: () => void exportPackage(resource),
+                        },
+                        { type: "divider" },
+                        {
+                          key: "delete",
+                          label: "删除",
+                          icon: <Trash2 size={14} />,
+                          danger: true,
+                          disabled: busy !== "",
+                          onClick: () => void remove(resource),
+                        },
+                      ],
+                    }}
                   >
-                    {resource.published ? "下架" : "发布"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy !== ""}
-                    onClick={() => void exportPackage(resource)}
-                  >
-                    <Download size={13} />
-                    导出
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy !== ""}
-                    onClick={() => void remove(resource)}
-                  >
-                    删除
-                  </Button>
+                    <AntButton
+                      size="small"
+                      type="text"
+                      icon={<Ellipsis size={16} />}
+                      aria-label="更多操作"
+                      aria-haspopup="menu"
+                    />
+                  </Dropdown>
                 </div>
               </div>
-            </article>
+            </Card>
           );
         })}
       </div>
       {q.data?.resources.length === 0 && (
-        <div className="admin-empty">
-          <LayoutTemplate size={30} />
-          <h2>还没有模板</h2>
+        <Empty className="admin-empty" description="还没有模板">
           <p>用共享编辑器创建，或导入 FastPoster 模板包。</p>
-        </div>
+        </Empty>
       )}
       <RecordPager
         page={page}

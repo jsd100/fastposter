@@ -21,5 +21,4 @@ export * from "./Workbench";
 export * from "./BrandIcon";
 export * from "./ProjectDeletion";
 export * from "./navigation";
-export * from "./theme";
 export * from "./UIProvider";

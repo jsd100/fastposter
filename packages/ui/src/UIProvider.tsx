@@ -2,7 +2,6 @@ import { App, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { useMemo, type ReactNode } from "react";
 import { noticeLayer } from "./notice-layer";
-import { fastPosterTheme } from "./theme";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
@@ -25,14 +24,13 @@ function prefersReducedMotion() {
 export function UIProvider({ children }: { children: ReactNode }) {
   const theme = useMemo(
     () => ({
-      ...fastPosterTheme,
       /* antd's public `motion` seed reaches every rc-motion layer through
          MotionWrapper. Turning it off is the supported way to skip the
          appear/leave animations while keeping their lifecycle callbacks. A
          blanket `animation: none !important` used to freeze popups at their
          0x0 enter frame and never fire the end callbacks, so they stayed
          invisible, unclickable and kept the page scroll lock. */
-      token: { ...fastPosterTheme.token, motion: !prefersReducedMotion() },
+      token: { motion: !prefersReducedMotion() },
     }),
     [],
   );
@@ -44,12 +42,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
          change every accessible name the browser tests address ("取 消"). */
       button={{ autoInsertSpace: false }}
     >
-      <App
-        component={false}
-        message={{ getContainer: noticeLayer, maxCount: 3, top: 12 }}
-      >
-        {children}
-      </App>
+      <App message={{ getContainer: noticeLayer, maxCount: 3 }}>{children}</App>
     </ConfigProvider>
   );
 }

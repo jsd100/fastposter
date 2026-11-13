@@ -1,5 +1,11 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { openPoster, selectScenery, selectValue, setColor } from "./helpers";
+import {
+  inspectorOption,
+  openPoster,
+  selectScenery,
+  selectValue,
+  setColor,
+} from "./helpers";
 test.use({
   viewport: { width: 360, height: 800 },
   hasTouch: true,
@@ -75,16 +81,11 @@ test("bottom sheet font menu stays inside the viewport and keeps the selection",
     })
     .toBe(800);
   const sheetBox = (await sheet.boundingBox())!;
-  // A centred or bottom sheet keeps the 17px gutter the browser used to clamp
-  // modals to, so the authored width never runs out to the screen edge.
-  expect(sheetBox.x).toBe(17);
-  expect(Math.round(sheetBox.width)).toBe(326);
-  // The editor caps its sheet below the package default; the popup still has to
-  // reach that page rule after being portalled out of the editor.
-  expect(Math.round(sheetBox.height)).toBeLessThanOrEqual(520);
-  expect(await sheet.evaluate((el) => getComputedStyle(el).paddingBottom)).toBe(
-    "24px",
-  );
+  // A default bottom Drawer spans the viewport. The editor caps its height
+  // so some of the workspace remains visible while the controls are open.
+  expect(Math.round(sheetBox.x)).toBe(0);
+  expect(Math.round(sheetBox.width)).toBe(360);
+  expect(Math.round(sheetBox.height)).toBeLessThanOrEqual(550);
 
   const font = sheet.getByLabel("文字字体", { exact: true });
   await font.click();
@@ -540,8 +541,8 @@ test("phone inspector keeps lower selection visible and restores the view", asyn
   await expect(canvas).not.toHaveAttribute("style", before!);
   await expect(block).toHaveAttribute("data-y", beforeY!);
   // Switching a property group keeps the local effective change.
-  await sheet.getByRole("button", { name: "段落", exact: true }).click();
-  await sheet.getByRole("button", { name: "文字", exact: true }).click();
+  await inspectorOption(sheet, "段落").click();
+  await inspectorOption(sheet, "文字").click();
   await expect(sheet.getByLabel("文字字号", { exact: true })).toHaveValue("80");
 
   await page.getByRole("button", { name: "关闭", exact: true }).click();

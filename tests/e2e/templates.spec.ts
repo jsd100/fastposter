@@ -279,6 +279,8 @@ test("administrator publishes a template, user applies and re-imports an indepen
   const longCategory = "限时特惠活动模板分类名称超长用于验证触发器截断";
   const adminContext = await browser.newContext();
   const admin = await adminContext.newPage();
+  const pageErrors: string[] = [];
+  admin.on("pageerror", (error) => pageErrors.push(error.message));
   await loginAdmin(admin);
   await admin.getByRole("link", { name: "模板", exact: true }).click();
   await expect(admin).toHaveURL(/\/admin\/templates$/);
@@ -304,6 +306,7 @@ test("administrator publishes a template, user applies and re-imports an indepen
   await editor
     .getByRole("button", { name: "完成文字编辑", exact: true })
     .click();
+  expect(pageErrors).toEqual([]);
   await editor.getByLabel("发布模板", { exact: true }).check();
   await chooseOption(admin, "模板分类", longCategory);
   await expect(
@@ -340,7 +343,10 @@ test("administrator publishes a template, user applies and re-imports an indepen
   const appliedUrl = page.url();
   await expect(page.locator("[data-text-block]")).toHaveText("限时特惠");
 
-  await adminCard.getByRole("button", { name: "下架", exact: true }).click();
+  await adminCard
+    .getByRole("button", { name: "更多操作", exact: true })
+    .click();
+  await admin.getByRole("menuitem", { name: "下架", exact: true }).click();
   await expect(adminCard.getByText("已下架", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator("[data-text-block]")).toHaveText("限时特惠");
@@ -374,7 +380,10 @@ test("administrator publishes a template, user applies and re-imports an indepen
   await expect(page.locator("[data-text-block]")).toHaveText("限时特惠");
 
   const adminDownload = admin.waitForEvent("download");
-  await adminCard.getByRole("button", { name: "导出", exact: true }).click();
+  await adminCard
+    .getByRole("button", { name: "更多操作", exact: true })
+    .click();
+  await admin.getByRole("menuitem", { name: "导出", exact: true }).click();
   const adminPackage = await adminDownload;
   expect(adminPackage.suggestedFilename()).toMatch(/\.zip$/);
   const adminPackagePath = await adminPackage.path();
@@ -527,7 +536,9 @@ test("template grid returns to the previous page after its last row disappears",
     await expect(last).toBeVisible();
 
     listPages.length = 0;
-    await last.getByRole("button", { name: "删除", exact: true }).click();
+    await expect(last.getByRole("button")).toHaveCount(3);
+    await last.getByRole("button", { name: "更多操作", exact: true }).click();
+    await admin.getByRole("menuitem", { name: "删除", exact: true }).click();
 
     await expect.poll(() => listPages.includes("1")).toBe(true);
     expect(listPages).toContain("2");

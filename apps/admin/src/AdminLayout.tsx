@@ -6,7 +6,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { Drawer, Menu } from "antd";
+import { Alert, Drawer, Layout, Menu, Typography } from "antd";
 import type { MenuProps } from "antd";
 import type { UserDTO } from "@fastposter/api-client";
 import type { LucideIcon } from "lucide-react";
@@ -81,13 +81,13 @@ function AdminNav({
     label: group.caption,
     children: group.entries.map(({ route, label, icon: Icon }) => ({
       key: route,
+      icon: <Icon size={16} />,
       label: (
         <Link
           href={"/admin/" + route}
           aria-current={selected === route ? "page" : undefined}
           onClick={onNavigate}
         >
-          <Icon size={17} />
           {label}
         </Link>
       ),
@@ -187,39 +187,27 @@ export function AdminLayout({
     wasOpen.current = drawer;
   }, [drawer]);
   return (
-    <div className="admin-shell">
+    <Layout hasSider className="admin-shell">
       {navBlocked && (
         /* FP-10 / Ruling 128. Float above the modal mask so the explanation
            is actually visible while the reset dialog is open. */
-        <div
+        <Alert
           className="admin-nav-blocked"
-          role="alert"
-          style={{
-            position: "fixed",
-            zIndex: 2000,
-            top: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "#FFFFFF",
-            color: "#202C25",
-            padding: "10px 16px",
-            borderRadius: 8,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
-          }}
-        >
-          请先完成密码重置流程，再切换页面。
-        </div>
+          type="warning"
+          showIcon
+          title="请先完成密码重置流程，再切换页面。"
+        />
       )}
-      <aside className="admin-sidebar">
+      <Layout.Sider theme="light" width={224} className="admin-sidebar">
         <Link className="brand" href="/admin/overview" onClick={handleNav}>
           <BrandIcon />
-          FastPoster<small>管理</small>
+          <Typography.Text strong>FastPoster 管理</Typography.Text>
         </Link>
         <AdminNav path={path} onNavigate={handleNav} />
         <AdminFooter user={user} logout={logout} />
-      </aside>
-      <main className="admin-main">
-        <header className="admin-topbar">
+      </Layout.Sider>
+      <Layout className="admin-main">
+        <Layout.Header className="admin-topbar">
           <span className="admin-crumb">
             <IconButton
               className="admin-nav-toggle"
@@ -233,10 +221,9 @@ export function AdminLayout({
             {items.find((item) => path === "/admin/" + item.route)?.label ??
               "内容管理"}
           </span>
-          <span className="admin-role-badge">ADMIN</span>
-        </header>
-        <div className="admin-content">{children}</div>
-      </main>
+        </Layout.Header>
+        <Layout.Content className="admin-content">{children}</Layout.Content>
+      </Layout>
       {/* The phone drawer carries the same routes and the same highlight. */}
       <Drawer
         title="管理导航"
@@ -248,11 +235,10 @@ export function AdminLayout({
         className="admin-nav-drawer"
         getContainer={drawerContainer}
         focusable={{ focusTriggerAfterClose: false }}
-        styles={{ body: { padding: "8px 0 16px" } }}
       >
         <AdminNav path={path} onNavigate={handleNav} />
         <AdminFooter user={user} logout={logout} onNavigate={close} />
       </Drawer>
-    </div>
+    </Layout>
   );
 }

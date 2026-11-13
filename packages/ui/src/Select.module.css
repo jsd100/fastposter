@@ -1,123 +1,32 @@
 .select {
-  display: inline-flex;
-  align-items: center;
   min-width: 0;
-  width: auto;
-  font-family: inherit;
-  text-align: left;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
 }
-/* `content` is antd's public semantic slot (classNames.content), shared by
-   Select and Combobox. For a filled single value antd sets it to
-   `display:block` and centres the slot itself with `align-self:center`, while
-   the suffix/arrow uses the same axis. The previous rule forced
-   `height:100%`, stretching that block to the full control height so the
-   inline value sat at its top — a ~7px upward offset from the centred caret.
-   Keep the slot at its intrinsic line box instead: the plain value, the
-   placeholder, the swatch and the search input then all share the arrow's
-   centre line. Long values still clip through the value span's ellipsis.
-   This is the only rule that has to know antd's content slot; it stays in
-   this shared module (also imported by Combobox) on purpose. */
-.content {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  align-self: center;
-}
-.select:global(.ant-select) :global(.ant-select-input) {
-  padding: 0;
-  font: inherit;
-  cursor: inherit;
-}
-.select:global(.ant-select) :global(.ant-select-suffix) {
-  flex: none;
-  color: inherit;
-  pointer-events: none;
-}
-.select:global(.ant-select) :global(.ant-select-suffix) svg {
-  display: block;
-}
-.select:global(.ant-select):focus-within {
-  border-color: var(--fp-focus-line);
-  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
-}
-.select:global(.ant-select-disabled) {
-  opacity: 0.55;
-  cursor: default;
-}
-.value {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: pre;
-}
-.compact {
-  min-height: 30px;
-  padding: 0 8px;
-  font-size: 10px;
-}
-.dropdown.dropdown {
-  z-index: 60;
-  padding: 0;
-  border: 1px solid var(--fp-line);
-  border-radius: var(--fp-radius-menu);
-  box-shadow: 0 12px 30px var(--fp-dialog-shadow);
-  background: var(--fp-surface);
-  color: var(--fp-field-ink);
-}
-.popup {
-  display: flex;
-  flex-direction: column;
-  padding: 5px;
-  pointer-events: auto;
-}
-.popup :global(.ant-select-item-option) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 32px;
-  padding: 0 9px;
-  border-radius: var(--fp-radius-select);
-  font-size: 11px;
-  line-height: 1.6;
-  cursor: pointer;
-}
-.popup :global(.ant-select-item-option-active) {
-  background: var(--fp-surface-hover);
-}
-.popup :global(.ant-select-item-option-disabled) {
-  color: var(--fp-icon-ink);
-  cursor: default;
-}
+
+.value,
 .optionLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: pre;
 }
+
 .swatch {
   display: inline-block;
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
-  border: 1px solid #00000020;
-  border-radius: 3px;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  vertical-align: middle;
 }
+
+.popup {
+  pointer-events: auto;
+}
+
 @media (pointer: coarse) {
-  /* The menu rows are what a thumb hits, so they take the same 44px target and
-     text size the package gives its buttons and fields on a touch screen. */
   .popup :global(.ant-select-item-option) {
-    min-height: var(--fp-tap-target);
+    min-height: 44px;
     font-size: 16px;
   }
 }

@@ -1,74 +1,20 @@
-.root {
-  min-width: 0;
-  width: 100%;
-}
-
-.compact input {
-  height: 30px;
-  font-size: 10px;
-}
-
-.stepper {
-  display: flex;
-  align-items: stretch;
-  width: 100%;
-  min-width: 0;
-}
-
+.root,
 .input {
-  flex: 1;
   min-width: 0;
-  text-align: center;
+  width: 100%;
 }
 
-/* Ant Design's button rules are one class plus :where() wrappers; the
-   duplicated module class keeps the stepper chrome and hover ink in charge. */
-.stepper .stepButton.stepButton {
-  display: flex;
+.stepButton {
   flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 100%;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  color: inherit;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.stepper .stepButton.stepButton:hover:not(:disabled) {
-  background: var(--fp-surface-hover);
-  color: inherit;
-}
-
-.stepper .stepButton.stepButton:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.unit {
-  display: flex;
-  flex: none;
-  align-items: center;
-  padding-right: 6px;
-  font-size: 9px;
-  color: var(--fp-icon-ink);
-  pointer-events: none;
 }
 
 @media (pointer: coarse) {
-  .stepper .stepButton.stepButton {
-    width: var(--fp-tap-target, 44px);
-    font-size: 18px;
+  .stepButton {
+    min-width: 44px;
+    min-height: 44px;
   }
-  .unit {
-    padding-right: 3px;
-    font-size: 11px;
+
+  .root input {
+    font-size: 16px;
   }
 }

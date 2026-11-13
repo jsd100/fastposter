@@ -120,7 +120,6 @@ export function CopyPicker({
       </p>
       <div className="picker-filters">
         <TextInput
-          variant="bare"
           aria-label="搜索文案"
           placeholder="搜索文案标题或内容"
           value={keyword}
@@ -168,7 +167,7 @@ export function CopyPicker({
       )}
       <div className="copy-picker-list">
         {copies.data?.resources.map((row) => (
-          <button
+          <Button
             key={row.id}
             aria-label={`使用文案 ${row.title}`}
             disabled={!row.body}
@@ -176,7 +175,7 @@ export function CopyPicker({
           >
             <strong>{row.title}</strong>
             <span>{row.body}</span>
-          </button>
+          </Button>
         ))}
       </div>
       {copies.isPending && <LoadingState label="正在加载文案…" />}

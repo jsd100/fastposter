@@ -61,10 +61,8 @@ export function Select<T extends string | number>({
       aria-label={ariaLabel}
       aria-labelledby={ariaLabelledBy}
       data-fp-control=""
-      className={`select ${styles.select}${
-        density === "compact" ? ` ${styles.compact}` : ""
-      } ${className}`}
-      classNames={{ content: styles.content, popup: { root: styles.dropdown } }}
+      size={density === "compact" ? "small" : undefined}
+      className={`select ${styles.select} ${className}`}
       labelRender={({ label }) => (
         <span className={styles.value} data-fp-select-value="" title={current}>
           {selected?.swatch && (

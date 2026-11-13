@@ -182,10 +182,7 @@ export function CopyPage() {
     <>
       <div className="admin-title-row">
         <div>
-          <span className="eyebrow">CASCADING COPY CATALOG</span>
-          <h1>
-            文案库<span>.</span>
-          </h1>
+          <h1>文案库</h1>
           <p className="admin-subtitle">
             维护最多五层的分类树与纯文本文案；发布后用户可按分类逐级筛选并插入编辑器。
           </p>
@@ -246,7 +243,6 @@ export function CopyPage() {
         <section className="copy-main">
           <div className="admin-filters">
             <TextInput
-              variant="bare"
               className="admin-search"
               aria-label="搜索文案"
               placeholder="搜索文案标题或内容"

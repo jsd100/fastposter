@@ -117,3 +117,10 @@ export async function chooseCardAction(
   await menu.getByRole("menuitem", { name: item, exact: true }).click();
   await expect(menu).toHaveCount(0);
 }
+
+/** Segmented uses a visually hidden radio and a clickable label. */
+export function inspectorOption(scope: Page | Locator, name: string) {
+  return scope
+    .getByRole("radiogroup", { name: "属性分组" })
+    .getByText(name, { exact: true });
+}

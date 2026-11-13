@@ -132,12 +132,12 @@ export function TextPanel({
           disabled={fontPending}
           onChoose={chooseFont}
         />
+        {restrictedLatin && (
+          <small className="property-hint">
+            当前文字包含中文，西文字体暂不可选；仅选中英文后即可使用 Inter。
+          </small>
+        )}
       </label>
-      {restrictedLatin && (
-        <p className="property-hint">
-          当前文字包含中文，西文字体暂不可选；仅选中英文后即可使用 Inter。
-        </p>
-      )}
       <label className="panel-field">
         字重
         <Select
@@ -159,37 +159,35 @@ export function TextPanel({
           ]}
         />
       </label>
-      <div className="panel-row">
-        <label className="panel-field">
-          字号
-          <NumberField
-            aria-label="文字字号"
-            variant="stepper"
-            unit="px"
-            min={1}
-            max={4096}
-            step={1}
-            stepBase={sizeBase}
-            value={current.fontSize ?? null}
-            placeholder="混合"
-            {...draft("fontSize")}
-            onInteractionStart={onNumericStart}
-            onInteractionEnd={onNumericEnd}
-            onValueChange={(fontSize) => apply({ fontSize })}
-          />
-        </label>
-        <label className="panel-field">
-          颜色
-          <ColorField
-            label="文字颜色"
-            value={current.color ?? "#000000"}
-            onChange={(color) => apply({ color })}
-            onInteractionStart={onNumericStart}
-            onInteractionEnd={onNumericEnd}
-          />
-          {current.color === null && <small>混合</small>}
-        </label>
-      </div>
+      <label className="panel-field">
+        字号
+        <NumberField
+          aria-label="文字字号"
+          variant="stepper"
+          unit="px"
+          min={1}
+          max={4096}
+          step={1}
+          stepBase={sizeBase}
+          value={current.fontSize ?? null}
+          placeholder="混合"
+          {...draft("fontSize")}
+          onInteractionStart={onNumericStart}
+          onInteractionEnd={onNumericEnd}
+          onValueChange={(fontSize) => apply({ fontSize })}
+        />
+      </label>
+      <label className="panel-field">
+        颜色
+        <ColorField
+          label="文字颜色"
+          value={current.color ?? "#000000"}
+          onChange={(color) => apply({ color })}
+          onInteractionStart={onNumericStart}
+          onInteractionEnd={onNumericEnd}
+        />
+        {current.color === null && <small>混合</small>}
+      </label>
       <label className="panel-field">
         预设文字颜色
         <Select

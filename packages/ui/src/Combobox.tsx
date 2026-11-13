@@ -9,7 +9,6 @@ import {
 } from "react";
 import { registerPopupLayer } from "./modal-layer";
 import menu from "./Select.module.css";
-import styles from "./Combobox.module.css";
 
 export type ComboboxOption = {
   value: string;
@@ -100,7 +99,6 @@ export function Combobox({
       aria-label={ariaLabel}
       data-fp-control=""
       className={`select ${menu.select} ${className}`}
-      classNames={{ content: menu.content, popup: { root: menu.dropdown } }}
       labelRender={({ value: optionValue }) =>
         search ? (
           ""
@@ -134,7 +132,7 @@ export function Combobox({
         releasePopup.current?.();
         releasePopup.current = null;
       }}
-      notFoundContent={<div className={styles.empty}>没有匹配的字体</div>}
+      notFoundContent={"没有匹配的字体"}
       getPopupContainer={(node) =>
         (node.closest("[data-fp-overlay]") as HTMLElement | null) ??
         document.body

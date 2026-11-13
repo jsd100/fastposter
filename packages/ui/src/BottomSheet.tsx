@@ -55,10 +55,8 @@ export function BottomSheet({
       placement="bottom"
       title={title}
       size="auto"
-      closable={{ placement: "end" }}
       onClose={onClose}
       className="bottom-sheet"
-      classNames={{ wrapper: "bottom-sheet-wrapper" }}
       panelRef={attachPanel}
       onKeyDown={(event) => {
         if (event.key !== "Escape" || event.defaultPrevented) return;

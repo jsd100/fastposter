@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { openPoster, selectScenery } from "./helpers";
+import { inspectorOption, openPoster, selectScenery } from "./helpers";
 
 async function textFontSize(locator: Locator, needle: string) {
   return locator.evaluate((root, needle) => {
@@ -46,7 +46,13 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   await expect(block).toHaveCSS("font-size", "64px");
   const sizeBox = (await size.boundingBox())!;
 
-  await page.getByRole("button", { name: "段落", exact: true }).click();
+  const groups = page.getByRole("radiogroup", { name: "属性分组" });
+  await groups
+    .getByRole("radio", { name: "文字", exact: true })
+    .press("ArrowRight");
+  await expect(
+    groups.getByRole("radio", { name: "段落", exact: true }),
+  ).toBeChecked();
   const lineHeight = page.getByLabel("文字行高", { exact: true });
   const lineUp = page.getByRole("button", {
     name: "增加文字行高",
@@ -73,7 +79,7 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   expect(spacingBox.y).toBeGreaterThan(lineBox.y + lineBox.height);
   expect(sizeBox.width).toBeGreaterThan(80);
 
-  await page.getByRole("button", { name: "效果", exact: true }).click();
+  await inspectorOption(page, "效果").click();
   const opacity = page.getByLabel("透明度", { exact: true });
   await expect(opacity).toHaveValue("100");
   await opacity.fill("50");
@@ -89,7 +95,7 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   const saved = await savedDocument(page);
   expect(saved.textBlocks[0].effects.opacity).toBe(0.55);
 
-  await page.getByRole("button", { name: "文字", exact: true }).click();
+  await inspectorOption(page, "文字").click();
   await size.fill("4096");
   await size.blur();
   await expect(sizeUp).toBeDisabled();
@@ -97,9 +103,9 @@ test("steppers adjust size, line height, spacing and opacity within their bounds
   await size.blur();
   await expect(sizeDown).toBeDisabled();
 
-  await page.getByRole("button", { name: "位置", exact: true }).click();
+  await inspectorOption(page, "位置").click();
   const width = Number(await page.getByLabel("文本框宽度").inputValue());
-  await page.getByRole("button", { name: "效果", exact: true }).click();
+  await inspectorOption(page, "效果").click();
   const padding = page.getByLabel("内边距", { exact: true });
   const paddingUp = page.getByRole("button", {
     name: "增加内边距",
@@ -145,8 +151,8 @@ test("resize keeps the active selection and raw field draft", async ({
   const mobileSize = sheet.getByLabel("文字字号", { exact: true });
   await expect(mobileSize).toHaveValue("12.");
   await expect(
-    sheet.getByRole("button", { name: "文字", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    sheet.getByRole("radio", { name: "文字", exact: true }),
+  ).toBeChecked();
   // Focusing a field puts the caret at its start; a person continuing to type
   // into the same draft would first land at the end of it. End is a jump to the
   // bound in this control, so place the caret explicitly.
@@ -318,7 +324,7 @@ test("number Escape after resize restores original baseline", async ({
   await openPoster(page, "a03escape");
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   await page.locator("[data-text-block]").first().click();
-  await page.getByRole("button", { name: "效果", exact: true }).click();
+  await inspectorOption(page, "效果").click();
   const padding = page.getByLabel("内边距", { exact: true });
   await expect(padding).toHaveValue("0");
   // 0 -> 12 (valid) -> "12." (suspended). The session baseline is 0.
@@ -347,7 +353,7 @@ test("deleting a block discards its suspended number draft", async ({
   await openPoster(page, "a03delete");
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   await page.locator("[data-text-block]").first().click();
-  await page.getByRole("button", { name: "效果", exact: true }).click();
+  await inspectorOption(page, "效果").click();
   const padding = page.getByLabel("内边距", { exact: true });
   await expect(padding).toHaveValue("0");
   await padding.fill("12");
@@ -365,7 +371,7 @@ test("deleting a block discards its suspended number draft", async ({
   await expect(page.locator("[data-text-block]")).toHaveCount(1);
   await page.getByRole("button", { name: "文字设置", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "文字设置" });
-  await sheet.getByRole("button", { name: "效果", exact: true }).click();
+  await inspectorOption(sheet, "效果").click();
   // Undo restores only the last valid document value, never the old raw draft.
   await expect(sheet.getByLabel("内边距", { exact: true })).toHaveValue("12");
 });
@@ -386,7 +392,7 @@ test("position Escape restores the session baseline without an extra undo step",
   await openPoster(page, "a03posescape");
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   await page.locator("[data-text-block]").first().click();
-  await page.getByRole("button", { name: "位置", exact: true }).click();
+  await inspectorOption(page, "位置").click();
   const width = page.getByLabel("文本框宽度", { exact: true });
   const baseline = Number(await width.inputValue());
   const undo = page.getByRole("button", { name: "撤销", exact: true });

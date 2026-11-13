@@ -517,6 +517,13 @@ test("category rename plus move sends exactly one atomic save", async ({
     await expect(
       admin.getByLabel("编辑分类 子分类", { exact: true }),
     ).toBeVisible();
+    for (const name of ["添加子分类 子分类", "编辑分类 子分类"]) {
+      const icon = admin
+        .getByRole("button", { name, exact: true })
+        .locator("svg");
+      await expect(icon).toBeVisible();
+      expect((await icon.boundingBox())!.width).toBeGreaterThanOrEqual(12);
+    }
     await admin.getByLabel("编辑分类 子分类", { exact: true }).click();
     const form = admin.getByRole("dialog", { name: "编辑分类" });
     await form.getByLabel("分类名称", { exact: true }).fill("子分类改名");

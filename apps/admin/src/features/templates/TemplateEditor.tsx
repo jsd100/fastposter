@@ -246,7 +246,6 @@ export function TemplateEditor({
       <header className="template-editor-header">
         <div className="template-editor-meta">
           <TextInput
-            variant="bare"
             className="template-title-input"
             aria-label="模板名称"
             placeholder="模板名称"

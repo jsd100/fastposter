@@ -1,6 +1,5 @@
 import { Tooltip as AntTooltip } from "antd";
 import { useEffect, useState, type ReactElement } from "react";
-import styles from "./Tooltip.module.css";
 
 export function Tooltip({
   label,
@@ -32,14 +31,9 @@ export function Tooltip({
     <AntTooltip
       /* The hint carries the package marker so the browser tests keep addressing
          the bubble itself; antd owns its frame, ink and placement. */
-      title={
-        <div data-fp-tooltip="" className={styles.tip}>
-          {label}
-        </div>
-      }
+      title={<div data-fp-tooltip="">{label}</div>}
       placement={side}
       trigger={["hover", "focus"]}
-      arrow={false}
       open={open}
       onOpenChange={setOpen}
       destroyOnHidden

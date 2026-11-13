@@ -62,7 +62,7 @@ export function Dialog({
       closable={closable}
       centered={align === "center"}
       scrollLock
-      width="var(--fp-dialog-width, min(420px, calc(100vw - 32px)))"
+      width="var(--fp-dialog-width, 520px)"
       onCancel={onClose}
       className={`dialog ${className}`.trim()}
       panelRef={attachPanel}

@@ -1,386 +1,139 @@
-@import "./tokens.css";
-:root {
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "PingFang SC",
-    "Microsoft YaHei",
-    sans-serif;
-  color: #24392f;
-  background: #f7f8f5;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  font-size: 14px;
-}
-* {
-  box-sizing: border-box;
-}
 body {
-  margin: 0;
+  background: #f5f5f5;
+  color: rgba(0, 0, 0, 0.88);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans", sans-serif;
+  font-size: 14px;
+  line-height: 1.5715;
 }
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-button,
-a,
-input {
-  -webkit-tap-highlight-color: transparent;
-}
-a {
-  color: inherit;
-  text-decoration: none;
-}
-button {
-  cursor: pointer;
-}
-button:disabled {
-  cursor: wait;
-}
-h1,
-h2,
-h3,
-p {
-  margin: 0;
-}
-button:focus-visible,
-a:focus-visible,
-summary:focus-visible {
-  outline: 3px solid #8dc6aa;
-  outline-offset: 3px;
-}
-.muted {
-  color: #7a857d;
-  line-height: 1.8;
-}
-.eyebrow {
-  display: block;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.16em;
-  color: #869388;
-}
+
 .brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.6px;
+  gap: 8px;
   white-space: nowrap;
 }
+
 .brand-mark {
   display: block;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  flex: none;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
-  border-radius: 8px;
 }
-.panel {
-  border: 1px solid #e4eadd;
-  border-radius: 10px;
-  background: #fff;
-  padding: 30px;
-}
-.simple-page {
-  padding: 40px;
-  min-height: 100dvh;
-}
+
+.auth-shell,
+.admin-login,
+.simple-page,
 .app-loading {
   min-height: 100dvh;
   display: flex;
-  align-items: center;
-  justify-content: center;
   flex-direction: column;
-  gap: 20px;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 16px;
 }
+
+.auth-card {
+  width: min(100%, 400px);
+}
+
+.auth-form,
+.password-form {
+  display: grid;
+  gap: 16px;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
-  padding: 0;
-  margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
-  border: 0;
 }
-@media (max-width: 680px) {
-  .simple-page {
-    padding: 20px;
-  }
-  .panel {
-    padding: 24px;
-  }
-}
-/* Reduced motion is handled by antd's public `motion` seed in UIProvider.
-   The blanket `animation: none !important` rule that used to live here is
-   removed: it also hit rc-motion overlays, froze them at their 0x0 enter
-   frame and stopped them from ever finishing their leave transition. The
-   app's own non-essential motion stays scoped to its own components below. */
-/* antd owns the frame, ink and size of every shared button through the tokens in
-   theme.ts. What is left here is what the framework cannot express: the label row
-   inside the button, the tighter ghost padding and the icon target geometry. They
-   are qualified by the data hook, so they win over antd's injected styles without
-   depending on stylesheet order. */
+
 .button[data-fp-control] > span {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
-.button-ghost[data-fp-control] {
-  padding-inline: 8px;
-}
+
 .icon-button[data-fp-control] {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: var(--fp-radius-icon);
-  color: var(--fp-icon-ink);
   flex-shrink: 0;
 }
-.icon-button[data-fp-control]:hover,
-.icon-button[data-fp-control]:focus-visible {
-  color: var(--fp-ink);
-  background: var(--fp-icon-hover);
-}
-/* Text controls keep only their geometry: antd draws the frame, ink and size
-   from the theme and already gives each one width:100%; min-width:0. The rules
-   are keyed on the data hook because antd appends its own classes to the same
-   element and CSS-module names are hashed. They live in this stylesheet rather
-   than a module so they are always in the bundle — an unused module import is
-   dropped by the build, and a dropped focus ring reads as the page border.
-   Element + attribute + pseudo-class (0,2,1) outranks both antd's injected rule
-   and the page rules qualified on [data-fp-input] (0,2,0), so the brand ring
-   wins whatever order the stylesheets land in, including on bare variants
-   antd's own focus style never frames. */
-textarea[data-fp-input].fp-textarea {
-  min-height: 96px;
-  padding: 11px 12px;
-  line-height: 1.7;
-  resize: vertical;
-  font-family: inherit;
-}
-input[data-fp-input]:focus,
-textarea[data-fp-input]:focus {
-  outline: none;
-  border-color: var(--fp-focus-line);
-  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
-}
-/* antd leaves the modal box pointer-events:none so outside clicks reach the
-   mask, and only the panel container opts back in. Popups portalled into the
-   dialog inherit that, so they must opt in themselves while open. */
-[data-fp-overlay] [data-fp-popup][data-open] {
+
+/* Portalled controls must stay inside the active layer for focus trapping. */
+[data-fp-overlay] [data-fp-popup] {
   pointer-events: auto;
 }
-.ant-modal.dialog {
-  width: var(--fp-dialog-width, min(420px, calc(100vw - 32px)));
-  /* <dialog> was clamped by the UA to the viewport minus a gutter; a portalled
-     popup gets no such clamp, so the modal keeps the width it rendered with. */
-  max-width: calc(100% - 6px - 2em);
-}
-.ant-modal.dialog .ant-modal-container {
-  padding: 24px;
-  border: 1px solid var(--fp-line-soft);
-  border-radius: var(--fp-radius-dialog);
-  box-shadow: 0 18px 80px var(--fp-dialog-shadow);
-  background: var(--fp-surface);
-  color: var(--fp-ink);
-  max-height: calc(100dvh - 36px);
+
+.dialog .ant-modal-container,
+.bottom-sheet {
+  max-height: calc(100dvh - 32px);
   overflow: auto;
 }
-.ant-modal.dialog .ant-modal-header {
-  margin-bottom: 22px;
-  padding: 0;
-  background: transparent;
-  border-bottom: 0;
+
+.bottom-sheet {
+  position: relative;
 }
-.ant-modal.dialog .ant-modal-title {
-  font-size: 17px;
-  font-weight: 550;
-  color: var(--fp-ink);
-}
-.ant-modal.dialog .ant-modal-close {
-  top: 14px;
-  inset-inline-end: 14px;
-  width: 32px;
-  height: 32px;
-  color: var(--fp-icon-ink);
-  border-radius: var(--fp-radius-icon);
-}
-.ant-modal.dialog .ant-modal-close:hover {
-  color: var(--fp-icon-ink);
-  background: var(--fp-icon-hover);
-}
-.ant-modal.dialog .ant-modal-body {
-  padding: 0;
-}
-.dialog p {
-  font-size: 12px;
-  line-height: 1.9;
-  color: var(--fp-ink-muted);
-}
+
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 24px;
+  gap: 8px;
+  margin-top: 16px;
 }
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.form-field label {
-  font-size: 13px;
-  color: var(--fp-text-secondary);
-  font-weight: 550;
-}
-.form-field input {
-  width: 100%;
-  height: var(--fp-height-field);
-  border: 1px solid var(--fp-line);
-  background: var(--fp-surface-soft);
-  border-radius: var(--fp-radius-control);
-  padding: 0 12px;
-  outline: none;
-  color: var(--fp-text);
-  font-size: 14px;
-  min-width: 0;
-}
-.form-field input:focus {
-  border-color: var(--fp-focus-line);
-  box-shadow: 0 0 0 3px var(--fp-focus-shadow);
-}
-.form-field small {
-  font-size: 12px;
-  color: var(--fp-text-secondary);
-  line-height: 1.6;
-}
-/* antd draws the checkbox box, its ink and the gap to the label; the shared
-   control only keeps the 11px form-label typography. Qualified on antd's own
-   class so it outranks the injected rule whatever order the stylesheets land
-   in. */
-.checkbox-field.ant-checkbox-wrapper {
-  display: flex;
-  align-items: center;
-  font-size: 11px;
-  color: var(--fp-green-ink-soft);
-}
-/* antd's Upload owns the trigger, the picked-file row and its remove action.
-   The wrapper is the form row: control above, its hint below. */
+
+.form-field,
 .file-field {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.file-field {
   align-items: flex-start;
-  gap: 6px;
 }
+
+.muted,
 .file-field-hint {
-  font-size: 10px;
-  color: var(--fp-hint-ink);
-  line-height: 1.6;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
 }
-/* The workbench is a region, not a control. It takes focus so the layer stack
-   and assistive tech see it open, and a ring around the whole viewport would
-   read as the page border. */
-.workbench:focus,
-.workbench:focus-visible {
-  outline: none;
-}
-/* antd's alert draws the status surface, ink and padding from theme.ts; the
-   class keeps the spacing the pages stack these lines with. */
+
 .status[data-fp-status] {
   margin-bottom: 16px;
 }
+
 .fp-loading {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  color: var(--fp-text-secondary);
-  font-size: 13px;
+  gap: 8px;
 }
-.ant-drawer.ant-drawer-bottom
-  > .ant-drawer-content-wrapper.bottom-sheet-wrapper {
-  inset-inline: 17px;
-  width: auto;
-  max-width: 560px;
-  margin-inline: auto;
-  box-shadow: none;
-}
-.bottom-sheet {
-  max-height: 72dvh;
-  padding: 24px 24px max(24px, env(safe-area-inset-bottom));
-  border: 1px solid var(--fp-line-soft);
-  border-bottom: 0;
-  border-radius: var(--fp-radius-sheet) var(--fp-radius-sheet) 0 0;
-  box-shadow: 0 18px 80px var(--fp-dialog-shadow);
-  color: var(--fp-ink);
-  /* The panel hosts portalled menus. Positioning it makes it their containing
-     block and clipping ancestor, so floating-ui keeps them inside the sheet
-     instead of flipping past its edge. */
-  position: relative;
-}
-.ant-drawer-section.bottom-sheet .ant-drawer-header {
-  align-items: center;
-  margin-bottom: 22px;
-  padding: 0;
-  border-bottom: 0;
-}
-.ant-drawer-section.bottom-sheet .ant-drawer-title {
-  font-size: 17px;
-  font-weight: 550;
-  color: var(--fp-ink);
-}
-.ant-drawer-section.bottom-sheet .ant-drawer-close {
-  width: 32px;
-  height: 32px;
-  margin-inline: 0;
-  color: var(--fp-icon-ink);
-  border-radius: var(--fp-radius-icon);
-}
-.ant-drawer-section.bottom-sheet .ant-drawer-close:hover {
-  color: var(--fp-icon-ink);
-  background: var(--fp-icon-hover);
-}
-.ant-drawer-section.bottom-sheet .ant-drawer-body {
-  min-height: 0;
-  padding: 0;
-}
-.sheet-content {
-  padding-bottom: 8px;
-}
-/* A01 Ruling 9 / FP-02: reduced motion is CSS-only. There is no runtime
-   matchMedia subscription and the antd component tree never re-wraps, so
-   editor drafts survive. The antd Spin dot and Skeleton bars keep a static,
-   recognisable waiting appearance while role="status" text and aria-busy
-   continue to announce the wait exactly once. */
+
 @media (prefers-reduced-motion: reduce) {
   .ant-spin-dot-spin,
   .ant-skeleton-active * {
     animation: none !important;
   }
 }
+
+/* iOS input zoom and thumb targets remain platform constraints. */
 @media (pointer: coarse) {
   .button,
   .icon-button {
-    min-height: var(--fp-tap-target);
+    min-height: 44px;
   }
+
   .icon-button {
-    min-width: var(--fp-tap-target);
+    min-width: 44px;
   }
-  .form-field input {
-    font-size: 16px;
-  }
-  /* Field-framed text controls stay at 16px so iOS does not zoom the page when
-     one takes focus; compact search boxes are left at the theme size. */
-  [data-fp-input].fp-field,
-  textarea[data-fp-input].fp-field {
+
+  [data-fp-input].fp-field {
     font-size: 16px;
   }
 }

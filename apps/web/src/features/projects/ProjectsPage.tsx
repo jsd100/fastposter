@@ -1,5 +1,5 @@
 import { BrandIcon } from "@fastposter/ui";
-import { Pagination } from "antd";
+import { Avatar, Input, Layout, Pagination, Tag, Typography } from "antd";
 import {
   useEffect,
   useRef,
@@ -647,31 +647,31 @@ export function ProjectsPage({
     if (file) void upload(file);
   }
   return (
-    <div className="gallery-shell">
-      <header className="gallery-topbar">
+    <Layout className="gallery-shell">
+      <Layout.Header className="gallery-topbar">
         <Link href="/projects" className="brand">
           <BrandIcon />
           FastPoster
         </Link>
         <nav aria-label="作品导航" className="gallery-nav">
-          <button
-            type="button"
+          <Button
+            variant={!trash ? "primary" : "secondary"}
             aria-pressed={!trash}
             className="gallery-nav-item"
             onClick={() => select(false)}
           >
             <FolderOpen size={16} />
             我的作品
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant={trash ? "primary" : "secondary"}
             aria-pressed={trash}
             className="gallery-nav-item"
             onClick={() => select(true)}
           >
             <Trash2 size={16} />
             回收站
-          </button>
+          </Button>
         </nav>
         <div className="gallery-account">
           <Link className="password-link" href="/password">
@@ -679,9 +679,7 @@ export function ProjectsPage({
             修改密码
           </Link>
           <span className="account-name">
-            <span className="avatar">
-              {user!.username.slice(0, 1).toUpperCase()}
-            </span>
+            <Avatar>{user!.username.slice(0, 1).toUpperCase()}</Avatar>
             {user!.username}
           </span>
           <Tooltip label="退出登录">
@@ -696,8 +694,8 @@ export function ProjectsPage({
             </IconButton>
           </Tooltip>
         </div>
-      </header>
-      <main
+      </Layout.Header>
+      <Layout.Content
         className={`gallery-main ${dragging ? "drop-active" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
@@ -712,18 +710,9 @@ export function ProjectsPage({
         <div className="gallery-content">
           <div className="gallery-title-row">
             <div>
-              <span className="eyebrow">
-                {trash ? "A SECOND CHANCE" : "YOUR POSTER COLLECTION"}
-              </span>
-              <h1>
+              <Typography.Title level={2}>
                 {trash ? "回收站" : "我的作品"}
-                <span className="title-dot">.</span>
-              </h1>
-              <p>
-                {trash
-                  ? "作品暂存 30 天，随时找回你的灵感。"
-                  : "每一张画面，都从一个想法开始。"}
-              </p>
+              </Typography.Title>
             </div>
             <div className="gallery-title-actions">
               <Button onClick={() => setTemplatesOpen(true)}>
@@ -753,19 +742,17 @@ export function ProjectsPage({
             }}
           />
           <div className="gallery-filter-row">
-            <div className="search-input">
-              <Search size={16} />
-              <TextInput
-                variant="bare"
-                aria-label="搜索作品"
-                value={search}
-                onChange={(e) => searchThrough(e.target.value)}
-                placeholder="搜索作品名称"
-              />
-            </div>
+            <Input
+              className="search-input"
+              prefix={<Search size={16} />}
+              aria-label="搜索作品"
+              value={search}
+              onChange={(e) => searchThrough(e.target.value)}
+              placeholder="搜索作品名称"
+            />
             <span className="gallery-count">
               {keyword ? "匹配的作品" : trash ? "已移入回收站" : "全部海报"}
-              <span className="count-badge">{total}</span>
+              <Tag>{total}</Tag>
             </span>
           </div>
           {uploading && <LoadingState label="正在导入并保存原图，请稍候…" />}
@@ -810,10 +797,6 @@ export function ProjectsPage({
               />
             </nav>
           )}
-          <footer className="gallery-footer">
-            <span>为灵感留白，为文字定格。</span>
-            <span>云端保存 · FastPoster</span>
-          </footer>
         </div>
         {dragging && (
           <div className="drop-overlay">
@@ -821,7 +804,7 @@ export function ProjectsPage({
             <h2>松开以导入背景图</h2>
           </div>
         )}
-      </main>
+      </Layout.Content>
       {dialog && (
         <Dialog
           title={dialog.action === "rename" ? "重命名作品" : "移到回收站"}
@@ -923,14 +906,16 @@ export function ProjectsPage({
       {createStep === "menu" && (
         <Dialog
           title="新建海报"
+          className="create-poster-dialog"
           onClose={() => setCreateStep(null)}
           restoreFocusTo={() => createEntryRef.current}
         >
-          <p>选择海报图片的来源：上传本地图片，或从已发布的背景库挑选。</p>
-          <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+          <Typography.Text type="secondary">
+            选择一张背景图开始创作。
+          </Typography.Text>
+          <div className="create-poster-sources">
             <Button
               variant="primary"
-              style={{ width: "100%" }}
               onClick={() => {
                 // Open the native picker inside the click's user activation.
                 // The always-mounted hidden input keeps its upload() path.
@@ -938,20 +923,15 @@ export function ProjectsPage({
                 setCreateStep(null);
               }}
             >
+              <ImagePlus size={16} />
               上传本地图片
             </Button>
-            <Button
-              style={{ width: "100%" }}
-              onClick={() => setCreateStep("library")}
-            >
+            <Button onClick={() => setCreateStep("library")}>
               从背景库选择
             </Button>
-            <Button
-              style={{ width: "100%" }}
-              onClick={() => setCreateStep(null)}
-            >
-              取消
-            </Button>
+          </div>
+          <div className="dialog-actions">
+            <Button onClick={() => setCreateStep(null)}>取消</Button>
           </div>
         </Dialog>
       )}
@@ -964,6 +944,6 @@ export function ProjectsPage({
           onChoose={handleGalleryCreate}
         />
       )}
-    </div>
+    </Layout>
   );
 }

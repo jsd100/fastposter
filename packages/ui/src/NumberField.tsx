@@ -1,4 +1,4 @@
-import { Button, Input } from "antd";
+import { Button, Input, Space } from "antd";
 import {
   useEffect,
   useRef,
@@ -334,7 +334,9 @@ export function NumberField({
   const input = (
     <Input
       data-fp-input=""
+      size={density === "compact" ? "small" : undefined}
       className={variant === "stepper" ? styles.input : undefined}
+      suffix={unit && <span aria-hidden="true">{unit}</span>}
       id={id}
       aria-label={ariaLabel}
       role="spinbutton"
@@ -364,20 +366,19 @@ export function NumberField({
 
   if (variant !== "stepper") {
     return (
-      <div
-        data-fp-control=""
-        className={`${styles.root}${density === "compact" ? " " + styles.compact : ""} ${className}`}
-      >
+      <div data-fp-control="" className={`${styles.root} ${className}`}>
         {input}
       </div>
     );
   }
 
   return (
-    <div
+    <Space.Compact
+      block
+      size={density === "compact" ? "small" : undefined}
       data-fp-control=""
       data-fp-stepper=""
-      className={`${styles.root} ${styles.stepper}${density === "compact" ? " " + styles.compact : ""} ${className}`}
+      className={`${styles.root} ${className}`}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null))
           endInteraction();
@@ -388,28 +389,23 @@ export function NumberField({
         className={styles.stepButton}
         aria-label={`减少${ariaLabel}`}
         htmlType="button"
-        disabled={boundReached(-1)}
+        disabled={disabled || boundReached(-1)}
         onPointerDown={(event) => beginPress(event, -1)}
         onClick={() => keyboardStep(-1)}
       >
         <span aria-hidden="true">−</span>
       </Button>
       {input}
-      {unit && (
-        <span className={styles.unit} aria-hidden="true">
-          {unit}
-        </span>
-      )}
       <Button
         className={styles.stepButton}
         aria-label={`增加${ariaLabel}`}
         htmlType="button"
-        disabled={boundReached(1)}
+        disabled={disabled || boundReached(1)}
         onPointerDown={(event) => beginPress(event, 1)}
         onClick={() => keyboardStep(1)}
       >
         <span aria-hidden="true">+</span>
       </Button>
-    </div>
+    </Space.Compact>
   );
 }

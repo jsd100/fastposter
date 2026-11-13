@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { chooseOption } from "./helpers";
+import { inspectorOption, chooseOption } from "./helpers";
 
 const password = "a secure test password";
 
@@ -211,7 +211,7 @@ test("offline edits are kept as a draft and restored without silent loss", async
   await importLocalBackground(page);
   await page.getByRole("button", { name: "添加文字", exact: true }).click();
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "位置", exact: true }).click();
+  await inspectorOption(page, "位置").click();
   await page.route("**/api/v1/projects/**", (route) =>
     route.request().method() === "PUT"
       ? route.abort("internetdisconnected")

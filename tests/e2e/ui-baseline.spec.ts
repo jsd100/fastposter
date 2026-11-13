@@ -1,7 +1,7 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { chooseCardAction } from "./helpers";
+import { chooseCardAction, inspectorOption } from "./helpers";
 
 // Playwright wipes test-results/ before every run, so a before/after comparison
 // needs FP_UI_BASELINE_OUT pointed somewhere outside it.
@@ -176,7 +176,38 @@ describeCapture("desktop 1440x1000", () => {
       admin.getByTestId("template-card").filter({ hasText: "夏日特惠" }),
     ).toBeVisible();
 
+    const adminSearch = admin.getByRole("textbox", { name: "搜索模板" });
+    await expect(adminSearch).toBeVisible();
+    expect((await adminSearch.boundingBox())!.width).toBeLessThanOrEqual(320);
+    await shoot(admin, "d-admin-templates");
+    const templateActions = admin
+      .getByTestId("template-card")
+      .filter({ hasText: "夏日特惠" });
+    await templateActions
+      .getByRole("button", { name: "更多操作" })
+      .press("Enter");
+    await expect(
+      admin.getByRole("menuitem", { name: "删除", exact: true }),
+    ).toBeVisible();
+    await shoot(admin, "d-admin-template-actions");
+    await admin.keyboard.press("Escape");
+    await expect(
+      admin.getByRole("menuitem", { name: "删除", exact: true }),
+    ).toHaveCount(0);
+    await admin.getByRole("link", { name: "文案库", exact: true }).click();
+    await expect(
+      admin.getByRole("button", { name: "编辑分类 旅行的意义" }).locator("svg"),
+    ).toBeVisible();
+    await shoot(admin, "d-admin-copy-actions");
+    await admin.getByRole("link", { name: "用户管理", exact: true }).click();
+    const usersSearch = admin.getByRole("textbox", { name: "搜索用户" });
+    await expect(usersSearch).toBeVisible();
+    expect((await usersSearch.boundingBox())!.width).toBeLessThanOrEqual(320);
+    await shoot(admin, "d-admin-users");
+
     await admin.goto("http://127.0.0.1:15174/admin/backgrounds");
+    await expect(admin.getByTestId("resource-card").first()).toBeVisible();
+    await shoot(admin, "d-admin-backgrounds");
     await admin.getByRole("button", { name: "添加背景", exact: true }).click();
     await admin.getByLabel("素材名称", { exact: true }).fill("晨雾山谷");
     await shoot(admin, "d-08-admin-background-form");
@@ -230,9 +261,24 @@ describeCapture("desktop 1440x1000", () => {
     await page.reload();
     await expect(page.getByTestId("project-card")).toHaveCount(2);
     await shoot(page, "d-02-projects");
+    await page.getByRole("button", { name: "新建海报", exact: true }).click();
+    const create = page.getByRole("dialog", { name: "新建海报" });
+    await expect(create).toBeVisible();
+    expect((await create.boundingBox())!.width).toBeLessThanOrEqual(400);
+    await shoot(page, "d-create-poster");
+    await create.getByRole("button", { name: "取消", exact: true }).click();
 
     await page.getByRole("button", { name: "模板库", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "模板库" })).toBeVisible();
+    const templateSearch = page.getByRole("textbox", { name: "搜索模板" });
+    expect((await templateSearch.boundingBox())!.width).toBeLessThanOrEqual(
+      280,
+    );
+    const templatePreview = page.getByRole("img", { name: "夏日特惠 预览" });
+    await expect(templatePreview).toBeVisible();
+    expect((await templatePreview.boundingBox())!.height).toBeLessThanOrEqual(
+      153,
+    );
     await shoot(page, "d-03-template-picker");
     await page.getByRole("textbox", { name: "搜索模板" }).focus();
     await shoot(page, "d-09-template-search-focus");
@@ -255,6 +301,12 @@ describeCapture("desktop 1440x1000", () => {
       .poll(() => page.evaluate(() => window.getSelection()?.toString()))
       .toBe("风景");
     await shoot(page, "d-04-editor-panel");
+    await inspectorOption(page, "位置").click();
+    await expect(
+      page.getByRole("spinbutton", { name: "文本框宽度" }),
+    ).toBeVisible();
+    await shoot(page, "d-editor-position");
+    await inspectorOption(page, "文字").click();
 
     const font = page.getByLabel("文字字体", { exact: true });
     await font.click();
@@ -459,6 +511,10 @@ async function captureWidthStates(
     .getByRole("link", { name: "编辑 春日明信片", exact: true })
     .click();
   await expect(page).toHaveURL(/\/edit$/);
+  await expect(page.locator(".poster-canvas")).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(viewport.width);
   // No PNG export step is introduced here (Ruling 137/162).
   await shoot(page, `${prefix}-04-editor`);
 

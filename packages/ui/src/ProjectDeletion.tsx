@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Spin } from "antd";
+import { Checkbox, Spin } from "antd";
 import { Button } from "./Button";
 import { Dialog } from "./Dialog";
 import styles from "./ProjectDeletion.module.css";
@@ -60,14 +60,13 @@ export function ProjectDeletionConfirm({
         其他作品或资源库仍在使用的图片、字体会保留，不会影响它们正常使用。
       </div>
       {admin && (
-        <label className={styles.check}>
-          <input
-            type="checkbox"
-            checked={acknowledged}
-            onChange={(e) => setAcknowledged(e.target.checked)}
-          />
+        <Checkbox
+          className={styles.check}
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+        >
           我已确认作品归属，理解此操作会永久删除该用户的作品。
-        </label>
+        </Checkbox>
       )}
       <div className="dialog-actions">
         <Button autoFocus onClick={onClose} disabled={busy}>

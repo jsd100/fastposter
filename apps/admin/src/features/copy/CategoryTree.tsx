@@ -1,4 +1,4 @@
-import { Tree } from "antd";
+import { Button, Tree } from "antd";
 import type { TreeDataNode } from "antd";
 import { IconButton, LoadingState, Status, Tooltip } from "@fastposter/ui";
 import type { ResourceDTO } from "@fastposter/api-client";
@@ -85,32 +85,35 @@ export function CategoryTree({
     key: category.id,
     title: (
       <span className="copy-node-row">
-        <span className="copy-node-title">{category.title}</span>
+        <span className="copy-node-title" title={category.title}>
+          {category.title}
+        </span>
         {!category.published && <i>未发布</i>}
         <Tooltip label="添加子分类">
-          <IconButton
+          <Button
             className="copy-node-icon"
+            size="small"
+            type="default"
+            icon={<Plus size={14} />}
             aria-label={`添加子分类 ${category.title}`}
             onClick={(event) => {
-              // The row owns selection; a icon press must not also select it.
               event.stopPropagation();
               onAdd(category.id);
             }}
-          >
-            <Plus size={13} />
-          </IconButton>
+          />
         </Tooltip>
         <Tooltip label="编辑分类">
-          <IconButton
+          <Button
             className="copy-node-icon"
+            size="small"
+            type="text"
+            icon={<Pencil size={14} />}
             aria-label={`编辑分类 ${category.title}`}
             onClick={(event) => {
               event.stopPropagation();
               onEdit(category);
             }}
-          >
-            <Pencil size={13} />
-          </IconButton>
+          />
         </Tooltip>
       </span>
     ),
@@ -127,9 +130,14 @@ export function CategoryTree({
     <aside className="copy-tree" aria-label="文案分类树">
       <div className="copy-tree-head">
         <h2>文案分类</h2>
-        <IconButton aria-label="新建根分类" onClick={() => onAdd("")}>
-          <Plus size={14} />
-        </IconButton>
+        <Button
+          size="small"
+          icon={<Plus size={14} />}
+          onClick={() => onAdd("")}
+          aria-label="新建根分类"
+        >
+          新建分类
+        </Button>
       </div>
       {state === "loading" && <LoadingState label="正在加载分类…" />}
       {state === "failed" && (

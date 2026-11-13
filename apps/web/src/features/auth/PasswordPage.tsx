@@ -1,3 +1,4 @@
+import { Card, Typography } from "antd";
 import { useState, type FormEvent } from "react";
 import { apiClient, routes } from "@fastposter/api-client";
 import { Button, FormField, useErrorNotice } from "@fastposter/ui";
@@ -34,48 +35,52 @@ export function PasswordPage() {
   }
   return (
     <main className="simple-page">
-      <form className="panel password-form" onSubmit={submit}>
-        <Link href="/projects">← 返回作品</Link>
-        <h1>{reset ? "重设密码" : "修改密码"}</h1>
-        <p className="muted">更新后需要重新登录。</p>
-        {reset ? (
-          <>
+      <Card className="auth-card">
+        <form className="password-form" onSubmit={submit}>
+          <Link href="/projects">← 返回作品</Link>
+          <Typography.Title level={2}>
+            {reset ? "重设密码" : "修改密码"}
+          </Typography.Title>
+          <p className="muted">更新后需要重新登录。</p>
+          {reset ? (
+            <>
+              <FormField
+                label="用户名"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+              <FormField
+                label="重置令牌"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                required
+              />
+            </>
+          ) : (
             <FormField
-              label="用户名"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              label="当前密码"
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
               required
             />
-            <FormField
-              label="重置令牌"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              required
-            />
-          </>
-        ) : (
+          )}
           <FormField
-            label="当前密码"
+            label="新密码"
             type="password"
-            autoComplete="current-password"
-            value={current}
-            onChange={(e) => setCurrent(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
             required
           />
-        )}
-        <FormField
-          label="新密码"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          value={next}
-          onChange={(e) => setNext(e.target.value)}
-          required
-        />
-        <Button variant="primary" busy={busy} type="submit">
-          更新密码
-        </Button>
-      </form>
+          <Button variant="primary" busy={busy} type="submit">
+            更新密码
+          </Button>
+        </form>
+      </Card>
     </main>
   );
 }

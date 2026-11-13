@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
-import { chooseOption, selectValue } from "./helpers";
+import { inspectorOption, chooseOption, selectValue } from "./helpers";
 async function editor(page: Page) {
   const name = "geometry_" + Date.now().toString(36);
   await page.goto("/register");
@@ -43,7 +43,7 @@ test("drag, width wrap, natural height and one-step geometry history", async ({
   expect(undo!.x).toBeCloseTo(before!.x, 0);
   await page.getByRole("button", { name: "重做", exact: true }).click();
   const fullBox = await block.boundingBox();
-  await page.getByRole("button", { name: "位置", exact: true }).click();
+  await inspectorOption(page, "位置").click();
   const widthField = page.getByLabel("文本框宽度", { exact: true });
   const documentWidth = await widthField.inputValue();
   const caption = (await page.locator(".stage-caption").textContent())!;

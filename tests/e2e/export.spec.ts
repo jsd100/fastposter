@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { openPoster } from "./helpers";
+import { inspectorOption, openPoster } from "./helpers";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 test("flushes latest edits and previews the exact native PNG available for download", async ({
   page,
 }) => {
   await openPoster(page, "export");
-  await page.getByRole("button", { name: "位置", exact: true }).click();
+  await inspectorOption(page, "位置").click();
   await page.getByLabel("文本框宽度", { exact: true }).fill("600");
   await page.getByRole("button", { name: "导出 PNG", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "导出海报" })).toBeVisible();
@@ -55,7 +55,7 @@ test("unmodified picker does not block export", async ({ page }) => {
   });
   // An open-but-unedited color picker must not start a transaction: the saved
   // state, the export control and the absence of writes all stay untouched.
-  await page.getByRole("button", { name: "效果", exact: true }).click();
+  await inspectorOption(page, "效果").click();
   const trigger = page.getByLabel("文字背景色", { exact: true });
   await trigger.click();
   await expect(page.locator(".ant-color-picker-hex-input")).toBeVisible();
@@ -116,7 +116,7 @@ test("closing the export dialog mid-flight reopens the same job and unlocks the 
 
   // Editing after the dialog closed moves the saved revision, but the running
   // task keeps its own version and is reopened rather than recreated.
-  await page.getByRole("button", { name: "位置", exact: true }).click();
+  await inspectorOption(page, "位置").click();
   await page.getByLabel("文本框宽度", { exact: true }).fill("560");
   await page.getByLabel("文本框宽度", { exact: true }).blur();
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();

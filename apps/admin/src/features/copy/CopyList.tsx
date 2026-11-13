@@ -1,6 +1,7 @@
+import { Card, Empty, Tag } from "antd";
+import { Pencil } from "lucide-react";
 import type { ResourceDTO } from "@fastposter/api-client";
 import { Button, LoadingState, Status } from "@fastposter/ui";
-import { FileText } from "lucide-react";
 import { listState } from "../catalog-state";
 
 export function CopyList({
@@ -30,34 +31,32 @@ export function CopyList({
     return <Status tone="error">文案加载失败。请重试，或检查服务状态。</Status>;
   if (state === "empty")
     return (
-      <div className="admin-empty">
-        <FileText size={30} />
-        <h2>还没有文案</h2>
+      <Empty className="admin-empty" description="还没有文案">
         <p>在上方选择分类后新建文案，发布后用户即可在创作空间插入。</p>
-      </div>
+      </Empty>
     );
   return (
     <div className="copy-list">
       {resources.map((copy) => (
-        <article className="copy-card" data-testid="copy-card" key={copy.id}>
+        <Card className="copy-card" data-testid="copy-card" key={copy.id}>
           <div className="copy-card-body">
             <h3>{copy.title}</h3>
             <p>{copy.body}</p>
           </div>
           <div className="copy-card-side">
-            <span
-              className={
-                copy.published ? "resource-state published" : "resource-state"
-              }
+            <Tag
+              className="resource-state"
+              color={copy.published ? "success" : undefined}
             >
               {copy.published ? "已发布" : "已下架"}
-            </span>
+            </Tag>
             <div className="copy-card-actions">
-              <Button variant="ghost" onClick={() => onEdit(copy)}>
+              <Button variant="link" onClick={() => onEdit(copy)}>
+                <Pencil size={14} />
                 编辑
               </Button>
               <Button
-                variant="ghost"
+                variant={copy.published ? "secondary" : "primary"}
                 disabled={busy === copy.id}
                 onClick={() => onToggle(copy)}
               >
@@ -65,7 +64,7 @@ export function CopyList({
               </Button>
             </div>
           </div>
-        </article>
+        </Card>
       ))}
     </div>
   );

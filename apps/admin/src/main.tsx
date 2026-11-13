@@ -1,3 +1,4 @@
+import { Card, Typography } from "antd";
 import { BrandIcon } from "@fastposter/ui";
 import {
   createContext,
@@ -33,6 +34,7 @@ import {
 import { AdminLayout } from "./AdminLayout";
 import { navigate, usePath } from "./router";
 import { errorMessage } from "./api";
+import "antd/dist/reset.css";
 import "@fastposter/ui/styles.css";
 import "./styles.css";
 
@@ -284,34 +286,34 @@ function Login({ onUser }: { onUser: (user: UserDTO) => void }) {
         <BrandIcon />
         FastPoster<small>管理后台</small>
       </div>
-      <form className="panel" onSubmit={submit}>
-        <span className="eyebrow">CONTENT & OPERATIONS</span>
-        <h1>管理你的创作资源。</h1>
-        <p>使用管理员账号登录。</p>
-        <FormField
-          label="用户名"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-          required
-          autoFocus
-        />
-        <FormField
-          label="密码"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-          required
-        />
-        <Button variant="primary" busy={busy} type="submit">
-          {" "}
-          登录管理后台
-        </Button>
-      </form>
-      <p className="admin-login-note">
+      <Card className="auth-card">
+        <Typography.Title level={2}>管理后台登录</Typography.Title>
+        <form className="auth-form" onSubmit={submit}>
+          <FormField
+            label="用户名"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+            autoFocus
+          />
+          <FormField
+            label="密码"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          <Button variant="primary" busy={busy} type="submit">
+            {" "}
+            登录管理后台
+          </Button>
+        </form>
+      </Card>
+      <Typography.Text type="secondary">
         管理员账号由本机命令行创建，不开放后台注册。
-      </p>
+      </Typography.Text>
     </main>
   );
 }

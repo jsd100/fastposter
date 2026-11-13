@@ -1,6 +1,6 @@
 import type { ProjectDTO } from "@fastposter/api-client";
 import { Button, IconButton } from "@fastposter/ui";
-import { Dropdown, Empty, Skeleton } from "antd";
+import { Card, Dropdown, Empty, Skeleton, Typography } from "antd";
 import type { ReactNode } from "react";
 import {
   Copy,
@@ -9,7 +9,6 @@ import {
   Pencil,
   RotateCcw,
   Trash2,
-  ArrowUpRight,
   LayoutTemplate,
 } from "lucide-react";
 import { Link } from "../../router";
@@ -55,14 +54,20 @@ export function ProjectListView({
         aria-busy="true"
       >
         {[0, 1, 2].map((n) => (
-          <div key={n} className="project-card">
-            <div className="project-preview">
-              <Skeleton active title={false} paragraph={{ rows: 3 }} />
-            </div>
+          <Card
+            key={n}
+            size="small"
+            className="project-card"
+            cover={
+              <div className="project-preview project-preview-loading">
+                <Skeleton active title={false} paragraph={{ rows: 3 }} />
+              </div>
+            }
+          >
             <div className="project-card-info">
               <Skeleton active title={{ width: "55%" }} paragraph={false} />
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     );
@@ -79,28 +84,27 @@ export function ProjectListView({
         </div>
       );
     return (
-      <div className="empty-workspace">
-        <div className="empty-symbol">
-          {trash ? (
-            <Trash2 size={30} strokeWidth={1.3} />
-          ) : (
-            <ImagePlus size={34} strokeWidth={1.3} />
-          )}
-        </div>
-        <h2>
-          {trash
-            ? pendingDeletions > 0
-              ? "没有可恢复的作品"
-              : "回收站是空的"
-            : "从一张图片开始"}
-        </h2>
-        <p>
-          {trash
-            ? pendingDeletions > 0
-              ? "待清理作品会在后台完成删除，独占文件清理后自动消失。"
-              : "移入回收站的作品可在 30 天内恢复。"
-            : "导入喜欢的背景，写下此刻的灵感。"}
-        </p>
+      <Empty
+        className="empty-workspace"
+        description={
+          <>
+            <Typography.Title level={4}>
+              {trash
+                ? pendingDeletions > 0
+                  ? "没有可恢复的作品"
+                  : "回收站是空的"
+                : "从一张图片开始"}
+            </Typography.Title>
+            <Typography.Text type="secondary">
+              {trash
+                ? pendingDeletions > 0
+                  ? "待清理作品会在后台完成删除，独占文件清理后自动消失。"
+                  : "移入回收站的作品可在 30 天内恢复。"
+                : "支持 JPG、PNG 和 WebP，保留原图像素尺寸。"}
+            </Typography.Text>
+          </>
+        }
+      >
         {!trash && (
           <div className="empty-actions">
             <Button onClick={onUpload} variant="primary">
@@ -113,52 +117,50 @@ export function ProjectListView({
             </Button>
           </div>
         )}
-        <span className="empty-formats">
-          {trash
-            ? "你的下一张好海报，还在前面。"
-            : "JPG / PNG / WebP · 保持原图像素尺寸"}
-        </span>
-      </div>
+      </Empty>
     );
   }
   return (
     <div className="project-grid">
       {projects.map((project) => (
-        <article
+        <Card
           key={project.id}
           data-testid="project-card"
           className="project-card"
-        >
-          <div className="project-preview">
-            {!trash ? (
-              <Link
-                href={`/projects/${project.id}/edit`}
-                aria-label={`编辑 ${project.title}`}
-              >
+          size="small"
+          hoverable={!trash}
+          cover={
+            <div className="project-preview">
+              {!trash ? (
+                <Link
+                  href={`/projects/${project.id}/edit`}
+                  aria-label={`编辑 ${project.title}`}
+                >
+                  <Preview project={project} />
+                </Link>
+              ) : (
                 <Preview project={project} />
-                <span className="preview-edit">
-                  继续编辑 <ArrowUpRight size={16} />
-                </span>
-              </Link>
-            ) : (
-              <Preview project={project} />
-            )}
-            <span className="project-dimensions">
-              {project.width} × {project.height}
-            </span>
-          </div>
+              )}
+            </div>
+          }
+        >
           <div className="project-card-info">
             <div>
-              <h3>{project.title}</h3>
-              <p>
-                {new Intl.DateTimeFormat("zh-CN", {
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }).format(new Date(project.updatedAt))}{" "}
-                更新
-              </p>
+              <h3 title={project.title}>{project.title}</h3>
+              <div className="project-card-meta">
+                <span>
+                  {project.width} × {project.height} px
+                </span>
+                <time dateTime={project.updatedAt}>
+                  {new Intl.DateTimeFormat("zh-CN", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }).format(new Date(project.updatedAt))}{" "}
+                  更新
+                </time>
+              </div>
             </div>
             {trash ? (
               <div className="trash-actions">
@@ -171,8 +173,7 @@ export function ProjectListView({
                   恢复
                 </Button>
                 <Button
-                  variant="ghost"
-                  className="text-danger"
+                  variant="danger"
                   onClick={() => onAction("permanent-delete", project)}
                   aria-label={`彻底删除 ${project.title}`}
                 >
@@ -206,7 +207,7 @@ export function ProjectListView({
               </Dropdown>
             )}
           </div>
-        </article>
+        </Card>
       ))}
     </div>
   );

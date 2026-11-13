@@ -19,6 +19,7 @@ import { AuthPage } from "./features/auth/AuthPage";
 import { PasswordPage } from "./features/auth/PasswordPage";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
 import type { CollectionPosition } from "./features/projects/collection-position";
+import "antd/dist/reset.css";
 import "@fastposter/ui/styles.css";
 import "./styles.css";
 

@@ -1,4 +1,4 @@
-import { App } from "antd";
+import { App, Button, Typography } from "antd";
 import {
   createContext,
   useCallback,
@@ -39,14 +39,7 @@ export function NotificationsProvider({
             />
           ),
           duration: entry.timeout / 1000,
-          icon: null,
-          styles: {
-            root: {
-              padding: 0,
-              background: "transparent",
-              boxShadow: "none",
-            },
-          },
+          type: entry.tone,
         });
       },
       dismiss(id) {
@@ -71,35 +64,34 @@ function NoticeCard({
   onDismiss: () => void;
 }) {
   return (
-    <div
-      className={`${styles.toast} ${styles[entry.tone]}`}
-      data-testid="notice"
-    >
+    <div className={styles.toast} data-testid="notice">
       <div className={styles.copy}>
-        <div className={styles.title}>{entry.title}</div>
-        {entry.description ? (
-          <div className={styles.description}>{entry.description}</div>
-        ) : null}
+        <Typography.Text>{entry.title}</Typography.Text>
+        {entry.description && (
+          <Typography.Text type="secondary">
+            {entry.description}
+          </Typography.Text>
+        )}
       </div>
-      {entry.action ? (
-        <button
-          type="button"
-          className={styles.action}
+      {entry.action && (
+        <Button
+          size="small"
+          type="link"
           data-testid="notice-action"
-          onClick={() => entry.action?.onClick()}
+          onClick={entry.action.onClick}
         >
           {entry.action.label}
-        </button>
-      ) : null}
-      <button
-        type="button"
-        className={styles.close}
+        </Button>
+      )}
+      <Button
+        size="small"
+        type="text"
         aria-label="关闭通知"
         data-testid="notice-close"
         onClick={onDismiss}
       >
         ×
-      </button>
+      </Button>
     </div>
   );
 }

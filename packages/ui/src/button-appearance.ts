@@ -2,7 +2,8 @@ import { Spin } from "antd";
 import type { ButtonProps as AntButtonProps } from "antd";
 import { createElement, type ReactElement } from "react";
 
-export type SharedVariant = "primary" | "secondary" | "ghost" | "danger";
+export type SharedVariant =
+  "primary" | "secondary" | "ghost" | "link" | "danger" | "danger-outline";
 export type SharedDensity = "normal" | "compact";
 
 /**
@@ -18,6 +19,10 @@ export function antdAppearance(variant: SharedVariant): {
       return { type: "primary" };
     case "ghost":
       return { type: "text" };
+    case "link":
+      return { type: "link" };
+    case "danger-outline":
+      return { type: "default", danger: true };
     case "danger":
       return { type: "primary", danger: true };
     default:
@@ -25,7 +30,7 @@ export function antdAppearance(variant: SharedVariant): {
   }
 }
 
-/** Compact density is antd's small size; normal inherits the 36px seed token. */
+/** Compact density is antd's small size; normal uses antd's default size. */
 export function antdSize(density: SharedDensity): AntButtonProps["size"] {
   return density === "compact" ? "small" : undefined;
 }

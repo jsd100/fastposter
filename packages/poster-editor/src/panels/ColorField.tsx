@@ -1,4 +1,4 @@
-import { ColorPicker } from "antd";
+import { Button, ColorPicker } from "antd";
 import {
   useEffect,
   useRef,
@@ -99,15 +99,11 @@ export function ColorField({
           (node.closest("[data-fp-overlay]") as HTMLElement | null) ??
           document.body
         }
-        panelRender={(panel) => (
-          <div className={styles.panel} data-fp-popup="">
-            {panel}
-          </div>
-        )}
+        panelRender={(panel) => <div data-fp-popup="">{panel}</div>}
       >
-        <button
+        <Button
           ref={trigger}
-          type="button"
+          htmlType="button"
           className={styles.trigger}
           aria-label={label}
           aria-haspopup="dialog"
@@ -121,7 +117,7 @@ export function ColorField({
             />
           </span>
           <span className={styles.hex}>{value.toUpperCase()}</span>
-        </button>
+        </Button>
       </ColorPicker>
     </span>
   );

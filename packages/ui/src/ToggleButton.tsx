@@ -33,7 +33,9 @@ export function ToggleButton({
       {...props}
       ref={ref}
       htmlType={type ?? "button"}
-      {...antdAppearance(variant)}
+      {...antdAppearance(
+        pressed && variant === "secondary" ? "primary" : variant,
+      )}
       size={antdSize(density)}
       disabled={disabled || busy}
       aria-busy={busy || undefined}

@@ -1,6 +1,11 @@
 import { Button as AntButton } from "antd";
 import type { ButtonHTMLAttributes, Ref } from "react";
-import { antdAppearance, antdSize, busyLoading } from "./button-appearance";
+import {
+  antdAppearance,
+  antdSize,
+  busyLoading,
+  type SharedVariant,
+} from "./button-appearance";
 
 /**
  * `color` is dropped from the inherited HTML attributes because antd owns that
@@ -10,7 +15,7 @@ export type ButtonProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
   "color"
 > & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: SharedVariant;
   busy?: boolean;
   density?: "normal" | "compact";
   ref?: Ref<HTMLButtonElement>;

@@ -225,7 +225,6 @@ export function BackgroundPicker({
       <p>选择预设背景。不同尺寸会调整画布和文字位置，字号保持不变。</p>
       <div className="picker-filters">
         <TextInput
-          variant="bare"
           aria-label="搜索预设背景"
           placeholder="搜索背景"
           value={keyword}
@@ -254,16 +253,12 @@ export function BackgroundPicker({
           if (!r.asset) return null;
           const sel = isCreate && selected?.resourceId === r.id;
           return (
-            <button
+            <Button
+              variant={sel ? "primary" : "secondary"}
               key={r.id}
               aria-label={isCreate ? `选择 ${r.title}` : `选用 ${r.title}`}
               aria-pressed={isCreate ? !!sel : undefined}
               data-selected={isCreate && sel ? "" : undefined}
-              style={
-                isCreate && sel
-                  ? { outline: "2px solid #2E694F", outlineOffset: "-2px" }
-                  : undefined
-              }
               onClick={() => {
                 if (isCreate) {
                   setSelected(identity(r));
@@ -280,7 +275,7 @@ export function BackgroundPicker({
                 {r.asset.width} × {r.asset.height}
                 {isCreate && sel ? " · 已选中" : ""}
               </small>
-            </button>
+            </Button>
           );
         })}
       </div>

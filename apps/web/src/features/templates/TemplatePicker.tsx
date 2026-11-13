@@ -1,3 +1,4 @@
+import { Card } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pagination } from "antd";
@@ -211,10 +212,11 @@ export function TemplatePicker({
   }
   return (
     <Dialog title="模板库" className="template-picker" onClose={onClose}>
-      <p>选择模板会创建一个独立作品，保留画布、背景与文字排版。</p>
+      <p className="picker-description">
+        使用模板会创建独立作品，保留原有画布、背景与文字排版。
+      </p>
       <div className="picker-filters">
         <TextInput
-          variant="bare"
           aria-label="搜索模板"
           placeholder="搜索模板"
           value={keyword}
@@ -263,24 +265,31 @@ export function TemplatePicker({
         {q.data?.resources.map((resource) => {
           const document = documents.get(resource.id);
           return (
-            <article key={resource.id} className="template-card">
-              {document ? (
-                <PosterThumbnail
-                  document={document}
-                  backgroundUrl={resource.asset?.previewUrl}
-                  alt={`${resource.title} 预览`}
-                />
-              ) : (
-                <div className="template-preview-fallback" aria-hidden="true" />
-              )}
-              <div>
-                <h3>{resource.title}</h3>
-                <small>
+            <Card
+              key={resource.id}
+              size="small"
+              className="template-card"
+              cover={
+                <div className="template-card-preview">
+                  {document && (
+                    <PosterThumbnail
+                      document={document}
+                      backgroundUrl={resource.asset?.previewUrl}
+                      alt={`${resource.title} 预览`}
+                      maxHeight={152}
+                    />
+                  )}
+                </div>
+              }
+            >
+              <div className="template-card-info">
+                <h3 title={resource.title}>{resource.title}</h3>
+                <span className="template-card-meta">
                   {document
                     ? `${document.canvas.width} × ${document.canvas.height} px`
                     : "预览不可用"}
-                  {fontsReady ? "" : " · 正在载入字体"}
-                </small>
+                  {!fontsReady && <span>正在载入字体</span>}
+                </span>
                 <Button
                   variant="primary"
                   busy={busy === resource.id}
@@ -290,7 +299,7 @@ export function TemplatePicker({
                   使用模板
                 </Button>
               </div>
-            </article>
+            </Card>
           );
         })}
       </div>

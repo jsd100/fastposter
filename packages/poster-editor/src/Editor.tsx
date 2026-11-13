@@ -1,3 +1,4 @@
+import { Alert } from "antd";
 import {
   useEffect,
   useLayoutEffect,
@@ -759,7 +760,7 @@ export function Editor({
   const position = selected ? (
     <div className="geometry-fields">
       {(["x", "y", "width"] as const).map((field) => (
-        <label key={field}>
+        <label className="panel-field" key={field}>
           {field === "width" ? "宽度" : field.toUpperCase()}
           <NumberField
             aria-label={
@@ -777,6 +778,7 @@ export function Editor({
                   : state.document.canvas.height - 0.001
             }
             step={1}
+            unit="px"
             {...draft(selected.id, `position-${field}`, true)}
             onValueChange={(n) =>
               withControlGesture(() => {
@@ -790,7 +792,6 @@ export function Editor({
               })
             }
           />
-          <small>px</small>
         </label>
       ))}
       <p className="property-hint">调宽只改变自动换行，字号保持不变。</p>
@@ -806,17 +807,16 @@ export function Editor({
         {[...state.document.textBlocks]
           .sort((a, b) => b.zIndex - a.zIndex)
           .map((b, index) => (
-            <button
-              className={
-                b.id === state.selectedId ? "layer-item selected" : "layer-item"
-              }
+            <Button
+              variant={b.id === state.selectedId ? "primary" : "ghost"}
+              className="layer-item"
               key={b.id}
               aria-pressed={b.id === state.selectedId}
               onClick={() => store.select(b.id)}
             >
               <Type size={15} />
               <span>{plainText(b.content) || `文字 ${index + 1}`}</span>
-            </button>
+            </Button>
           ))}
         <div className="background-layer">
           <Image size={15} />
@@ -942,9 +942,11 @@ export function Editor({
         </div>
       )}
       {state.overflow && (
-        <div className="overflow-notice" role="alert">
-          文字超出画布，请调宽文本框、减小字号或调整位置后导出。正文已保留。
-        </div>
+        <Alert
+          type="warning"
+          showIcon
+          title="文字超出画布，请调宽文本框、减小字号或调整位置后导出。正文已保留。"
+        />
       )}
       <div className={bodyClass}>
         {showLayers && (
@@ -1065,7 +1067,8 @@ export function Editor({
         <nav className="mobile-nav" aria-label="编辑工具">
           {/* Named, 44px-target history controls share the desktop callbacks
               and disabled reasons; they stay visible without a selection. */}
-          <button
+          <Button
+            variant="ghost"
             type="button"
             className="mobile-nav-item"
             aria-label="撤销"
@@ -1075,8 +1078,9 @@ export function Editor({
           >
             <Undo2 size={18} />
             <span>撤销</span>
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
             type="button"
             className="mobile-nav-item"
             aria-label="重做"
@@ -1086,8 +1090,9 @@ export function Editor({
           >
             <Redo2 size={18} />
             <span>重做</span>
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
             type="button"
             className="mobile-nav-item"
             aria-label="文字设置"
@@ -1095,8 +1100,9 @@ export function Editor({
           >
             <Type size={18} />
             <span>文字</span>
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
             type="button"
             className="mobile-nav-item"
             aria-label="更换背景"
@@ -1106,9 +1112,10 @@ export function Editor({
           >
             <Image size={18} />
             <span>背景</span>
-          </button>
+          </Button>
           {onCopyRequest && (
-            <button
+            <Button
+              variant="ghost"
               type="button"
               className="mobile-nav-item"
               aria-label="文案"
@@ -1118,9 +1125,10 @@ export function Editor({
             >
               <FileText size={18} />
               <span>文案</span>
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            variant="ghost"
             type="button"
             className="mobile-nav-item"
             aria-label="图层"
@@ -1128,7 +1136,7 @@ export function Editor({
           >
             <Layers size={18} />
             <span>图层</span>
-          </button>
+          </Button>
         </nav>
       )}
       {layout === "phone" && sheet === "inspector" && (

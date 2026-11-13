@@ -1,6 +1,0 @@
-/* antd draws the bubble (ink, radius, padding, shadow) from the theme; this is
-   the text inside it, sized to UI-02's secondary-text step. */
-.tip {
-  font-size: 12px;
-  line-height: 1.5;
-}

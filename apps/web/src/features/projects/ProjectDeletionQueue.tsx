@@ -1,3 +1,4 @@
+import { Card, Tag } from "antd";
 import type { ProjectDeletionDTO } from "@fastposter/api-client";
 import { ProjectDeletionStatus } from "@fastposter/ui";
 import { Pagination } from "antd";
@@ -27,14 +28,14 @@ export function ProjectDeletionQueue({
         <div>
           <h2>
             待清理作品
-            <span className="count-badge">{total}</span>
+            <Tag>{total}</Tag>
           </h2>
           <p>作品已不可恢复，文件清理会在后台继续，离开页面不影响。</p>
         </div>
       </div>
       <div className="deletion-queue-list">
         {tasks.map((task) => (
-          <article
+          <Card
             key={task.id}
             className="deletion-queue-item"
             data-testid="deletion-task"
@@ -60,7 +61,7 @@ export function ProjectDeletionQueue({
               onRetry={() => onRetry(task.id)}
               busy={busy}
             />
-          </article>
+          </Card>
         ))}
       </div>
       {total > DELETION_PAGE_SIZE && (

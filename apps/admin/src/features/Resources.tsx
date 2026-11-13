@@ -1,7 +1,7 @@
+import { Card, Empty, Skeleton, Tag } from "antd";
 import { FontPreview } from "./FontPreview";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Skeleton } from "antd";
 import {
   apiClient,
   loadCatalogPages,
@@ -170,11 +170,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
     <>
       <div className="admin-title-row">
         <div>
-          <span className="eyebrow">SHARED CREATIVE RESOURCES</span>
-          <h1>
-            {kind === "background" ? "背景库" : "字体库"}
-            <span>.</span>
-          </h1>
+          <h1>{kind === "background" ? "背景库" : "字体库"}</h1>
           <p className="admin-subtitle">
             {kind === "background"
               ? "上传并发布预设背景，保留已有作品的不可变引用。"
@@ -188,7 +184,6 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
       </div>
       <div className="admin-filters">
         <TextInput
-          variant="bare"
           className="admin-search"
           aria-label="搜索素材"
           placeholder="搜索素材名称"
@@ -260,7 +255,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
       >
         {q.isPending &&
           [0, 1, 2].map((n) => (
-            <article className="admin-resource-card" key={n}>
+            <Card size="small" className="admin-resource-card" key={n}>
               <div className="admin-resource-preview">
                 <Skeleton active title={false} paragraph={{ rows: 3 }} />
               </div>
@@ -271,10 +266,10 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
                   paragraph={{ rows: 2 }}
                 />
               </div>
-            </article>
+            </Card>
           ))}
         {q.data?.resources.map((r) => (
-          <article
+          <Card
             className="admin-resource-card"
             data-testid="resource-card"
             key={r.id}
@@ -285,16 +280,15 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
               ) : (
                 <FontPreview resource={r} />
               )}
-              <span
-                className={
-                  r.published ? "resource-state published" : "resource-state"
-                }
+              <Tag
+                className="resource-state"
+                color={r.published ? "success" : undefined}
               >
                 {r.published ? "已发布" : "已下架"}
-              </span>
+              </Tag>
             </div>
             <div className="resource-card-details">
-              <h2>{r.title}</h2>
+              <h2 title={r.title}>{r.title}</h2>
               <p>
                 版本 {r.version}
                 {r.asset && kind === "background"
@@ -303,18 +297,24 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
               </p>
               {r.license && <small>{r.license}</small>}
               <div className="resource-actions">
-                <Button variant="ghost" onClick={() => setEditing(r)}>
+                <Button
+                  density="compact"
+                  variant="link"
+                  onClick={() => setEditing(r)}
+                >
                   编辑
                 </Button>
                 <Button
-                  variant="ghost"
+                  density="compact"
+                  variant={r.published ? "secondary" : "primary"}
                   disabled={busy}
                   onClick={() => void publish(r)}
                 >
                   {r.published ? "下架" : "发布"}
                 </Button>
                 <Button
-                  variant="ghost"
+                  density="compact"
+                  variant="danger-outline"
                   disabled={busy}
                   onClick={() => void remove(r)}
                 >
@@ -322,15 +322,18 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
                 </Button>
               </div>
             </div>
-          </article>
+          </Card>
         ))}
       </div>
       {q.data?.resources.length === 0 && (
-        <div className="admin-empty">
-          <ImagePlus size={30} />
-          <h2>还没有{kind === "background" ? "共享背景" : "上传字体"}</h2>
+        <Empty
+          className="admin-empty"
+          description={
+            <h2>还没有{kind === "background" ? "共享背景" : "上传字体"}</h2>
+          }
+        >
           <p>添加素材并发布后，用户即可在创作空间选用。</p>
-        </div>
+        </Empty>
       )}
       <RecordPager
         page={page}
@@ -589,7 +592,6 @@ function ResourceForm({
         <label className="form-field">
           授权说明
           <Textarea
-            variant="bare"
             aria-label="授权说明"
             value={license}
             onChange={(e) => setLicense(e.target.value)}

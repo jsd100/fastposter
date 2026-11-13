@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Table } from "antd";
+import { Alert, Card, Statistic, Table, Tag, Typography } from "antd";
 import type { TableProps } from "antd";
 import {
   ApiClientError,
@@ -49,10 +49,7 @@ export function Overview() {
   const o = q.data?.overview;
   return (
     <>
-      <span className="eyebrow">WORKSPACE AT A GLANCE</span>
-      <h1>
-        运行概览<span>.</span>
-      </h1>
+      <Typography.Title level={2}>运行概览</Typography.Title>
       <p className="admin-subtitle">作品、资源与导出的本机运行情况。</p>
       <div className="metric-grid">
         {[
@@ -62,19 +59,18 @@ export function Overview() {
           ["成功导出", o?.successfulExports],
           ["失败导出", o?.failedExports],
         ].map(([name, value]) => (
-          <div className="metric-card" key={name}>
-            <span>{name}</span>
-            <strong>{value ?? "—"}</strong>
-          </div>
+          <Card key={name}>
+            <Statistic title={name} value={value ?? "—"} />
+          </Card>
         ))}
       </div>
-      <div className="admin-note">
-        <h2>本地部署</h2>
-        <p>
-          文件保存在本机共享目录，MySQL
-          持久保存作品与导出任务。下架素材会保留已有作品的版本引用。
-        </p>
-      </div>
+      <Alert
+        className="admin-note"
+        type="info"
+        showIcon
+        title="本地部署"
+        description="文件保存在本机共享目录，MySQL 持久保存作品与导出任务。下架素材会保留已有作品的版本引用。"
+      />
     </>
   );
 }
@@ -182,10 +178,10 @@ export function UsersPage() {
       title: "用户名",
       dataIndex: "username",
       render: (_value, user) => (
-        <>
-          {user.username}
+        <div className="record-identity">
+          <span>{user.username}</span>
           <small>{user.id}</small>
-        </>
+        </div>
       ),
     },
     {
@@ -197,9 +193,9 @@ export function UsersPage() {
       title: "状态",
       dataIndex: "disabled",
       render: (disabled: boolean) => (
-        <span className={disabled ? "badge muted-badge" : "badge"}>
+        <Tag color={disabled ? "error" : undefined}>
           {disabled ? "已禁用" : "正常"}
-        </span>
+        </Tag>
       ),
     },
     {
@@ -211,9 +207,10 @@ export function UsersPage() {
       title: "操作",
       key: "action",
       render: (_value, user) => (
-        <>
+        <div className="record-actions">
           <Button
-            variant="ghost"
+            density="compact"
+            variant={user.disabled ? "secondary" : "danger-outline"}
             onClick={() =>
               openAction(user, user.disabled ? "enable" : "disable")
             }
@@ -221,25 +218,23 @@ export function UsersPage() {
             {user.disabled ? "恢复账号" : "禁用账号"}
           </Button>
           <Button
-            variant="ghost"
+            density="compact"
+            variant="secondary"
             onClick={() => openAction(user, "reset-password")}
           >
             重置密码
           </Button>
-        </>
+        </div>
       ),
     },
   ];
   return (
     <>
-      <h1>
-        用户管理<span>.</span>
-      </h1>
+      <h1>用户管理</h1>
       <p className="admin-subtitle">
         禁用即时撤销会话；恢复账号后仍须重新登录。
       </p>
       <TextInput
-        variant="bare"
         className="admin-search"
         aria-label="搜索用户"
         placeholder="搜索用户名"
@@ -294,7 +289,6 @@ export function UsersPage() {
                 <code>/password?reset=1</code> 设置新密码。令牌只显示本次。
               </p>
               <Textarea
-                variant="bare"
                 readOnly
                 aria-label="一次性重置令牌"
                 className="reset-token"
@@ -337,7 +331,7 @@ export function UsersPage() {
                   </Button>
                 )}
                 <Button
-                  variant="primary"
+                  variant={target.action === "enable" ? "primary" : "danger"}
                   busy={phase === "running"}
                   onClick={() => void confirm()}
                 >
@@ -431,10 +425,10 @@ export function ProjectsPage() {
       title: "作品",
       dataIndex: "title",
       render: (_value, project) => (
-        <>
-          {project.title}
+        <div className="record-identity">
+          <span>{project.title}</span>
           <small>{project.id}</small>
-        </>
+        </div>
       ),
     },
     {
@@ -468,7 +462,7 @@ export function ProjectsPage() {
       render: (_value, project) =>
         canPermanentlyDelete(project) && (
           <Button
-            variant="ghost"
+            variant="danger-outline"
             onClick={() => {
               setActionError("");
               setTarget(project);
@@ -481,16 +475,13 @@ export function ProjectsPage() {
   ];
   return (
     <>
-      <h1>
-        作品元数据<span>.</span>
-      </h1>
+      <h1>作品元数据</h1>
       <p className="admin-subtitle">
         仅显示名称、归属、尺寸与版本。海报正文和私有图片不向管理员开放。
       </p>
       <ProjectDeletionQueue />
       <div className="admin-filters">
         <TextInput
-          variant="bare"
           className="admin-search"
           aria-label="搜索作品元数据"
           placeholder="搜索作品名称"
@@ -580,9 +571,7 @@ export function AuditPage() {
   ];
   return (
     <>
-      <h1>
-        操作记录<span>.</span>
-      </h1>
+      <h1>操作记录</h1>
       <p className="admin-subtitle">
         记录操作者、动作和目标 ID；不记录密码、会话或私有文案。
       </p>

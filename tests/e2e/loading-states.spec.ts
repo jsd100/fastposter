@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
-import { openPoster } from "./helpers";
+import { inspectorOption, openPoster } from "./helpers";
 
 /**
  * FP-02 / A07. Every real request family is delayed on the page and the
@@ -439,7 +439,7 @@ test(`${CASE} · offline`, async ({ page }) => {
   );
   const save = page.getByRole("button", { name: "保存作品" });
   // (1) 等待：antd Button loading + 单一静态状态文字，无蓝色等待块。
-  await page.getByRole("button", { name: "位置", exact: true }).click();
+  await inspectorOption(page, "位置").click();
   await page.getByLabel("文本框宽度", { exact: true }).fill("420");
   await expect(
     page.getByRole("status").filter({ hasText: "保存中…" }),

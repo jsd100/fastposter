@@ -1,6 +1,7 @@
+import { Segmented } from "antd";
 import { Button } from "@fastposter/ui";
 import { Plus, Type } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { TextPanel, type TextPanelProps } from "./TextPanel";
 export type InspectorGroup = "text" | "paragraph" | "effects" | "position";
 const groups: { value: InspectorGroup; label: string }[] = [
@@ -35,6 +36,7 @@ export function EditorInspector({
   scopeLabel = "",
   actions,
 }: EditorInspectorProps) {
+  const groupName = useId();
   return (
     <div className="editor-inspector">
       {showAdd && (
@@ -49,19 +51,16 @@ export function EditorInspector({
           </Button>
         </div>
       )}
-      <nav className="inspector-tabs" aria-label="属性分组">
-        {groups.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={group === value}
-            className="inspector-tab"
-            onClick={() => onGroupChange(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+      <div className="inspector-tabs">
+        <Segmented<InspectorGroup>
+          block
+          name={groupName}
+          aria-label="属性分组"
+          options={groups}
+          value={group}
+          onChange={onGroupChange}
+        />
+      </div>
       <div className="inspector-content">
         {textPanel ? (
           <>
