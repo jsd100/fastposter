@@ -42,6 +42,12 @@ func rendererNoSandbox(t *testing.T, opts []chromedp.ExecAllocatorOption) bool {
 // chromedp.NoSandbox. If the gate is removed in either direction, one of the
 // subtests fails.
 func TestChromeSandboxGate(t *testing.T) {
+	// Derive the option-count baseline from the unset case instead of
+	// hard-coding chromedp's default option slice length. The gate must still
+	// remove exactly one option when the sandbox is restored, but this
+	// assertion stays valid if upstream adds defaults or the renderer adds
+	// more flags.
+	defaultOptsLen := len(rendererChromeOptions("/chrome", envLookup(nil)))
 	cases := []struct {
 		name          string
 		env           map[string]string
@@ -62,10 +68,10 @@ func TestChromeSandboxGate(t *testing.T) {
 				t.Fatalf("no-sandbox flag present = %v, want %v (env=%v): FASTPOSTER_CHROME_SANDBOX gate removed or inverted", got, tc.wantNoSandbox, tc.env)
 			}
 			// chromedp.NoSandbox is exactly one ExecAllocatorOption, so the
-			// gate must change the option count by exactly one as well.
-			wantLen := len(chromedp.DefaultExecAllocatorOptions) + 3
-			if tc.wantNoSandbox {
-				wantLen++
+			// gate changes the option count by exactly one as well.
+			wantLen := defaultOptsLen
+			if !tc.wantNoSandbox {
+				wantLen--
 			}
 			if len(opts) != wantLen {
 				t.Fatalf("allocator option count = %d, want %d (env=%v): gate removed or inverted", len(opts), wantLen, tc.env)
