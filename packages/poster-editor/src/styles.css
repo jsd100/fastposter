@@ -486,6 +486,22 @@
 .panel-field .button.clear-effect {
   align-self: flex-end;
 }
+.weight-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.weight-control .ant-slider {
+  flex: 1;
+  min-width: 0;
+  margin-inline: 6px;
+}
+.weight-control output {
+  min-width: 3ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 .effect-preset-group {
   display: grid;
   gap: 10px;

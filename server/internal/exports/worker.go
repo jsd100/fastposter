@@ -126,7 +126,21 @@ func (w *Worker) Render(ctx context.Context, snapshot projects.RenderSnapshot) (
 		if e = copyResource(ctx, w.Service.Store, f.Key, f.SHA256, path); e != nil {
 			return "", "", 0, domain.E("MISSING_FONT", "字体文件缺失或校验失败，请联系管理员")
 		}
-		render.Fonts = append(render.Fonts, ResolvedFont{AssetID: f.AssetID, Version: f.Version, Path: path, Weight: f.Weight, Style: f.Style})
+		// Read the exact referenced bytes here, outside the SQL transaction.
+		// The renderer gets the real variable axis and cannot trust document refs.
+		fontBytes, e := os.ReadFile(path)
+		if e != nil {
+			return "", "", 0, domain.E("MISSING_FONT", "字体文件读取失败")
+		}
+		capabilities, e := fontfile.Inspect(fontBytes)
+		if e != nil {
+			return "", "", 0, domain.E("INVALID_FONT", "字体文件校验失败")
+		}
+		render.Fonts = append(render.Fonts, ResolvedFont{
+			AssetID: f.AssetID, Version: f.Version, Path: path,
+			Weight: f.Weight, MinWeight: capabilities.MinWeight,
+			MaxWeight: capabilities.MaxWeight, Style: f.Style,
+		})
 	}
 	if e = fontfile.CheckDocument(snapshot.Document, func(ref document.FontRef) ([]byte, error) {
 		for _, font := range render.Fonts {

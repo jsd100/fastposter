@@ -51,6 +51,25 @@ func TestTrustedNormalizedFontCanExceedUploadBudget(t *testing.T) {
 		t.Fatal("trusted decoded font rejected", e)
 	}
 }
+func TestInspectAcceptsLargeStoredFont(t *testing.T) {
+	// Bundled LXGW WenKai exceeds the 20 MiB upload budget once stored; the
+	// export worker inspects stored bytes and must not reject it.
+	b, e := os.ReadFile("../../../assets/fonts/LXGWWenKai-Regular.ttf")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(b) <= MaxUploadBytes {
+		t.Fatalf("fixture no longer exercises the decoded budget: %d", len(b))
+	}
+	capabilities, e := Inspect(b)
+	if e != nil {
+		t.Fatal("stored font rejected by Inspect", e)
+	}
+	if capabilities.Weight != 400 || capabilities.Style != "normal" {
+		t.Fatalf("unexpected capabilities: %+v", capabilities)
+	}
+}
+
 func TestWOFF2DecodesAndRetainsGlyphs(t *testing.T) {
 	b, e := os.ReadFile("../../../assets/fonts/Inter-VF.ttf")
 	if e != nil {

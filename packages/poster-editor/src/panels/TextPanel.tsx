@@ -1,8 +1,10 @@
 import { colorPresets } from "./color-presets";
 import { richTextSchema } from "../text/selection";
 import { fontUnavailableReason } from "../fonts/catalog";
-import { fontWeights } from "./font-options";
+import { fontWeights, fontWeightRange } from "./font-options";
 import type { Editor } from "@tiptap/react";
+import { Slider } from "antd";
+import { useState } from "react";
 import type { TextBlock, InlineStyle } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
 import {
@@ -25,7 +27,11 @@ export type TextPanelProps = {
   editor: Editor | null;
   fonts: FontSource[];
   apply: (patch: InlineStylePatch) => void;
-  chooseFont: (font: FontSource, intent?: FontChoiceIntent) => void;
+  chooseFont: (
+    font: FontSource,
+    intent?: FontChoiceIntent,
+    requestedWeight?: number,
+  ) => void;
   fontPending: boolean;
   sizeBase?: number;
   onNumericStart: () => void;
@@ -35,6 +41,42 @@ export type TextPanelProps = {
   editing: boolean;
   onToggleEdit: () => void;
 };
+
+function WeightControl({
+  min,
+  max,
+  value,
+  disabled,
+  onCommit,
+}: {
+  min: number;
+  max: number;
+  value: number;
+  disabled: boolean;
+  onCommit: (weight: number) => void;
+}) {
+  const [draft, setDraft] = useState<number | null>(null);
+  const shown = draft ?? value;
+  return (
+    <div className="weight-control">
+      <Slider
+        aria-label="文字字重"
+        min={min}
+        max={max}
+        step={1}
+        value={shown}
+        disabled={disabled}
+        onChange={(weight) => setDraft(weight)}
+        onChangeComplete={(weight) => {
+          setDraft(null);
+          onCommit(weight);
+        }}
+      />
+      <output aria-label="当前字重">{shown}</output>
+    </div>
+  );
+}
+
 /**
  * The inspector keeps one property group mounted at a time. Splitting the
  * groups here instead of stacking every control keeps the phone sheet short,
@@ -111,6 +153,7 @@ export function TextPanel({
   const targetText = editor
     ? selectedText
     : richTextSchema.nodeFromJSON(block.content).textContent;
+  const weightRange = fontWeightRange(fonts, activeFamily);
   const restrictedLatin = !!fontUnavailableReason("Inter", targetText);
   const sample = (selectedText || "海报字体预览 Aa 123").slice(0, 12);
   return (
@@ -140,24 +183,42 @@ export function TextPanel({
       </label>
       <label className="panel-field">
         字重
-        <Select
-          aria-label="文字字重"
-          disabled={fontPending}
-          value={current.fontWeight == null ? "" : String(current.fontWeight)}
-          onValueChange={(weight) => {
-            const face = fontWeights(fonts, activeFamily).find(
-              (f) => String(f.weight) === weight,
-            );
-            if (face) chooseFont(face, "weight");
-          }}
-          options={[
-            { value: "", label: "混合", disabled: true },
-            ...fontWeights(fonts, activeFamily).map((face) => ({
-              value: String(face.weight),
-              label: String(face.weight),
-            })),
-          ]}
-        />
+        {weightRange ? (
+          <WeightControl
+            min={weightRange[0]}
+            max={weightRange[1]}
+            value={current.fontWeight ?? 400}
+            disabled={fontPending}
+            onCommit={(weight) => {
+              const face =
+                fontWeights(fonts, activeFamily).find((candidate) => {
+                  const min = candidate.minWeight ?? candidate.weight;
+                  const max = candidate.maxWeight ?? candidate.weight;
+                  return weight >= min && weight <= max;
+                }) ?? fontWeights(fonts, activeFamily)[0];
+              if (face) chooseFont(face, "weight", weight);
+            }}
+          />
+        ) : (
+          <Select
+            aria-label="文字字重"
+            disabled={fontPending}
+            value={current.fontWeight == null ? "" : String(current.fontWeight)}
+            onValueChange={(weight) => {
+              const face = fontWeights(fonts, activeFamily).find(
+                (f) => String(f.weight) === weight,
+              );
+              if (face) chooseFont(face, "weight");
+            }}
+            options={[
+              { value: "", label: "混合", disabled: true },
+              ...fontWeights(fonts, activeFamily).map((face) => ({
+                value: String(face.weight),
+                label: String(face.weight),
+              })),
+            ]}
+          />
+        )}
       </label>
       <label className="panel-field">
         字号

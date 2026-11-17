@@ -737,7 +737,8 @@ export function Editor({
         editor: state.mode === "edit" ? activeEditor : null,
         fonts: availableFonts,
         apply,
-        chooseFont: (face, intent) => void fontChoice.choose(face, intent),
+        chooseFont: (face, intent, requestedWeight) =>
+          void fontChoice.choose(face, intent, requestedWeight),
         fontPending: fontChoice.pending,
         sizeBase: firstTargetStyle(state.document, fontTarget(selected.id))
           .fontSize,

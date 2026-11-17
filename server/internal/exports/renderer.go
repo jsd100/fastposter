@@ -24,11 +24,13 @@ import (
 )
 
 type ResolvedFont struct {
-	AssetID string
-	Version string
-	Path    string
-	Weight  int
-	Style   string
+	AssetID   string
+	Version   string
+	Path      string
+	Weight    int
+	MinWeight int
+	MaxWeight int
+	Style     string
 }
 type RenderSnapshot struct {
 	Document        document.Document
@@ -141,7 +143,15 @@ func (r *Renderer) RenderText(ctx context.Context, snapshot RenderSnapshot) (ima
 				break
 			}
 		}
-		payload.Fonts = append(payload.Fonts, map[string]any{"assetId": f.AssetID, "family": family, "version": f.Version, "url": base + "font/" + f.AssetID, "weight": f.Weight, "style": f.Style})
+		minWeight, maxWeight := f.MinWeight, f.MaxWeight
+		if minWeight < 1 || maxWeight < minWeight {
+			minWeight, maxWeight = f.Weight, f.Weight
+		}
+		payload.Fonts = append(payload.Fonts, map[string]any{
+			"assetId": f.AssetID, "family": family, "version": f.Version,
+			"url": base + "font/" + f.AssetID, "weight": f.Weight,
+			"minWeight": minWeight, "maxWeight": maxWeight, "style": f.Style,
+		})
 	}
 	raw, e := json.Marshal(payload)
 	if e != nil {

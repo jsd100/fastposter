@@ -21,8 +21,11 @@ func validateFontFaces(d document.Document) error {
 						if v, ok := m.Attrs["fontId"].(string); ok {
 							id = v
 						}
-						if v, ok := m.Attrs["fontWeight"].(float64); ok {
+						switch v := m.Attrs["fontWeight"].(type) {
+						case float64:
 							weight = int(v)
+						case int:
+							weight = v
 						}
 					}
 					bold = bold || m.Type == "bold"
@@ -40,7 +43,14 @@ func validateFontFaces(d document.Document) error {
 				}
 				available := false
 				for _, candidate := range d.Fonts {
-					if candidate.Family == ref.Family && candidate.Weight == weight && candidate.Style == style {
+					if candidate.Family != ref.Family || candidate.Style != style {
+						continue
+					}
+					// Exact nominal faces and variable faces share one family.
+					// The worker verifies the referenced bytes and real range
+					// outside the SQL write transaction.
+					if candidate.Weight == weight ||
+						(!bold && candidate.AssetID == id && candidate.Weight != weight) {
 						available = true
 						break
 					}

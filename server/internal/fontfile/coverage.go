@@ -3,6 +3,7 @@ package fontfile
 import (
 	"fastposter/server/internal/document"
 	"fastposter/server/internal/domain"
+	"strconv"
 )
 
 func CheckDocument(d document.Document, load func(document.FontRef) ([]byte, error)) error {
@@ -47,41 +48,50 @@ func CheckDocument(d document.Document, load func(document.FontRef) ([]byte, err
 			if !ok {
 				return domain.E("MISSING_FONT", "缺少字体引用")
 			}
-			var candidate *document.FontRef
+			// An exact nominal face wins; otherwise a variable face from the
+			// same authorized family may cover the requested continuous weight.
+			candidates := []document.FontRef{}
 			for _, f := range d.Fonts {
-				if f.Family == ref.Family && f.Weight == weight && f.Style == style {
-					copy := f
-					candidate = &copy
-					break
+				if f.Family != ref.Family || f.Style != style {
+					continue
+				}
+				if f.Weight == weight {
+					candidates = append([]document.FontRef{f}, candidates...)
+				} else {
+					candidates = append(candidates, f)
 				}
 			}
-			if candidate == nil {
+			found := false
+			for _, candidate := range candidates {
+				key := candidate.AssetID + "@" + candidate.Version + "@" + strconv.Itoa(weight) + "@" + style
+				face := cache[key]
+				if face == nil {
+					data, err := load(candidate)
+					if err != nil {
+						continue
+					}
+					face, err = ParseNormalized(data, weight, style)
+					if err != nil {
+						continue
+					}
+					for cachedBytes+len(face.Data) > 64<<20 && len(order) > 0 {
+						old := order[0]
+						order = order[1:]
+						cachedBytes -= len(cache[old].Data)
+						delete(cache, old)
+					}
+					cache[key] = face
+					order = append(order, key)
+					cachedBytes += len(face.Data)
+				}
+				if e := face.CheckText(n.Text); e != nil {
+					return e
+				}
+				found = true
+				break
+			}
+			if !found {
 				return domain.E("MISSING_FONT", "所选字体缺少字重或斜体版本")
-			}
-			key := candidate.AssetID + "@" + candidate.Version
-			face := cache[key]
-			var e error
-			if face == nil {
-				data, err := load(*candidate)
-				if err != nil {
-					return err
-				}
-				face, err = ParseNormalized(data, candidate.Weight, candidate.Style)
-				if err != nil {
-					return err
-				}
-				for cachedBytes+len(face.Data) > 64<<20 && len(order) > 0 {
-					old := order[0]
-					order = order[1:]
-					cachedBytes -= len(cache[old].Data)
-					delete(cache, old)
-				}
-				cache[key] = face
-				order = append(order, key)
-				cachedBytes += len(face.Data)
-			}
-			if e = face.CheckText(n.Text); e != nil {
-				return e
 			}
 		}
 		for _, child := range n.Content {

@@ -107,7 +107,11 @@ export function useFontChoice({
     setError(null);
   }, [scope]);
 
-  async function choose(font: FontSource, intent: FontChoiceIntent = "family") {
+  async function choose(
+    font: FontSource,
+    intent: FontChoiceIntent = "family",
+    requestedWeight?: number,
+  ) {
     if (pendingRef.current) return;
     const started = snapshotRef.current();
     if (!started.target) return;
@@ -125,10 +129,15 @@ export function useFontChoice({
         started.target,
         font,
         fontsRef.current,
-        { cursorStyle: started.cursorStyle, intent },
+        { cursorStyle: started.cursorStyle, intent, requestedWeight },
       );
       await loadFonts(
-        sourcesFor(started.document, change.nextDocument, fontsRef.current, font),
+        sourcesFor(
+          started.document,
+          change.nextDocument,
+          fontsRef.current,
+          font,
+        ),
       );
       if (!current()) return;
       await checkRef.current(change.probeDocument);
