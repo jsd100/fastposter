@@ -584,6 +584,120 @@ const GUARD_VIEWPORTS = [
   { name: "320x700", width: 320, height: 700 },
 ];
 
+test.describe("actionable card feedback (default runnable)", () => {
+  async function cardStyles(locator: import("@playwright/test").Locator) {
+    return locator.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { shadow: style.boxShadow, border: style.borderColor };
+    });
+  }
+
+  async function newProject(page: Page, prefix: string) {
+    const name = `${prefix}_${Date.now().toString(36)}`;
+    await page.goto("/register");
+    await page.getByLabel("用户名", { exact: true }).fill(name);
+    await page
+      .getByLabel("密码", { exact: true })
+      .fill("a secure test password");
+    await page.getByRole("button", { name: "创建账号", exact: true }).click();
+    await expect(page).toHaveURL(/\/login/);
+    await page.getByLabel("用户名", { exact: true }).fill(name);
+    await page
+      .getByLabel("密码", { exact: true })
+      .fill("a secure test password");
+    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(page).toHaveURL(/\/projects$/);
+    await page
+      .getByLabel("导入背景图文件")
+      .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+    await expect(page).toHaveURL(/\/edit$/);
+    await page.getByRole("link", { name: "返回作品", exact: true }).click();
+    await expect(page).toHaveURL(/\/projects$/);
+  }
+
+  test("actionable cards expose hover and keyboard focus", async ({ page }) => {
+    await newProject(page, "hovercard");
+    const project = page.getByTestId("project-card").first();
+    await expect(project).toBeVisible();
+    const evidence = process.env.FP_CARD_FEEDBACK_OUT;
+    async function shootCard(file: string) {
+      if (!evidence) return;
+      fs.mkdirSync(evidence, { recursive: true });
+      const box = (await project.boundingBox())!;
+      const pad = 12;
+      await page.screenshot({
+        path: path.join(evidence, file),
+        clip: {
+          x: Math.max(0, box.x - pad),
+          y: Math.max(0, box.y - pad),
+          width: box.width + pad * 2,
+          height: box.height + pad * 2,
+        },
+      });
+    }
+    await page.mouse.move(0, 0);
+    await shootCard("card-normal.png");
+
+    const base = await cardStyles(project);
+    await project.hover();
+    const hovered = await cardStyles(project);
+    expect(
+      hovered.shadow !== base.shadow || hovered.border !== base.border,
+      "project card must show hover feedback",
+    ).toBe(true);
+
+    await page.mouse.move(0, 0);
+    await project.getByRole("link", { name: /编辑/ }).first().focus();
+    const focused = await cardStyles(project);
+    expect(
+      focused.shadow !== base.shadow || focused.border !== base.border,
+      "project card must show feedback when an inner control has keyboard focus",
+    ).toBe(true);
+    await shootCard("card-keyboard-focus.png");
+
+    await chooseCardAction(
+      page,
+      project.getByLabel("editor 的操作", { exact: true }),
+      "移到回收站",
+    );
+    await page
+      .getByRole("button", { name: "确认移入回收站", exact: true })
+      .click();
+    await expect(project).toHaveCount(0);
+    await page.getByRole("button", { name: "回收站", exact: true }).click();
+    const trash = page.getByTestId("project-card").first();
+    await expect(trash).toBeVisible();
+
+    const trashBase = await cardStyles(trash);
+    await trash.hover();
+    const trashHovered = await cardStyles(trash);
+    expect(
+      trashHovered.shadow !== trashBase.shadow ||
+        trashHovered.border !== trashBase.border,
+      "trash card must show hover feedback",
+    ).toBe(true);
+
+    await page.mouse.move(0, 0);
+    await trash.getByRole("button", { name: "恢复作品", exact: true }).focus();
+    const trashFocused = await cardStyles(trash);
+    expect(
+      trashFocused.shadow !== trashBase.shadow ||
+        trashFocused.border !== trashBase.border,
+      "trash card must show feedback when an action has keyboard focus",
+    ).toBe(true);
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.mouse.move(0, 0);
+    await trash.getByRole("button", { name: "恢复作品", exact: true }).focus();
+    const reduced = await cardStyles(trash);
+    expect(
+      reduced.shadow !== trashBase.shadow ||
+        reduced.border !== trashBase.border,
+      "feedback must remain visible with reduced motion",
+    ).toBe(true);
+  });
+});
+
 test.describe("five-width layout guards (default runnable)", () => {
   for (const vp of GUARD_VIEWPORTS) {
     test(`${vp.name}: no horizontal overflow, visible selection, reachable actions`, async ({

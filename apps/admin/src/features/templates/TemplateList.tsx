@@ -366,7 +366,7 @@ export function TemplatesPage() {
           const document = documents.get(resource.id);
           return (
             <Card
-              className="admin-resource-card"
+              className="admin-resource-card fp-actionable-card"
               data-testid="template-card"
               key={resource.id}
               size="small"
