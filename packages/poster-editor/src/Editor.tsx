@@ -76,6 +76,8 @@ export type EditorProps = {
   onChange: (doc: PosterDocument) => void;
   checkFonts: (candidate: PosterDocument) => Promise<void>;
   fontCheckScope: string;
+  /** Site + account scope for view-only preferences such as the thirds grid. */
+  viewPreferenceScope?: string;
   availableFonts?: FontSource[];
   onAssetRequest?: () => Promise<BackgroundAsset | undefined>;
   onBackgroundLibraryRequest?: () => Promise<BackgroundAsset | undefined>;
@@ -89,6 +91,7 @@ export function Editor({
   onChange,
   checkFonts,
   fontCheckScope,
+  viewPreferenceScope,
   availableFonts = [],
   onAssetRequest,
   onBackgroundLibraryRequest,
@@ -106,6 +109,33 @@ export function Editor({
   const [layerDrawer, setLayerDrawer] = useState(false);
   const [inspectorDrawer, setInspectorDrawer] = useState(false);
   const [group, setGroup] = useState<InspectorGroup>("text");
+  const gridStorageKey = viewPreferenceScope
+    ? `fastposter:view:grid:${viewPreferenceScope}`
+    : null;
+  function readGridPreference(): boolean {
+    if (!gridStorageKey) return false;
+    try {
+      return window.localStorage.getItem(gridStorageKey) === "1";
+    } catch {
+      return false;
+    }
+  }
+  const [showGrid, setShowGrid] = useState(readGridPreference);
+  // Switching account or site reloads that scope's preference; a failed read
+  // leaves the session default (off) while the switch stays usable.
+  useEffect(() => {
+    setShowGrid(readGridPreference());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewPreferenceScope]);
+  function changeShowGrid(visible: boolean) {
+    setShowGrid(visible);
+    if (!gridStorageKey) return;
+    try {
+      window.localStorage.setItem(gridStorageKey, visible ? "1" : "0");
+    } catch {
+      // Storage may be disabled; the in-session toggle still works.
+    }
+  }
   const [sheet, setSheet] = useState<
     "inspector" | "layers" | "background" | null
   >(null);
@@ -975,6 +1005,8 @@ export function Editor({
         <Stage
           store={store}
           state={state}
+          showGrid={showGrid}
+          onShowGridChange={changeShowGrid}
           visibleViewport={visibleViewport}
           renderEditing={
             renderEditing

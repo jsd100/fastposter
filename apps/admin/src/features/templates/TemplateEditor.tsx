@@ -354,6 +354,7 @@ export function TemplateEditor({
               });
             }}
             fontCheckScope={`admin:template:${resource?.id ?? "new"}`}
+            viewPreferenceScope="admin:template"
             availableFonts={availableFonts}
             onAssetRequest={background}
             onOverflowChange={setOverflow}
