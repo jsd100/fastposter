@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Pagination } from "antd";
+import { Image, Pagination } from "antd";
 import {
   loadCatalogPages,
   routes,
@@ -72,6 +72,29 @@ export function BackgroundPicker({
   const [selected, setSelected] = useState<Selection | null>(null);
   const [confirmError, setConfirmError] = useState("");
   const [rechecking, setRechecking] = useState(false);
+  /* Zoom is view-only: identified by resource id + version, it never touches
+     the create selection or the one-click replace flow. */
+  const [preview, setPreview] = useState<{
+    title: string;
+    thumbnail: string;
+    src: string;
+  } | null>(null);
+  const previewEntry = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!preview) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      // The large image owns the first Escape. Stop it reaching the shared
+      // Dialog's cancel handler so the background library stays open.
+      e.stopPropagation();
+      e.preventDefault();
+      setPreview(null);
+      queueMicrotask(() => previewEntry.current?.focus());
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [preview]);
   /* A live mirror of the account, query and selection a re-check reply must
      still match. Written during render (as useCreationScope does) so a change
      made while the request is in flight invalidates the stale reply. */
@@ -251,34 +274,73 @@ export function BackgroundPicker({
       <div className="background-picker-grid">
         {q.data?.resources.map((r) => {
           if (!r.asset) return null;
+          const asset = r.asset;
           const sel = isCreate && selected?.resourceId === r.id;
+          const src = asset.url ?? asset.previewUrl ?? "";
           return (
-            <Button
-              variant={sel ? "primary" : "secondary"}
-              key={r.id}
-              aria-label={isCreate ? `选择 ${r.title}` : `选用 ${r.title}`}
-              aria-pressed={isCreate ? !!sel : undefined}
-              data-selected={isCreate && sel ? "" : undefined}
-              onClick={() => {
-                if (isCreate) {
-                  setSelected(identity(r));
-                  setConfirmError("");
-                } else {
-                  // Ruling 63: replace keeps the one-click 「选用 X」 flow.
-                  void onChoose(r.asset!, r);
+            <div className="background-card" key={r.id}>
+              <Button
+                variant={sel ? "primary" : "secondary"}
+                aria-label={isCreate ? `选择 ${r.title}` : `选用 ${r.title}`}
+                aria-pressed={isCreate ? !!sel : undefined}
+                data-selected={isCreate && sel ? "" : undefined}
+                onClick={() => {
+                  if (isCreate) {
+                    setSelected(identity(r));
+                    setConfirmError("");
+                  } else {
+                    // Ruling 63: replace keeps the one-click 「选用 X」 flow.
+                    void onChoose(asset, r);
+                  }
+                }}
+              >
+                <img src={asset.previewUrl} alt="" />
+                <span>{r.title}</span>
+                <small>
+                  {asset.width} × {asset.height}
+                  {isCreate && sel ? " · 已选中" : ""}
+                </small>
+              </Button>
+              <button
+                type="button"
+                className="background-zoom"
+                aria-label={`放大预览 ${r.title}`}
+                data-fp-control=""
+                ref={(node) => {
+                  if (preview?.title === r.title) previewEntry.current = node;
+                }}
+                onClick={() =>
+                  setPreview({
+                    title: r.title,
+                    thumbnail: asset.previewUrl ?? src,
+                    src,
+                  })
                 }
-              }}
-            >
-              <img src={r.asset.previewUrl} alt="" />
-              <span>{r.title}</span>
-              <small>
-                {r.asset.width} × {r.asset.height}
-                {isCreate && sel ? " · 已选中" : ""}
-              </small>
-            </Button>
+              >
+                放大预览
+              </button>
+            </div>
           );
         })}
       </div>
+      <Image
+        alt=""
+        style={{ display: "none" }}
+        src={preview?.thumbnail}
+        preview={{
+          open: !!preview,
+          src: preview?.src,
+          onOpenChange: (open) => {
+            if (!open) {
+              setPreview(null);
+              queueMicrotask(() => previewEntry.current?.focus());
+            }
+          },
+          onVisibleChange: (open) => {
+            if (!open) setPreview(null);
+          },
+        }}
+      />
       {q.isPending && <LoadingState label="正在加载预设背景…" />}
       {q.error && (
         <div className="picker-failed">

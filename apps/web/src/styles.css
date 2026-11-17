@@ -366,6 +366,24 @@
   max-width: 100%;
 }
 
+.background-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.background-card > .button {
+  flex: 1;
+}
+.background-zoom {
+  align-self: stretch;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  background: var(--ant-color-bg-container, #fff);
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
+  cursor: pointer;
+}
 .background-picker-grid img {
   aspect-ratio: 4 / 3;
   width: 100%;

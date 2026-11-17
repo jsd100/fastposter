@@ -36,6 +36,85 @@ async function importLocalBackground(page: Page) {
   ).toBeEnabled();
 }
 
+test("background preview does not replace", async ({ page, browser }) => {
+  test.setTimeout(150_000);
+  const title = "替换放大预览 " + Date.now().toString(36);
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await admin.goto("http://127.0.0.1:15174/admin/login");
+  await admin.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+  await admin
+    .getByLabel("密码", { exact: true })
+    .fill("fastposter-test-only-password");
+  await admin
+    .getByRole("button", { name: "登录管理后台", exact: true })
+    .click();
+  await expect(admin).toHaveURL(/\/admin\/overview$/);
+  await admin.getByRole("link", { name: "背景库", exact: true }).click();
+  await admin.getByRole("button", { name: "添加背景", exact: true }).click();
+  await admin.getByLabel("素材名称", { exact: true }).fill(title);
+  await admin
+    .getByLabel("背景图片文件", { exact: true })
+    .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+  await admin.getByLabel("立即发布", { exact: true }).check();
+  await admin.getByRole("button", { name: "保存素材", exact: true }).click();
+  await expect(
+    admin.getByTestId("resource-card").filter({ hasText: title }),
+  ).toBeVisible();
+
+  try {
+    const name = "bgpreview_replace_" + Date.now().toString(36);
+    await registerAndLogin(page, name);
+    await importLocalBackground(page);
+    const backgroundBefore = await page
+      .locator("[data-poster-frame] img")
+      .first()
+      .getAttribute("src");
+
+    await page.getByRole("button", { name: "背景库", exact: true }).click();
+    const library = page.getByRole("dialog", { name: "背景库" });
+    await expect(library).toBeVisible();
+    const card = library.getByRole("button", {
+      name: `选用 ${title}`,
+      exact: true,
+    });
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    const zoom = library.getByRole("button", {
+      name: `放大预览 ${title}`,
+      exact: true,
+    });
+    await expect(zoom).toBeVisible();
+
+    const originals: string[] = [];
+    page.on("request", (req) => {
+      if (/\/api\/v1\/assets\/[^/]+\/versions\/[^/]+$/.test(req.url()))
+        originals.push(req.url());
+    });
+    await zoom.focus();
+    await zoom.click();
+    const preview = page.getByRole("dialog");
+    await expect(preview).toHaveCount(2);
+    expect(originals.length).toBeGreaterThan(0);
+    await page.keyboard.press("Escape");
+    await expect(preview).toHaveCount(1);
+    await expect(library).toBeVisible();
+    await expect(zoom).toBeFocused();
+    expect(
+      await page.locator("[data-poster-frame] img").first().getAttribute("src"),
+    ).toBe(backgroundBefore);
+
+    await card.click();
+    await expect(library).toHaveCount(0);
+    const backgroundAfter = await page
+      .locator("[data-poster-frame] img")
+      .first()
+      .getAttribute("src");
+    expect(backgroundAfter).not.toBe(backgroundBefore);
+  } finally {
+    await adminContext.close();
+  }
+});
+
 test("complete native flow keeps mixed typography and geometry across sessions and downloads the native PNG", async ({
   page,
   browser,
