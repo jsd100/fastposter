@@ -100,10 +100,9 @@ async function moveToTrash(page: Page, title: string) {
 }
 
 async function openTrash(page: Page) {
-  await page.getByRole("button", { name: "回收站", exact: true }).click();
-  await expect(
-    page.getByText("作品暂存 30 天，随时找回你的灵感。", { exact: true }),
-  ).toBeVisible();
+  const button = page.getByRole("button", { name: "回收站", exact: true });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
 }
 
 function deletionDialog(page: Page) {
@@ -210,6 +209,50 @@ function metadataProject(index: number, title = `测试作品 ${index}`) {
     deletedAt: "2026-11-05T00:00:00Z",
   };
 }
+
+test("trash actions fit each project card", async ({ page }) => {
+  test.setTimeout(60_000);
+  const longTitle =
+    "一个非常非常长的作品标题用于检验回收站按钮是否溢出卡片边界".repeat(2);
+  await account(page, "trashfit");
+  await upload(page, "rgba.png");
+  await backToProjects(page);
+  await renameProject(page, "rgba", longTitle);
+  await moveToTrash(page, longTitle);
+  await page.getByRole("button", { name: "回收站", exact: true }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+
+  const target = page.getByTestId("project-card").filter({
+    has: page.getByRole("heading", { name: longTitle, exact: true }),
+  });
+  await expect(target).toHaveCount(1);
+
+  for (const width of [320, 360, 390, 720]) {
+    await page.setViewportSize({ width, height: 900 });
+    const cardBox = (await target.boundingBox())!;
+    for (const name of ["恢复作品", `彻底删除 ${longTitle}`]) {
+      const buttonBox = (await target
+        .getByRole("button", { name, exact: true })
+        .boundingBox())!;
+      expect(buttonBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
+      expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(
+        cardBox.x + cardBox.width + 1,
+      );
+      expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(
+        cardBox.y + cardBox.height + 1,
+      );
+    }
+    const noOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    );
+    expect(noOverflow, `horizontal overflow at ${width}px`).toBe(true);
+  }
+
+  await target
+    .getByRole("button", { name: `彻底删除 ${longTitle}`, exact: true })
+    .click();
+  await expect(deletionDialog(page)).toBeVisible();
+});
 
 test("deletion dialog defaults to cancel and keeps the project when dismissed", async ({
   page,

@@ -119,6 +119,18 @@
   gap: 8px;
 }
 
+/* Trash cards give the full row to the title/meta and place the two actions
+   on their own line, so a long title cannot squeeze a button past the edge. */
+.project-card-trash .project-card-info {
+  display: block;
+}
+.project-card-trash .trash-actions {
+  margin-top: 12px;
+}
+.project-card-trash .trash-actions > button {
+  min-height: 44px;
+}
+
 .project-card-info h3,
 .template-card-info h3 {
   margin: 0;
