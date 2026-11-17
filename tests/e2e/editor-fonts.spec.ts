@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
   inspectorOption,
   chooseOption,
@@ -6,6 +8,7 @@ import {
   selectScenery,
   selectValue,
   setColor,
+  showOpenOptions,
 } from "./helpers";
 
 type SavedMark = {
@@ -15,8 +18,20 @@ type SavedMark = {
 type SavedRun = { text?: string; marks?: SavedMark[] };
 type SavedDocument = {
   textBlocks: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
     content: { content: { content?: SavedRun[] }[] };
-    effects?: { backgroundColor?: string };
+    effects?: {
+      backgroundColor?: string;
+      shadowColor?: string;
+      shadowBlur?: number;
+      shadowX?: number;
+      shadowY?: number;
+      strokeColor?: string;
+      strokeWidth?: number;
+    };
   }[];
 };
 
@@ -49,6 +64,23 @@ async function projectDocument(page: Page) {
   return JSON.parse(body.project.document) as {
     fonts: { assetId: string; version: string }[];
   };
+}
+
+async function exportPng(page: Page): Promise<Buffer> {
+  await page.getByRole("button", { name: "导出 PNG", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "导出海报" });
+  await expect(dialog).toBeVisible();
+  const link = dialog.getByRole("link", {
+    name: "下载原尺寸 PNG",
+    exact: true,
+  });
+  await expect(link).toBeVisible({ timeout: 20_000 });
+  const body = await (
+    await page.request.get((await link.getAttribute("href"))!)
+  ).body();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  return body;
 }
 
 function fontOption(page: Page, label: string) {
@@ -489,4 +521,95 @@ test("new bundled Chinese families load and the final choice saves, reloads and 
   await expect(
     page.getByRole("link", { name: "下载原尺寸 PNG", exact: true }),
   ).toBeVisible({ timeout: 30000 });
+});
+
+test("effect presets apply visibly and undo in one step", async ({ page }) => {
+  await openPoster(page, "effectpreset");
+  const block = page.locator("[data-text-block]").first();
+  await inspectorOption(page, "效果").click();
+  await expect(block).toHaveCSS("text-shadow", "none");
+  await expect(block).toHaveCSS("-webkit-text-stroke-width", "0px");
+
+  await chooseOption(page, "预设阴影", "柔和投影");
+  await expect(block).toHaveCSS(
+    "text-shadow",
+    /rgba\(0, 0, 0, 0\.45\d*\) 2px 3px 6px/,
+  );
+  await chooseOption(page, "预设描边", "暗色细描边");
+  await expect(block).toHaveCSS("-webkit-text-stroke-width", "1px");
+  await expect(block).toHaveCSS("-webkit-text-stroke-color", "rgb(21, 21, 21)");
+
+  // The stroke preset is a single history entry: undo removes only it.
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(block).toHaveCSS("text-shadow", /2px 3px 6px/);
+  await expect(block).toHaveCSS("-webkit-text-stroke-width", "0px");
+
+  // Entering custom mode from a fully closed effect initializes it once.
+  await chooseOption(page, "预设阴影", "无");
+  await expect(block).toHaveCSS("text-shadow", "none");
+  const shadowOptions = await showOpenOptions(page, "预设阴影");
+  await shadowOptions
+    .getByRole("option", { name: "自定义", exact: true })
+    .click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(block).toHaveCSS("text-shadow", /2px 3px 6px/);
+
+  // A transparent color neither resurrects the shadow nor disturbs siblings.
+  await setColor(page, "文字背景色", "ff000080");
+  await expect(block).toHaveCSS("background-color", "rgba(255, 0, 0, 0.5)");
+  await chooseOption(page, "预设描边", "暗色细描边");
+  await setColor(page, "阴影颜色", "00000000");
+  await expect(block).toHaveCSS("text-shadow", "none");
+  await expect(block).toHaveCSS("-webkit-text-stroke-width", "1px");
+  await expect(block).toHaveCSS("background-color", "rgba(255, 0, 0, 0.5)");
+  await expect(selectValue(page, "预设阴影")).toHaveText("自定义");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+
+  const saved = await savedDocument(page);
+  expect(saved.textBlocks[0]?.effects).toMatchObject({
+    backgroundColor: "#ff000080",
+    shadowColor: "#00000000",
+    shadowBlur: 6,
+    shadowX: 2,
+    shadowY: 3,
+    strokeColor: "#151515",
+    strokeWidth: 1,
+  });
+
+  const outDir = process.env.FP_EFFECT_EXPORT_OUT;
+  if (outDir) {
+    const first = saved.textBlocks[0];
+    await writeFile(
+      path.join(outDir, "geometry.json"),
+      JSON.stringify({
+        x: first.x,
+        y: first.y,
+        width: first.width,
+        height: first.height,
+      }),
+    );
+    await setColor(page, "文字背景色", "ffffffff");
+    await chooseOption(page, "预设阴影", "无");
+    await settleSave(page);
+    await writeFile(path.join(outDir, "light-none.png"), await exportPng(page));
+    await chooseOption(page, "预设阴影", "硬边投影");
+    await settleSave(page);
+    await writeFile(path.join(outDir, "light-hard.png"), await exportPng(page));
+
+    await setColor(page, "文字背景色", "151515ff");
+    await chooseOption(page, "预设阴影", "无");
+    await settleSave(page);
+    await writeFile(path.join(outDir, "dark-none.png"), await exportPng(page));
+    await chooseOption(page, "预设阴影", "发光");
+    await settleSave(page);
+    await writeFile(path.join(outDir, "dark-glow.png"), await exportPng(page));
+
+    await setColor(page, "文字背景色", "00000000");
+    await setColor(page, "阴影颜色", "00000000");
+    await settleSave(page);
+    await writeFile(
+      path.join(outDir, "transparent-none.png"),
+      await exportPng(page),
+    );
+  }
 });

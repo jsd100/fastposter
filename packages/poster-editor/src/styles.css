@@ -486,6 +486,13 @@
 .panel-field .button.clear-effect {
   align-self: flex-end;
 }
+.effect-preset-group {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+}
 @media (max-width: 680px) {
   .panel-field .select,
   .panel-field [data-fp-stepper] .ant-input-affix-wrapper {
