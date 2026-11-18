@@ -1,22 +1,50 @@
 import { z } from "zod";
-import type { PosterDocument, RichNode } from "./types";
+import type {
+  InlineStyle,
+  LinearGradient,
+  PosterDocument,
+  RadialGradient,
+  RichNode,
+  TextColor,
+} from "./types";
 const id = z
   .string()
   .min(1)
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
 const color = z.string().regex(/^#[a-fA-F0-9]{6}([a-fA-F0-9]{2})?$/);
+const offset = z.number().min(0).max(100);
+const stop = z.object({ color, offset }).strict();
+const stops = z.array(stop).min(2).max(8);
+const linear = z
+  .object({
+    type: z.literal("linear"),
+    rangeId: id,
+    angle: z.number().finite(),
+    stops,
+  })
+  .strict();
+const radial = z
+  .object({
+    type: z.literal("radial"),
+    rangeId: id,
+    centerX: offset,
+    centerY: offset,
+    stops,
+  })
+  .strict();
+const textColor = z.union([color, linear, radial]);
 const inline = z
   .object({
     fontId: id,
     fontSize: z.number().positive().max(4096),
-    color,
+    color: textColor,
     fontWeight: z.number().int().min(100).max(900),
   })
   .strict();
 const shape = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.union([z.literal(1), z.literal(2)]),
     canvas: z
       .object({
         width: z.number().int().positive().max(8192),
@@ -135,6 +163,28 @@ function assertRich(
   }
   return Array.from(n.text).length;
 }
+type Gradient = LinearGradient | RadialGradient;
+function isGradient(color: TextColor): color is Gradient {
+  return typeof color === "object" && color !== null;
+}
+function normalizeAngle(angle: number): number {
+  return ((angle % 360) + 360) % 360;
+}
+function gradientConfigKey(gradient: Gradient): string {
+  const stops = gradient.stops.map((s) => `${s.color}@${s.offset}`).join(",");
+  return gradient.type === "linear"
+    ? `linear|${normalizeAngle(gradient.angle)}|${stops}`
+    : `radial|${gradient.centerX},${gradient.centerY}|${stops}`;
+}
+function visitMarkStyles(
+  node: RichNode,
+  visit: (attrs: Partial<InlineStyle>) => void,
+): void {
+  for (const mark of node.marks ?? []) {
+    if (mark.type === "textStyle" && mark.attrs) visit(mark.attrs);
+  }
+  for (const child of node.content ?? []) visitMarkStyles(child, visit);
+}
 export function parseDocument(input: unknown): PosterDocument {
   if (
     new TextEncoder().encode(JSON.stringify(input)).byteLength >
@@ -160,6 +210,28 @@ export function parseDocument(input: unknown): PosterDocument {
       throw Error("Missing font reference");
     if (assertRich(b.content, "doc", fonts) > 10000)
       throw Error("Block exceeds 10000 characters");
+
+    // Gradients are read-only until task 10; v1 documents must stay solid, and
+    // one block-local rangeId always shares a single normalized config.
+    const ranges = new Map<string, string>();
+    const checkColor = (color: TextColor): TextColor => {
+      if (!isGradient(color)) return color;
+      if (d.schemaVersion === 1) throw Error("Gradient requires schema v2");
+      const normalized: Gradient =
+        color.type === "linear"
+          ? { ...color, angle: normalizeAngle(color.angle) }
+          : color;
+      const key = gradientConfigKey(normalized);
+      const previous = ranges.get(normalized.rangeId);
+      if (previous !== undefined && previous !== key)
+        throw Error("Conflicting gradient range configuration");
+      ranges.set(normalized.rangeId, key);
+      return normalized;
+    };
+    b.defaultStyle.color = checkColor(b.defaultStyle.color);
+    visitMarkStyles(b.content, (attrs) => {
+      if (attrs.color !== undefined) attrs.color = checkColor(attrs.color);
+    });
   }
   return d;
 }

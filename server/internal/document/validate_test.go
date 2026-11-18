@@ -73,3 +73,66 @@ func TestDocumentRejectsBlockAndCharacterLimits(t *testing.T) {
 		t.Fatal("dangling font accepted")
 	}
 }
+
+func TestGradientFixtures(t *testing.T) {
+	dir := "../../../tests/fixtures/documents/"
+	read := func(name string) []byte {
+		b, e := os.ReadFile(dir + name)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return b
+	}
+	if _, e := Parse(read("gradient-v2.json")); e != nil {
+		t.Fatal("valid v2 gradient rejected", e)
+	}
+	if _, e := Parse(read("valid-mixed.json")); e != nil {
+		t.Fatal("plain v1 rejected", e)
+	}
+	for _, name := range []string{
+		"gradient-in-v1.json",
+		"gradient-conflicting-range.json",
+		"gradient-nine-stops.json",
+		"gradient-offset-out-of-range.json",
+		"gradient-unknown-key.json",
+	} {
+		if _, e := Parse(read(name)); e == nil {
+			t.Fatalf("invalid fixture accepted: %s", name)
+		}
+	}
+	// v2 keeps accepting a solid-only document unchanged.
+	var solid map[string]any
+	if e := json.Unmarshal(fixture(t, "valid-mixed"), &solid); e != nil {
+		t.Fatal(e)
+	}
+	solid["schemaVersion"] = 2
+	solidRaw, _ := json.Marshal(solid)
+	if _, e := Parse(solidRaw); e != nil {
+		t.Fatal("v2 solid document rejected", e)
+	}
+	// Gradients survive Parse -> Marshal -> Parse with their wire shape intact.
+	parsed, e := Parse(read("gradient-v2.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	roundTrip, e := json.Marshal(parsed)
+	if e != nil {
+		t.Fatal(e)
+	}
+	again, e := Parse(roundTrip)
+	if e != nil {
+		t.Fatal("gradient lost on re-serialization", e)
+	}
+	if again.TextBlocks[0].DefaultStyle.Color.Gradient == nil ||
+		again.TextBlocks[0].DefaultStyle.Color.Gradient.Linear == nil {
+		t.Fatal("default gradient lost on round trip")
+	}
+	normalized, e := Parse(read("gradient-angle-normalize.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	angle := normalized.TextBlocks[0].DefaultStyle.Color.Gradient.Linear.Angle
+	if angle != 45 {
+		t.Fatalf("angle not normalized: %v", angle)
+	}
+}

@@ -1,5 +1,11 @@
 package document
 
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+)
+
 type Canvas struct {
 	Width  int `json:"width"`
 	Height int `json:"height"`
@@ -15,11 +21,94 @@ type FontRef struct {
 	Weight  int    `json:"weight"`
 	Style   string `json:"style"`
 }
+type GradientStop struct {
+	Color  string  `json:"color"`
+	Offset float64 `json:"offset"`
+}
+type LinearGradient struct {
+	Type    string         `json:"type"`
+	RangeID string         `json:"rangeId"`
+	Angle   float64        `json:"angle"`
+	Stops   []GradientStop `json:"stops"`
+}
+type RadialGradient struct {
+	Type    string         `json:"type"`
+	RangeID string         `json:"rangeId"`
+	CenterX float64        `json:"centerX"`
+	CenterY float64        `json:"centerY"`
+	Stops   []GradientStop `json:"stops"`
+}
+type Gradient struct {
+	Linear *LinearGradient `json:"linear,omitempty"`
+	Radial *RadialGradient `json:"radial,omitempty"`
+}
+
+// TextColor carries either a solid hex color or a v2 gradient. Its wire shape
+// stays exactly the opaque JSON the document store already transports.
+type TextColor struct {
+	Solid    string    `json:"-"`
+	Gradient *Gradient `json:"-"`
+}
+
+func (c TextColor) MarshalJSON() ([]byte, error) {
+	if c.Gradient == nil {
+		return json.Marshal(c.Solid)
+	}
+	if c.Gradient.Linear != nil {
+		return json.Marshal(c.Gradient.Linear)
+	}
+	if c.Gradient.Radial != nil {
+		return json.Marshal(c.Gradient.Radial)
+	}
+	return nil, errors.New("invalid gradient")
+}
+func (c *TextColor) UnmarshalJSON(b []byte) error {
+	raw := bytes.TrimSpace(b)
+	if len(raw) == 0 {
+		return errors.New("invalid color")
+	}
+	if raw[0] == '"' {
+		var solid string
+		if e := json.Unmarshal(raw, &solid); e != nil {
+			return e
+		}
+		c.Solid, c.Gradient = solid, nil
+		return nil
+	}
+	var head struct {
+		Type string `json:"type"`
+	}
+	if e := json.Unmarshal(raw, &head); e != nil {
+		return e
+	}
+	switch head.Type {
+	case "linear":
+		var g LinearGradient
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if e := dec.Decode(&g); e != nil {
+			return e
+		}
+		c.Solid, c.Gradient = "", &Gradient{Linear: &g}
+	case "radial":
+		var g RadialGradient
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.DisallowUnknownFields()
+		if e := dec.Decode(&g); e != nil {
+			return e
+		}
+		c.Solid, c.Gradient = "", &Gradient{Radial: &g}
+	default:
+		return errors.New("invalid gradient type")
+	}
+	return nil
+}
+
 type InlineStyle struct {
-	FontID     string  `json:"fontId"`
-	FontSize   float64 `json:"fontSize"`
-	Color      string  `json:"color"`
-	FontWeight int     `json:"fontWeight"`
+	FontID     string    `json:"fontId"`
+	FontSize   float64   `json:"fontSize"`
+	Color      TextColor `json:"color"`
+	FontWeight int       `json:"fontWeight"`
 }
 type ParagraphStyle struct {
 	Align         string  `json:"align"`

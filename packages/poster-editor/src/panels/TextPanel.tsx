@@ -5,7 +5,11 @@ import { fontWeights, fontWeightRange } from "./font-options";
 import type { Editor } from "@tiptap/react";
 import { Slider } from "antd";
 import { useState } from "react";
-import type { TextBlock, InlineStyle } from "@fastposter/poster-schema";
+import type {
+  TextBlock,
+  InlineStyle,
+  TextColor,
+} from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
 import {
   Button,
@@ -41,6 +45,12 @@ export type TextPanelProps = {
   editing: boolean;
   onToggleEdit: () => void;
 };
+
+// Gradient writes stay disabled until task 10; the color controls edit only
+// solid colors and treat an inherited gradient as "mixed" until rendering lands.
+function editableColor(color: TextColor | null | undefined): string | null {
+  return typeof color === "string" ? color : null;
+}
 
 function WeightControl({
   min,
@@ -242,22 +252,24 @@ export function TextPanel({
         颜色
         <ColorField
           label="文字颜色"
-          value={current.color ?? "#000000"}
+          value={editableColor(current.color) ?? "#000000"}
           onChange={(color) => apply({ color })}
           onInteractionStart={onNumericStart}
           onInteractionEnd={onNumericEnd}
         />
-        {current.color === null && <small>混合</small>}
+        {editableColor(current.color) === null && <small>混合</small>}
       </label>
       <label className="panel-field">
         预设文字颜色
         <Select
           aria-label="预设文字颜色"
-          value={current.color ?? ""}
+          value={editableColor(current.color) ?? ""}
           valueLabel={
-            colorPresets.some((option) => option.value === current.color)
+            colorPresets.some(
+              (option) => option.value === editableColor(current.color),
+            )
               ? undefined
-              : current.color === null
+              : editableColor(current.color) === null
                 ? "混合颜色"
                 : "自定义颜色"
           }

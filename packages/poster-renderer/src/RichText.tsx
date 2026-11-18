@@ -6,7 +6,8 @@ export function inlineCSS(style: Partial<InlineStyle>): CSSProperties {
   return {
     fontFamily: style.fontId ? fontFamily(style.fontId) : undefined,
     fontSize: style.fontSize,
-    color: style.color,
+    // Task 8 only reads gradients; task 9 enables shared gradient rendering.
+    color: typeof style.color === "string" ? style.color : undefined,
     fontWeight: style.fontWeight,
   };
 }

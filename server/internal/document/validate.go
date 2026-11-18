@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"regexp"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -28,14 +29,105 @@ func Parse(raw []byte) (Document, error) {
 	if e := dec.Decode(new(any)); e != io.EOF {
 		return d, errors.New("trailing JSON")
 	}
+	normalizeDocument(&d)
 	return d, Validate(d)
+}
+func normalizeAngle(angle float64) float64 {
+	a := math.Mod(angle, 360)
+	if a < 0 {
+		a += 360
+	}
+	return a
+}
+func normalizeDocument(d *Document) {
+	for i := range d.TextBlocks {
+		b := &d.TextBlocks[i]
+		normalizeColor(&b.DefaultStyle.Color)
+		normalizeNode(&b.Content)
+	}
+}
+func normalizeColor(c *TextColor) {
+	if c.Gradient != nil && c.Gradient.Linear != nil {
+		c.Gradient.Linear.Angle = normalizeAngle(c.Gradient.Linear.Angle)
+	}
+}
+func normalizeNode(n *Node) {
+	for i := range n.Marks {
+		if v, ok := n.Marks[i].Attrs["color"]; ok {
+			if m, ok := v.(map[string]any); ok && m["type"] == "linear" {
+				if a, ok := m["angle"].(float64); ok {
+					m["angle"] = normalizeAngle(a)
+				}
+			}
+		}
+	}
+	for i := range n.Content {
+		normalizeNode(&n.Content[i])
+	}
 }
 func bounded(v, lo, hi float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0) && v >= lo && v <= hi
 }
+func finite(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+func validateStops(stops []GradientStop) error {
+	if len(stops) < 2 || len(stops) > 8 {
+		return errors.New("invalid gradient stops")
+	}
+	for _, s := range stops {
+		if !colorPattern.MatchString(s.Color) || !bounded(s.Offset, 0, 100) {
+			return errors.New("invalid gradient stop")
+		}
+	}
+	return nil
+}
+func validateColor(c TextColor, version int) error {
+	if c.Gradient == nil {
+		if !colorPattern.MatchString(c.Solid) {
+			return errors.New("invalid solid color")
+		}
+		return nil
+	}
+	if version != 2 {
+		return errors.New("gradient requires schema v2")
+	}
+	if g := c.Gradient.Linear; g != nil {
+		if !idPattern.MatchString(g.RangeID) || !finite(g.Angle) {
+			return errors.New("invalid linear gradient")
+		}
+		return validateStops(g.Stops)
+	}
+	if g := c.Gradient.Radial; g != nil {
+		if !idPattern.MatchString(g.RangeID) || !bounded(g.CenterX, 0, 100) || !bounded(g.CenterY, 0, 100) {
+			return errors.New("invalid radial gradient")
+		}
+		return validateStops(g.Stops)
+	}
+	return errors.New("invalid gradient")
+}
+func gradientConfigKey(c TextColor) (string, string, bool) {
+	if c.Gradient == nil {
+		return "", "", false
+	}
+	stopsKey := func(stops []GradientStop) string {
+		parts := make([]string, 0, len(stops))
+		for _, s := range stops {
+			parts = append(parts, fmt.Sprintf("%s@%v", s.Color, s.Offset))
+		}
+		return strings.Join(parts, ",")
+	}
+	if g := c.Gradient.Linear; g != nil {
+		return g.RangeID, fmt.Sprintf("linear|%v|%s", normalizeAngle(g.Angle), stopsKey(g.Stops)), true
+	}
+	if g := c.Gradient.Radial; g != nil {
+		return g.RangeID, fmt.Sprintf("radial|%v,%v|%s", g.CenterX, g.CenterY, stopsKey(g.Stops)), true
+	}
+	return "", "", false
+}
 func Validate(d Document) error {
 	bad := func(s string) error { return fmt.Errorf("invalid document: %s", s) }
-	if d.SchemaVersion != 1 {
+	if d.SchemaVersion != 1 && d.SchemaVersion != 2 {
 		return bad("unsupported version")
 	}
 	w, h := d.Canvas.Width, d.Canvas.Height
@@ -62,7 +154,23 @@ func Validate(d Document) error {
 		}
 		blocks[b.ID] = true
 		st := b.DefaultStyle
-		if !fonts[st.FontID] || !bounded(st.FontSize, 0.000001, 4096) || !colorPattern.MatchString(st.Color) || st.FontWeight < 100 || st.FontWeight > 900 {
+		if !fonts[st.FontID] || !bounded(st.FontSize, 0.000001, 4096) || st.FontWeight < 100 || st.FontWeight > 900 {
+			return bad("default text style")
+		}
+		ranges := map[string]string{}
+		checkColor := func(c TextColor) error {
+			if e := validateColor(c, d.SchemaVersion); e != nil {
+				return e
+			}
+			if id, key, ok := gradientConfigKey(c); ok {
+				if prev, found := ranges[id]; found && prev != key {
+					return errors.New("conflicting gradient range configuration")
+				}
+				ranges[id] = key
+			}
+			return nil
+		}
+		if e := checkColor(st.Color); e != nil {
 			return bad("default text style")
 		}
 		p := b.ParagraphStyle
@@ -73,14 +181,14 @@ func Validate(d Document) error {
 		if !bounded(e.Opacity, 0, 1) || !bounded(e.Padding, 0, 4096) || e.Padding*2 >= b.Width || !colorPattern.MatchString(e.BackgroundColor) || !colorPattern.MatchString(e.StrokeColor) || !colorPattern.MatchString(e.ShadowColor) || !bounded(e.StrokeWidth, 0, 100) || !bounded(e.ShadowBlur, 0, 500) || !bounded(e.ShadowX, -8192, 8192) || !bounded(e.ShadowY, -8192, 8192) {
 			return bad("effects")
 		}
-		count, err := validateNode(b.Content, "doc", fonts)
+		count, err := validateNode(b.Content, "doc", fonts, d.SchemaVersion, ranges)
 		if err != nil || count > 10000 {
 			return bad("rich text or character limit")
 		}
 	}
 	return nil
 }
-func validateNode(n Node, expected string, fonts map[string]bool) (int, error) {
+func validateNode(n Node, expected string, fonts map[string]bool, version int, ranges map[string]string) (int, error) {
 	fail := errors.New("invalid rich text")
 	if n.Type != expected {
 		return 0, fail
@@ -97,7 +205,7 @@ func validateNode(n Node, expected string, fonts map[string]bool) (int, error) {
 			} else if c.Type == "hardBreak" {
 				want = "hardBreak"
 			}
-			v, e := validateNode(c, want, fonts)
+			v, e := validateNode(c, want, fonts, version, ranges)
 			if e != nil {
 				return 0, e
 			}
@@ -132,9 +240,22 @@ func validateNode(n Node, expected string, fonts map[string]bool) (int, error) {
 						return 0, fail
 					}
 				case "color":
-					s, ok := v.(string)
-					if !ok || !colorPattern.MatchString(s) {
+					enc, e := json.Marshal(v)
+					if e != nil {
 						return 0, fail
+					}
+					var tc TextColor
+					if e := json.Unmarshal(enc, &tc); e != nil {
+						return 0, fail
+					}
+					if e := validateColor(tc, version); e != nil {
+						return 0, fail
+					}
+					if id, key, ok := gradientConfigKey(tc); ok {
+						if prev, found := ranges[id]; found && prev != key {
+							return 0, fail
+						}
+						ranges[id] = key
 					}
 				case "fontSize":
 					f, ok := v.(float64)
