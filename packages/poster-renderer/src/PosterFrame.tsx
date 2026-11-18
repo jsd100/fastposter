@@ -1,9 +1,18 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { PosterDocument, TextBlock } from "@fastposter/poster-schema";
 import { inlineCSS, RichText } from "./RichText";
+import { isGradientColor, layoutGradientRanges } from "./gradient";
 export function blockCSS(b: TextBlock): CSSProperties {
   const e = b.effects;
+  // A block-level gradient background would leak a rectangle on transparent
+  // export; gradients are painted per glyph span with shared coordinates.
+  const base = inlineCSS(b.defaultStyle);
+  if (isGradientColor(b.defaultStyle.color)) {
+    delete base.backgroundImage;
+    delete base.backgroundClip;
+    delete base.WebkitBackgroundClip;
+  }
   return {
     position: "absolute",
     left: b.x,
@@ -14,7 +23,7 @@ export function blockCSS(b: TextBlock): CSSProperties {
     padding: e.padding,
     opacity: e.opacity,
     background: e.backgroundColor,
-    ...inlineCSS(b.defaultStyle),
+    ...base,
     lineHeight: b.paragraphStyle.lineHeight,
     letterSpacing: b.paragraphStyle.letterSpacing,
     textAlign: b.paragraphStyle.align,
@@ -40,8 +49,24 @@ export function PosterFrame({
   backgroundUrl?: string;
   transparentTextOnly?: boolean;
 }) {
+  const frame = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const relayout = () => {
+      if (!alive || !frame.current) return;
+      frame.current
+        .querySelectorAll<HTMLElement>("[data-text-block]")
+        .forEach((block) => layoutGradientRanges(block));
+    };
+    relayout();
+    void document.fonts?.ready.then(relayout);
+    return () => {
+      alive = false;
+    };
+  }, [d]);
   return (
     <div
+      ref={frame}
       data-poster-frame
       data-width={d.canvas.width}
       data-height={d.canvas.height}
@@ -77,7 +102,7 @@ export function PosterFrame({
           data-y={b.y}
           style={blockCSS(b)}
         >
-          <RichText node={b.content} />
+          <RichText node={b.content} defaultStyle={b.defaultStyle} />
         </div>
       ))}
     </div>

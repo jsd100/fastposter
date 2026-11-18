@@ -211,8 +211,9 @@ export function parseDocument(input: unknown): PosterDocument {
     if (assertRich(b.content, "doc", fonts) > 10000)
       throw Error("Block exceeds 10000 characters");
 
-    // Gradients are read-only until task 10; v1 documents must stay solid, and
-    // one block-local rangeId always shares a single normalized config.
+    // v1 documents must stay solid, and one block-local rangeId always shares a
+    // single normalized config. Whether a deployment accepts gradient writes is
+    // decided at the server write boundary, not by this schema.
     const ranges = new Map<string, string>();
     const checkColor = (color: TextColor): TextColor => {
       if (!isGradient(color)) return color;

@@ -34,11 +34,32 @@ type Service struct {
 	DB                *sql.DB
 	Store             storage.FileStore
 	Assets            *assets.Service
+	GradientWrites    bool
 	TemplateValidator func(context.Context, auth.Principal, document.Document) ([]document.AssetRef, error)
 }
 
 func NewService(db *sql.DB, store storage.FileStore, images *assets.Service) *Service {
 	return &Service{DB: db, Store: store, Assets: images}
+}
+
+// WithGradientWrites applies the deployment compatibility switch to template
+// documents. The zero value stays closed.
+func (s *Service) WithGradientWrites(enabled bool) *Service {
+	s.GradientWrites = enabled
+	return s
+}
+
+func (s *Service) checkWrite(currentVersion int, d document.Document) error {
+	e := (document.WritePolicy{GradientWrites: s.GradientWrites}).CheckWrite(currentVersion, d)
+	switch {
+	case errors.Is(e, document.ErrSchemaDowngrade):
+		return domain.E("INVALID_INPUT", "不能将 v2 模板回退为 v1 文档")
+	case errors.Is(e, document.ErrGradientWritesDisabled):
+		return domain.E("INVALID_INPUT", "当前部署未启用渐变写入")
+	case e != nil:
+		return domain.E("INVALID_INPUT", "模板文档无效")
+	}
+	return nil
 }
 func validKind(kind string) bool {
 	switch kind {
@@ -236,6 +257,7 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 		}
 	}
 	id, version := input.ID, uint64(1)
+	currentVersion := 0
 	if id != "" {
 		var kind string
 		var current uint64
@@ -253,6 +275,19 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 			return Resource{}, domain.E("REVISION_CONFLICT", "资源已被其他操作更新，请刷新后重试")
 		}
 		version = current + 1
+		if input.Kind == "template" {
+			var stored sql.NullString
+			if e = tx.QueryRowContext(ctx, "SELECT document FROM resource_versions WHERE resource_id=? AND version=?", id, current).Scan(&stored); e != nil && !errors.Is(e, sql.ErrNoRows) {
+				return Resource{}, e
+			}
+			if stored.Valid {
+				previous, pe := document.Parse([]byte(stored.String))
+				if pe != nil {
+					return Resource{}, domain.E("INVALID_INPUT", "模板历史文档无效")
+				}
+				currentVersion = previous.SchemaVersion
+			}
+		}
 	} else {
 		id = domain.ID()
 	}
@@ -309,6 +344,9 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 		doc, err := document.Parse([]byte(input.Document))
 		if err != nil {
 			return Resource{}, domain.E("INVALID_INPUT", "模板文档无效")
+		}
+		if e = s.checkWrite(currentVersion, doc); e != nil {
+			return Resource{}, e
 		}
 		templateRefs, e = s.TemplateValidator(ctx, p, doc)
 		if e != nil {

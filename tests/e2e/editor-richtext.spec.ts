@@ -1,5 +1,23 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import { chooseOption, openPoster, selectScenery, setColor } from "./helpers";
+
+async function exportPng(page: Page): Promise<Buffer> {
+  await page.getByRole("button", { name: "导出 PNG", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "导出海报" });
+  const link = dialog.getByRole("link", {
+    name: "下载原尺寸 PNG",
+    exact: true,
+  });
+  await expect(link).toBeVisible({ timeout: 20_000 });
+  const body = await (
+    await page.request.get((await link.getAttribute("href"))!)
+  ).body();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  return body;
+}
 test("selected words keep style and selection across panel edits and save", async ({
   page,
 }) => {
@@ -286,4 +304,113 @@ test("color gesture owns range changes until close", async ({ page }) => {
   // default was never touched by a range gesture, so it stays #284632.
   await expect.poll(() => savedRangeColor(page)).toBe("#00ff00");
   await expect.poll(() => savedColor(page)).toBe("#284632");
+});
+
+test("applies gradients to selection groups", async ({ page }) => {
+  await openPoster(page, "gradient");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+
+  // Switch the selected words to a linear gradient via the shared color panel.
+  await page.getByLabel("渐变填充", { exact: true }).click();
+  await page.getByRole("option", { name: "线性渐变", exact: true }).click();
+  await page.getByLabel("文字颜色", { exact: true }).click();
+  await page.getByLabel("渐变预设").selectOption("冷海 · 横向");
+  await expect(
+    input.locator('span[data-gradient-range][style*="linear-gradient"]'),
+  ).toHaveCount(1);
+  await page.getByLabel("关闭颜色面板").click();
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+
+  const block = page.locator("[data-text-block]").first();
+  const gradientSpan = block.locator("span[data-gradient-range]");
+  await expect(gradientSpan).toHaveCount(1);
+  await expect(gradientSpan).toHaveText("风景");
+  // color:transparent lets the clipped gradient paint inside the glyphs.
+  await expect(gradientSpan).toHaveCSS("color", "rgba(0, 0, 0, 0)");
+  // background-clip keeps the gradient inside glyphs; no rectangle leaks.
+  await expect(gradientSpan).toHaveCSS("-webkit-background-clip", "text");
+  await expect(block.getByText("你好", { exact: true })).toHaveCSS(
+    "background-image",
+    "none",
+  );
+
+  // Adding the gradient and picking a preset are two gestures, hence two undo
+  // steps. Undo/redo happen before reload because a reload resets history.
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(
+    page
+      .locator("[data-text-block]")
+      .first()
+      .locator("span[data-gradient-range]"),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await expect(gradientSpan).toHaveCount(1);
+
+  // The first gradient write upgrades the document to v2 so it saves cleanly,
+  // and the reloaded v2 document renders the same shared-coordinate gradient.
+  await page.getByRole("button", { name: "保存作品", exact: true }).click();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(
+    page
+      .locator("[data-text-block]")
+      .first()
+      .locator("span[data-gradient-range]"),
+  ).toHaveCount(1);
+
+  // The independent export renderer paints the same gradient; verify the PNG
+  // is a real 1200x1600 image and keep a sample for pixel inspection.
+  const png = await exportPng(page);
+  expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  expect(png.readUInt32BE(16)).toBe(1200);
+  expect(png.readUInt32BE(20)).toBe(1600);
+  const outDir = process.env.FP_GRADIENT_EXPORT_OUT;
+  if (outDir) await writeFile(path.join(outDir, "gradient-export.png"), png);
+});
+
+test("pasted gradient text gets a fresh range id", async ({ page }) => {
+  await openPoster(page, "gpaste");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  await page.getByLabel("渐变填充", { exact: true }).click();
+  await page.getByRole("option", { name: "线性渐变", exact: true }).click();
+  await expect(input.locator("span[data-gradient-range]")).toHaveCount(1);
+
+  const sourceId = await input
+    .locator("span[data-gradient-range]")
+    .first()
+    .getAttribute("data-gradient-range");
+  expect(sourceId).toBeTruthy();
+
+  // Paste markup carrying the very same gradient payload. Reparsing must
+  // allocate a fresh rangeId, otherwise the pasted fragment would join the
+  // source coordinate system.
+  const ids = await page.evaluate(() => {
+    const editable = document.querySelector(
+      '[contenteditable="true"]',
+    ) as HTMLElement | null;
+    const source = editable?.querySelector("span[data-gradient]");
+    if (!editable || !source) throw new Error("gradient span not found");
+
+    const transfer = new DataTransfer();
+    transfer.setData("text/html", (source as HTMLElement).outerHTML);
+    transfer.setData("text/plain", "风景");
+    editable.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: transfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    return Array.from(
+      editable.querySelectorAll("span[data-gradient-range]"),
+    ).map((node) => node.getAttribute("data-gradient-range"));
+  });
+
+  expect(ids).toHaveLength(1);
+  expect(ids[0]).toMatch(/^pasted-/);
+  expect(ids[0]).not.toBe(sourceId);
 });

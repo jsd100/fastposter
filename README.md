@@ -249,19 +249,20 @@ curl --fail --max-time 10 http://127.0.0.1:8080/api/v1/health
 
 Go 服务、迁移、管理员及运维命令自动读取该文件；同名进程环境变量优先于文件值。
 
-| 配置项                      | 默认值／示例                                           | 说明                                                                                                            |
-| --------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `MYSQL_DSN`                 | 无默认值，必填                                         | 业务库连接；建议保留示例中的时间与字符集参数                                                                    |
-| `APP_DATA_DIR`              | `var/data`                                             | 相对仓库根目录解析，三个 Go 服务须共享同一绝对目录                                                              |
-| `GATEWAY_ADDR`              | `127.0.0.1:8080`                                       | HTTP API 监听地址                                                                                               |
-| `CORE_ADDR`                 | `127.0.0.1:8888`                                       | 核心 RPC 监听与客户端连接地址                                                                                   |
-| `CHROME_PATH`               | macOS Google Chrome 路径                               | Chrome/Chromium 可执行文件；Playwright、服务端配置、导出 worker 与 Go 渲染用例统一读取                          |
-| `FASTPOSTER_CHROME_SANDBOX` | 未设置                                                 | 设为精确值 `1` 时导出 worker 恢复 Chrome 进程沙箱；受限宿主保持未设置（默认无进程沙箱，见「导出渲染宿主编排」） |
-| `MAGICK_PATH`               | `magick`                                               | ImageMagick 7 可执行文件                                                                                        |
-| `REDIS_ADDR`                | 未设置时为空                                           | 可选限流服务；示例文件默认填了本机 6379                                                                         |
-| `COOKIE_SECURE`             | `false`                                                | HTTPS 对外服务应设为 `true`                                                                                     |
-| `APP_ORIGINS`               | 本机 5173、5174、8080 的 localhost 与 127.0.0.1 origin | 允许的前端来源，多个值用逗号分隔，不包含路径                                                                    |
-| `FASTPOSTER_TEST_MYSQL_DSN` | 可选，库名必须以 `fastposter_test_` 开头               | 测试启动器使用，不是业务库连接                                                                                  |
+| 配置项                       | 默认值／示例                                           | 说明                                                                                                                        |
+| ---------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `MYSQL_DSN`                  | 无默认值，必填                                         | 业务库连接；建议保留示例中的时间与字符集参数                                                                                |
+| `APP_DATA_DIR`               | `var/data`                                             | 相对仓库根目录解析，三个 Go 服务须共享同一绝对目录                                                                          |
+| `GATEWAY_ADDR`               | `127.0.0.1:8080`                                       | HTTP API 监听地址                                                                                                           |
+| `CORE_ADDR`                  | `127.0.0.1:8888`                                       | 核心 RPC 监听与客户端连接地址                                                                                               |
+| `CHROME_PATH`                | macOS Google Chrome 路径                               | Chrome/Chromium 可执行文件；Playwright、服务端配置、导出 worker 与 Go 渲染用例统一读取                                      |
+| `FASTPOSTER_CHROME_SANDBOX`  | 未设置                                                 | 设为精确值 `1` 时导出 worker 恢复 Chrome 进程沙箱；受限宿主保持未设置（默认无进程沙箱，见「导出渲染宿主编排」）             |
+| `FASTPOSTER_GRADIENT_WRITES` | `false`                                                | 设为 `true` 时开放 v2 渐变文档写入；关闭时仅接受纯色写入，v2 文档仍可读取和导出。前端须同时以 `VITE_GRADIENT_WRITES=1` 构建 |
+| `MAGICK_PATH`                | `magick`                                               | ImageMagick 7 可执行文件                                                                                                    |
+| `REDIS_ADDR`                 | 未设置时为空                                           | 可选限流服务；示例文件默认填了本机 6379                                                                                     |
+| `COOKIE_SECURE`              | `false`                                                | HTTPS 对外服务应设为 `true`                                                                                                 |
+| `APP_ORIGINS`                | 本机 5173、5174、8080 的 localhost 与 127.0.0.1 origin | 允许的前端来源，多个值用逗号分隔，不包含路径                                                                                |
+| `FASTPOSTER_TEST_MYSQL_DSN`  | 可选，库名必须以 `fastposter_test_` 开头               | 测试启动器使用，不是业务库连接                                                                                              |
 
 `APP_DATA_DIR` 会在启动时按需创建，运行账号须能写入。不要将它设为文件系统根目录，也不要直接把该目录作为公开静态资源目录。配置修改后需要重启相应服务。
 

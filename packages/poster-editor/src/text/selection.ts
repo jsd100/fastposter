@@ -6,6 +6,7 @@ import type {
   RichNode,
   RichMark,
 } from "@fastposter/poster-schema";
+import { gradientValueKey } from "@fastposter/poster-renderer";
 import { richTextExtensions } from "./extensions";
 export type TextTarget = {
   kind: "range" | "cursor" | "block";
@@ -89,17 +90,25 @@ export function selectionStyle(
     Math.max(0, from),
     Math.min(doc.content.size, to),
     (node) => {
-      if (node.isText)
-        values.push(effectiveInlineStyle(node.marks, defaults));
+      if (node.isText) values.push(effectiveInlineStyle(node.marks, defaults));
     },
   );
   if (!values.length) return { ...defaults };
   const result = { ...values[0] } as {
     [K in keyof InlineStyle]: InlineStyle[K] | null;
   };
-  for (const key of ["fontId", "fontSize", "color", "fontWeight"] as const)
-    if (values.some((v) => v[key] !== values[0][key]))
-      (result as Record<string, unknown>)[key] = null;
+  for (const key of ["fontId", "fontSize", "color", "fontWeight"] as const) {
+    // Two separate applications of one preset differ only by rangeId; that
+    // must not look like a mixed selection to the color panel.
+    const differs =
+      key === "color"
+        ? values.some(
+            (v) =>
+              gradientValueKey(v.color) !== gradientValueKey(values[0].color),
+          )
+        : values.some((v) => v[key] !== values[0][key]);
+    if (differs) (result as Record<string, unknown>)[key] = null;
+  }
   return result;
 }
 export function firstTargetStyle(

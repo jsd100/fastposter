@@ -37,3 +37,66 @@
     min-height: 44px;
   }
 }
+
+.gradientEditor {
+  display: grid;
+  gap: 8px;
+  width: 260px;
+  padding: 8px;
+}
+
+.gradientRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gradientRow label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stops {
+  display: grid;
+  gap: 6px;
+}
+
+.stopRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stopSwatch {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  vertical-align: middle;
+}
+
+.popup {
+  position: absolute;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  pointer-events: auto;
+}
+
+.field :global(.ant-slider) {
+  flex: 1;
+  min-width: 80px;
+}
+
+.field input[type="number"] {
+  width: 56px;
+}

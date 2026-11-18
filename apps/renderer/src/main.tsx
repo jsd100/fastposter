@@ -7,6 +7,7 @@ import {
   PosterFrame,
   loadFonts,
   measureLayout,
+  layoutGradientRanges,
 } from "@fastposter/poster-renderer";
 import type { FontSource, LayoutReport } from "@fastposter/poster-renderer";
 const root = createRoot(document.getElementById("root")!);
@@ -32,6 +33,11 @@ window.renderPoster = async ({ document: d, fonts }) => {
   );
   const frame = document.querySelector<HTMLElement>("[data-poster-frame]");
   if (!frame) throw Error("Frame not mounted");
+  // flushSync does not guarantee passive effects have run; measure the shared
+  // gradient coordinates explicitly before the compositor snapshots the frame.
+  frame
+    .querySelectorAll<HTMLElement>("[data-text-block]")
+    .forEach((block) => layoutGradientRanges(block));
   const report = measureLayout(frame);
   if (report.overflow) throw Error("文字超出画布，请调整位置、宽度或字号");
   return report;

@@ -10,6 +10,7 @@ import {
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import { RichTextEditor } from "./text/RichTextEditor";
 import { TextPanel, type TextPanelProps } from "./panels/TextPanel";
+import { gradientWritesEnabled } from "./gradient-writes";
 import { EditorInspector, type InspectorGroup } from "./panels/EditorInspector";
 import {
   captureSelection,
@@ -69,7 +70,11 @@ import {
   type Rect,
   type ViewTransform,
 } from "./geometry";
-import type { FontSource } from "@fastposter/poster-renderer";
+import {
+  type FontSource,
+  isGradientColor,
+  nextGradientRangeId,
+} from "@fastposter/poster-renderer";
 import "./styles.css";
 export type EditorProps = {
   document: PosterDocument;
@@ -627,14 +632,41 @@ export function Editor({
       if (chosen) void fontChoice.choose(chosen);
       return;
     }
+    // Every gradient application owns a fresh block-local coordinate system,
+    // even when the same preset is applied twice. Keeping the same patch value
+    // (and thus rangeId) during one drag merges the gesture into one undo.
+    const nextPatch =
+      patch.color && isGradientColor(patch.color)
+        ? {
+            ...patch,
+            color: {
+              ...patch.color,
+              rangeId:
+                patch.color.rangeId ||
+                nextGradientRangeId(store.getState().document, selected.id),
+            },
+          }
+        : patch;
     withControlGesture(() => {
+      // A gradient cannot live in a v1 document. Upgrade on first gradient
+      // write inside the same gesture, but only on a deployment that can
+      // persist gradients; v2 documents keep their version.
+      if (
+        gradientWritesEnabled() &&
+        nextPatch.color &&
+        isGradientColor(nextPatch.color) &&
+        store.getState().document.schemaVersion === 1
+      )
+        store.update({
+          ...store.getState().document,
+          schemaVersion: 2,
+        });
       if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
         if (textSelection.current)
           restoreSelection(activeEditor, textSelection.current);
-        if (patch.fontWeight !== undefined) activeEditor.commands.unsetBold();
-        // setMark triggers RichTextEditor.onUpdate, which writes the real
-        // content and selection inside this gesture's transaction.
-        activeEditor.commands.setMark("textStyle", patch);
+        if (nextPatch.fontWeight !== undefined)
+          activeEditor.commands.unsetBold();
+        activeEditor.commands.setMark("textStyle", nextPatch);
       } else {
         store.updateBlock(selected.id, (b) => ({
           ...b,
@@ -642,7 +674,7 @@ export function Editor({
           content: applyTextStyle(
             b.content,
             { kind: "block", from: 0, to: 0 },
-            patch,
+            nextPatch,
           ),
         }));
       }

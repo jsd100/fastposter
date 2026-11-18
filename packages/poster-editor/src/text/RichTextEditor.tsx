@@ -7,6 +7,7 @@ import {
 } from "@tiptap/react";
 import type { TextBlock } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
+import { layoutGradientRanges } from "@fastposter/poster-renderer";
 import type { EditorStore, TransactionHandle } from "../store";
 import { richTextExtensions } from "./extensions";
 import {
@@ -253,5 +254,21 @@ export function RichTextEditor({
       });
     }
   }, [block.content, editor]);
+  // ProseMirror re-renders marks on every transaction, so the measured union
+  // must be reapplied after content, style and font changes.
+  useEffect(() => {
+    if (!editor) return;
+    let alive = true;
+    const relayout = () => {
+      if (alive && !editor.isDestroyed) layoutGradientRanges(editor.view.dom);
+    };
+    relayout();
+    const frame = requestAnimationFrame(relayout);
+    void document.fonts?.ready.then(relayout);
+    return () => {
+      alive = false;
+      cancelAnimationFrame(frame);
+    };
+  }, [editor, block.content]);
   return <EditorContent editor={editor} className="poster-rich-input" />;
 }

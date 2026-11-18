@@ -223,3 +223,27 @@ it("keeps other save failures retryable", async () => {
   expect(controller.getState().status).toBe("dirty");
   controller.dispose();
 });
+it("a rejected gradient write keeps the local document and its draft", async () => {
+  const persist = vi.fn(async () => {});
+  const save = vi.fn(async () => {
+    throw Object.assign(Error("当前部署未启用渐变写入"), {
+      code: "INVALID_INPUT",
+    });
+  });
+  const controller = new Autosave({
+    initial: { schemaVersion: 1, text: "solid" },
+    revision: "1",
+    save,
+    persist,
+  });
+  controller.update({ schemaVersion: 2, text: "gradient" });
+  await expect(controller.flush()).rejects.toThrow("当前部署未启用渐变写入");
+  expect(controller.getState().document).toEqual({
+    schemaVersion: 2,
+    text: "gradient",
+  });
+  expect(controller.getState().revision).toBe("1");
+  expect(controller.getState().status).toBe("error");
+  expect(persist).toHaveBeenCalled();
+  controller.dispose();
+});

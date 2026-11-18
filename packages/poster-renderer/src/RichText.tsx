@@ -2,21 +2,43 @@ import React from "react";
 import type { CSSProperties } from "react";
 import type { RichNode, InlineStyle } from "@fastposter/poster-schema";
 import { fontFamily } from "./FontRegistry";
+import {
+  gradientCSS,
+  GRADIENT_RANGE_ATTRIBUTE,
+  isGradientColor,
+} from "./gradient";
 export function inlineCSS(style: Partial<InlineStyle>): CSSProperties {
+  const gradient = isGradientColor(style.color) ? style.color : null;
   return {
     fontFamily: style.fontId ? fontFamily(style.fontId) : undefined,
     fontSize: style.fontSize,
-    // Task 8 only reads gradients; task 9 enables shared gradient rendering.
-    color: typeof style.color === "string" ? style.color : undefined,
+    color: gradient
+      ? "transparent"
+      : typeof style.color === "string"
+        ? style.color
+        : undefined,
     fontWeight: style.fontWeight,
+    ...(gradient
+      ? {
+          backgroundImage: gradientCSS(gradient),
+          backgroundClip: "text" as const,
+          WebkitBackgroundClip: "text",
+        }
+      : {}),
   };
 }
-export function RichText({ node }: { node: RichNode }): React.ReactNode {
+export function RichText({
+  node,
+  defaultStyle,
+}: {
+  node: RichNode;
+  defaultStyle?: InlineStyle;
+}): React.ReactNode {
   if (node.type === "doc")
     return (
       <>
         {node.content?.map((n, i) => (
-          <RichText key={i} node={n} />
+          <RichText key={i} node={n} defaultStyle={defaultStyle} />
         ))}
       </>
     );
@@ -24,7 +46,9 @@ export function RichText({ node }: { node: RichNode }): React.ReactNode {
     return (
       <p style={{ margin: 0, minHeight: "1em" }}>
         {node.content?.length ? (
-          node.content.map((n, i) => <RichText key={i} node={n} />)
+          node.content.map((n, i) => (
+            <RichText key={i} node={n} defaultStyle={defaultStyle} />
+          ))
         ) : (
           <br />
         )}
@@ -34,8 +58,9 @@ export function RichText({ node }: { node: RichNode }): React.ReactNode {
   const marks = node.marks ?? [];
   const attrs = Object.assign(
     {},
+    defaultStyle,
     ...marks.filter((m) => m.type === "textStyle").map((m) => m.attrs ?? {}),
-  );
+  ) as Partial<InlineStyle>;
   const css: CSSProperties = inlineCSS(attrs);
   if (marks.some((m) => m.type === "bold")) css.fontWeight = 700;
   if (marks.some((m) => m.type === "italic")) css.fontStyle = "italic";
@@ -46,5 +71,13 @@ export function RichText({ node }: { node: RichNode }): React.ReactNode {
     ]
       .filter(Boolean)
       .join(" ") || undefined;
-  return <span style={css}>{node.text}</span>;
+  const gradient = isGradientColor(attrs.color) ? attrs.color : null;
+  return (
+    <span
+      style={css}
+      {...(gradient ? { [GRADIENT_RANGE_ATTRIBUTE]: gradient.rangeId } : {})}
+    >
+      {node.text}
+    </span>
+  );
 }

@@ -22,6 +22,9 @@ import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
 import { selectionStyle, type InlineStylePatch } from "../text/selection";
 import type { FontChoiceIntent } from "../fonts/prepare-change";
 import { FontPicker } from "../fonts/FontPicker";
+import { TextColorField } from "./TextColorField";
+import { gradientWritesEnabled } from "../gradient-writes";
+import { isGradientColor } from "@fastposter/poster-renderer";
 import { ColorField } from "./ColorField";
 import { ParagraphPanel } from "./ParagraphPanel";
 import { StylePanel } from "./StylePanel";
@@ -46,8 +49,7 @@ export type TextPanelProps = {
   onToggleEdit: () => void;
 };
 
-// Gradient writes stay disabled until task 10; the color controls edit only
-// solid colors and treat an inherited gradient as "mixed" until rendering lands.
+const DEFAULT_TEXT_COLOR = "#000000";
 function editableColor(color: TextColor | null | undefined): string | null {
   return typeof color === "string" ? color : null;
 }
@@ -250,33 +252,78 @@ export function TextPanel({
       </label>
       <label className="panel-field">
         颜色
-        <ColorField
+        <TextColorField
           label="文字颜色"
-          value={editableColor(current.color) ?? "#000000"}
+          value={
+            current.color === null || typeof current.color === "string"
+              ? DEFAULT_TEXT_COLOR
+              : current.color
+          }
           onChange={(color) => apply({ color })}
           onInteractionStart={onNumericStart}
           onInteractionEnd={onNumericEnd}
         />
-        {editableColor(current.color) === null && <small>混合</small>}
+        {current.color === null && <small>混合</small>}
       </label>
-      <label className="panel-field">
-        预设文字颜色
-        <Select
-          aria-label="预设文字颜色"
-          value={editableColor(current.color) ?? ""}
-          valueLabel={
-            colorPresets.some(
-              (option) => option.value === editableColor(current.color),
-            )
-              ? undefined
-              : editableColor(current.color) === null
-                ? "混合颜色"
-                : "自定义颜色"
-          }
-          options={colorPresets}
-          onValueChange={(color) => apply({ color })}
-        />
-      </label>
+      {gradientWritesEnabled() && !isGradientColor(current.color) && (
+        <label className="panel-field">
+          渐变填充
+          <Select
+            aria-label="渐变填充"
+            value=""
+            valueLabel="添加渐变"
+            options={[
+              { value: "linear", label: "线性渐变" },
+              { value: "radial", label: "径向渐变" },
+            ]}
+            onValueChange={(type) =>
+              apply({
+                color:
+                  type === "linear"
+                    ? {
+                        type: "linear",
+                        rangeId: `range-${Date.now()}`,
+                        angle: 90,
+                        stops: [
+                          { color: "#FFB75E", offset: 0 },
+                          { color: "#ED8F03", offset: 100 },
+                        ],
+                      }
+                    : {
+                        type: "radial",
+                        rangeId: `range-${Date.now()}`,
+                        centerX: 50,
+                        centerY: 50,
+                        stops: [
+                          { color: "#FFB75E", offset: 0 },
+                          { color: "#ED8F03", offset: 100 },
+                        ],
+                      },
+              })
+            }
+          />
+        </label>
+      )}
+      {!isGradientColor(current.color) && (
+        <label className="panel-field">
+          预设文字颜色
+          <Select
+            aria-label="预设文字颜色"
+            value={editableColor(current.color) ?? ""}
+            valueLabel={
+              colorPresets.some(
+                (option) => option.value === editableColor(current.color),
+              )
+                ? undefined
+                : editableColor(current.color) === null
+                  ? "混合颜色"
+                  : "自定义颜色"
+            }
+            options={colorPresets}
+            onValueChange={(color) => apply({ color })}
+          />
+        </label>
+      )}
       <div className="format-buttons">
         {(
           [
