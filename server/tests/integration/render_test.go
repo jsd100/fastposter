@@ -207,3 +207,73 @@ func renderFixture(t *testing.T) (*exports.Renderer, document.Document) {
 	}
 	return &exports.Renderer{ChromePath: chromePath(), RendererDir: filepath.Join(root, "apps/renderer/dist")}, doc
 }
+
+func TestRenderGradientWrapPreservesFillOverShadow(t *testing.T) {
+	if os.Getenv("FASTPOSTER_RENDER_TEST") != "1" {
+		t.Skip("set FASTPOSTER_RENDER_TEST=1 for actual Chrome rendering")
+	}
+	r, doc := renderFixture(t)
+	doc.SchemaVersion = 2
+	doc.Canvas = document.Canvas{Width: 750, Height: 650}
+	block := &doc.TextBlocks[0]
+	block.X, block.Y, block.Width = 80, 120, 420
+	block.DefaultStyle.FontSize = 72
+	block.DefaultStyle.Color = document.TextColor{Gradient: &document.Gradient{
+		Linear: &document.LinearGradient{Type: "linear", RangeID: "wrap", Angle: 0, Stops: []document.GradientStop{
+			{Color: "#ff0000", Offset: 0}, {Color: "#0000ff", Offset: 100},
+		}},
+	}}
+	block.Effects.BackgroundColor = "#00000000"
+	block.Effects.StrokeWidth = 0
+	block.Effects.ShadowColor = "#00000000"
+	block.Content = document.Node{Type: "doc", Content: []document.Node{{Type: "paragraph", Content: []document.Node{
+		{Type: "text", Text: "海报渐变测试世界你好可换行"},
+		{Type: "text", Text: "独立纯绿", Marks: []document.Mark{{Type: "textStyle", Attrs: map[string]any{"color": "#00ff00"}}}},
+	}}}}
+	fonts := []exports.ResolvedFont{{AssetID: "font-1", Version: "1", Path: filepath.Join(repoRoot(t), "assets/fonts/NotoSansSC-VF.ttf"), Weight: 400, Style: "normal"}}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	render := func() (image.Image, exports.LayoutReport) {
+		t.Helper()
+		layer, report, err := r.RenderText(ctx, exports.RenderSnapshot{Document: doc, Fonts: fonts})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return layer, report
+	}
+	clean, layout := render()
+	block.Effects.ShadowColor = "#000000ff"
+	block.Effects.ShadowX, block.Effects.ShadowY = 4, 4
+	withShadow, shadowLayout := render()
+	if shadowLayout.Blocks[0] != layout.Blocks[0] {
+		t.Fatalf("paint changed the text box: %+v -> %+v", layout, shadowLayout)
+	}
+	var blueUpper, redLower, green, fill, intact, outsideShadow int
+	for y := int(block.Y); y < doc.Canvas.Height; y++ {
+		for x := int(block.X); x < int(block.X+block.Width); x++ {
+			plain := color.NRGBAModel.Convert(clean.At(x, y)).(color.NRGBA)
+			shadowed := color.NRGBAModel.Convert(withShadow.At(x, y)).(color.NRGBA)
+			if plain.A == 255 && plain.G == 0 && (plain.R > 0 || plain.B > 0) {
+				fill++
+				if plain == shadowed {
+					intact++
+				}
+				if y < int(block.Y)+90 && plain.B > plain.R {
+					blueUpper++
+				}
+				if y > int(block.Y)+110 && plain.R > plain.B {
+					redLower++
+				}
+			}
+			if plain == (color.NRGBA{G: 255, A: 255}) {
+				green++
+			}
+			if plain.A == 0 && shadowed == (color.NRGBA{A: 255}) {
+				outsideShadow++
+			}
+		}
+	}
+	if blueUpper < 100 || redLower < 100 || green < 100 || fill == 0 || intact*100 < fill*95 || outsideShadow < 100 {
+		t.Fatalf("unexpected paint: upper blue=%d lower red=%d green=%d intact fill=%d/%d shadow outside=%d", blueUpper, redLower, green, intact, fill, outsideShadow)
+	}
+}

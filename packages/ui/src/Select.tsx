@@ -1,5 +1,5 @@
 import { Select as AntSelect } from "antd";
-import { useEffect, useRef, type ReactElement } from "react";
+import { useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { registerPopupLayer } from "./modal-layer";
 import styles from "./Select.module.css";
 
@@ -8,6 +8,8 @@ export type SelectOption<T extends string | number> = {
   label: string;
   disabled?: boolean;
   swatch?: string;
+  /** Rich option preview; it is hidden from the option's accessible name. */
+  preview?: ReactNode;
 };
 
 export type SelectProps<T extends string | number> = {
@@ -79,6 +81,11 @@ export function Select<T extends string | number>({
         const entry = options.find((item) => item.value === option.value);
         return (
           <span className={styles.optionLabel}>
+            {entry?.preview && (
+              <span aria-hidden="true" className={styles.preview}>
+                {entry.preview}
+              </span>
+            )}
             {entry?.swatch && (
               <span
                 aria-hidden="true"

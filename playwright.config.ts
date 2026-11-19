@@ -24,6 +24,9 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       FASTPOSTER_E2E_STACK: "1",
+      // The acceptance stack opts into gradient writes so the compatibility
+      // path is exercised end to end; production defaults remain closed.
+      FASTPOSTER_GRADIENT_WRITES: "1",
       GOCACHE: "/tmp/fastposter-gocache",
       GOMODCACHE: "/tmp/fastposter-gomod",
     },

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fastposter/server/internal/document"
+	"fastposter/server/internal/projects"
 	"fmt"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/emulation"
@@ -73,6 +74,8 @@ func rendererChromeOptions(chromePath string, getenv func(string) string) []chro
 	}
 	return opts
 }
+
+var errRendererBundleVersion = errors.New("renderer bundle does not support schema v2")
 
 func (r *Renderer) RenderText(ctx context.Context, snapshot RenderSnapshot) (image.Image, LayoutReport, error) {
 	var report LayoutReport
@@ -141,7 +144,10 @@ func (r *Renderer) RenderText(ctx context.Context, snapshot RenderSnapshot) (ima
 				break
 			}
 		}
-		payload.Fonts = append(payload.Fonts, map[string]any{"assetId": f.AssetID, "family": family, "version": f.Version, "url": base + "font/" + f.AssetID, "weight": f.Weight, "style": f.Style})
+		payload.Fonts = append(payload.Fonts, map[string]any{
+			"assetId": f.AssetID, "family": family, "version": f.Version,
+			"url": base + "font/" + f.AssetID, "weight": f.Weight, "style": f.Style,
+		})
 	}
 	raw, e := json.Marshal(payload)
 	if e != nil {
@@ -173,6 +179,13 @@ func (r *Renderer) RenderText(ctx context.Context, snapshot RenderSnapshot) (ima
 		_, err := cdp.Call(ctx, target, command, backgroundParams{Color: transparentRGBA{}})
 		return err
 	}), chromedp.Navigate(base), chromedp.WaitReady(chromedp.CSS("body")))
+	if e == nil && d.SchemaVersion == 2 {
+		var compatible bool
+		compatible, e = chromedp.Run(browser, chromedp.Evaluate[bool]("window.fastposterRendererVersion === "+strconv.Quote(projects.GradientRendererVersion)))
+		if e == nil && !compatible {
+			return nil, report, errRendererBundleVersion
+		}
+	}
 	if e == nil {
 		report, e = chromedp.Run(browser, chromedp.Evaluate[LayoutReport]("window.renderPoster("+string(raw)+")", chromedp.EvalAwaitPromise))
 	}

@@ -244,7 +244,7 @@ function AdminApp() {
         ) : path === "/admin/backgrounds" ? (
           <ResourcesPage key="background" kind="background" />
         ) : path === "/admin/templates" ? (
-          <TemplatesPage />
+          <TemplatesPage userId={user.id} />
         ) : path === "/admin/copy" ? (
           <CopyPage />
         ) : path === "/admin/fonts" ? (

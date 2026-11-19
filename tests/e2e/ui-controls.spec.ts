@@ -256,9 +256,9 @@ test("short select options can be selected at the right edge of their menu row",
   page,
 }) => {
   await openPoster(page, "ui_row_hit");
-  await selectTrigger(page, "文字字重").click();
+  await selectTrigger(page, "预览缩放").click();
   const popup = page.locator("[data-fp-popup]");
-  const row = page.getByRole("option", { name: "700", exact: true });
+  const row = page.getByRole("option", { name: "75%", exact: true });
   // The menu fades and scales into place; its rect is only final once the
   // appear motion ends, so measure after the opacity settles rather than
   // clicking at a position the menu is about to leave.
@@ -272,7 +272,7 @@ test("short select options can be selected at the right edge of their menu row",
     rowBox.y + rowBox.height / 2,
   );
   await expect(page.getByRole("listbox")).toHaveCount(0);
-  await expect(selectValue(page, "文字字重")).toHaveText("700");
+  await expect(selectValue(page, "预览缩放")).toHaveText("75%");
 });
 
 test("Escape restores the number from before sequential typing", async ({
@@ -365,7 +365,7 @@ test("Enter validates invalid and unfinished drafts without leaving a stale disp
 
 test("the select trigger uses antd's default caret color", async ({ page }) => {
   await openPoster(page, "ui_caret");
-  const root = selectRoot(page, "文字字重");
+  const root = selectRoot(page, "预览缩放");
   await expect(root.locator(".ant-select-suffix svg")).toHaveCSS(
     "color",
     "rgba(0, 0, 0, 0.25)",
@@ -723,15 +723,15 @@ test("reduced motion leaves overlays usable", async ({ browser, page }) => {
     await openPoster(target, `a01_${mode}`);
 
     // Select
-    const weight = selectTrigger(target, "文字字重");
-    await weight.click();
-    const weightList = target.getByRole("listbox");
-    await assertUsable(weightList, `${mode} select listbox`);
-    await weightList
-      .getByRole("option", { name: "700", exact: true })
+    const zoom = selectTrigger(target, "预览缩放");
+    await zoom.click();
+    const zoomList = target.getByRole("listbox");
+    await assertUsable(zoomList, `${mode} select listbox`);
+    await zoomList
+      .getByRole("option", { name: "75%", exact: true })
       .click({ timeout: 8000 });
-    await expect(weightList).toHaveCount(0);
-    await expect(selectValue(target, "文字字重")).toHaveText("700");
+    await expect(zoomList).toHaveCount(0);
+    await expect(selectValue(target, "预览缩放")).toHaveText("75%");
 
     // Combobox (font)
     const font = selectTrigger(target, "文字字体");
@@ -1053,8 +1053,9 @@ test("closed select values share the trigger center", async ({
     ).toBeLessThanOrEqual(2);
   }
 
-  // A04.1 list, editor "文字" group: numeric weight / mixed, Chinese font,
-  // preset colour swatch. These are closed, filled selects of three kinds.
+  // A static family retains a numeric select. Variable fonts use a slider.
+  await chooseOption(page, "文字字体", "霞鹜文楷");
+  // A04.1 list: numeric weight, Chinese font, and preset colour swatch.
   const cases = [
     ["文字字重", "数字/字号与混合态"],
     ["文字字体", "中文字体"],

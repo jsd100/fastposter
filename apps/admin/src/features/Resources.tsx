@@ -270,7 +270,7 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
           ))}
         {q.data?.resources.map((r) => (
           <Card
-            className="admin-resource-card"
+            className="admin-resource-card fp-actionable-card"
             data-testid="resource-card"
             key={r.id}
           >

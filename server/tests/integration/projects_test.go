@@ -253,3 +253,46 @@ func TestProjectRevisionAndReferencesRollbackTogether(t *testing.T) {
 		t.Fatal("partial reference update", e)
 	}
 }
+
+func TestProjectGradientGateAndDowngradeProtection(t *testing.T) {
+	svc, _, v1 := projectService(t)
+	ctx, p := context.Background(), projectOwner()
+
+	// A closed deployment keeps the v1 solid workflow intact.
+	if _, e := svc.Create(ctx, p, "旧纯色", v1); e != nil {
+		t.Fatal("closed deployment rejected v1 create", e)
+	}
+	raw, e := os.ReadFile(filepath.Join(repoRoot(t), "tests/fixtures/documents/gradient-v2.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	v2, e := document.Parse(raw)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = svc.Create(ctx, p, "新渐变", v2); e == nil {
+		t.Fatal("closed deployment accepted a gradient create")
+	}
+
+	svc.WithGradientWrites(true)
+	created, e := svc.Create(ctx, p, "新渐变", v2)
+	if e != nil {
+		t.Fatal("enabled deployment rejected a gradient create", e)
+	}
+	// An old page posts a v1 payload with the current revision: it must be
+	// refused without touching the stored document.
+	_, e = svc.Save(ctx, p, created.ID, created.Revision, "旧页面回写", v1)
+	var known *domain.Error
+	if !errors.As(e, &known) || known.Code != "INVALID_INPUT" {
+		t.Fatal("v1 downgrade accepted with a current revision", e)
+	}
+	current, e := svc.Get(ctx, p, created.ID)
+	if e != nil || current.Document.SchemaVersion != 2 || current.Title != "新渐变" {
+		t.Fatal("rejected downgrade mutated the project", e, current)
+	}
+	svc.WithGradientWrites(false)
+	snapshot, e := svc.ResolveSnapshot(ctx, p, created.ID, created.Revision)
+	if e != nil || snapshot.RendererVersion != "poster-renderer-v2" {
+		t.Fatalf("existing v2 project must use the gradient-compatible renderer while writes are closed: %q, %v", snapshot.RendererVersion, e)
+	}
+}

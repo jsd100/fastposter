@@ -5,6 +5,7 @@ import { parseDocument } from "@fastposter/poster-schema";
 import type { PosterDocument } from "@fastposter/poster-schema";
 import {
   PosterFrame,
+  loadDocumentFonts,
   loadFonts,
   measureLayout,
 } from "@fastposter/poster-renderer";
@@ -15,15 +16,18 @@ document.documentElement.style.cssText =
 document.body.style.cssText = "margin:0;padding:0;background:transparent";
 declare global {
   interface Window {
+    fastposterRendererVersion: string;
     renderPoster: (data: {
       document: PosterDocument;
       fonts: FontSource[];
     }) => Promise<LayoutReport>;
   }
 }
+window.fastposterRendererVersion = "poster-renderer-v2";
 window.renderPoster = async ({ document: d, fonts }) => {
   parseDocument(d);
   await loadFonts(fonts);
+  await loadDocumentFonts(d.fonts);
   flushSync(() =>
     root.render(<PosterFrame document={d} transparentTextOnly />),
   );

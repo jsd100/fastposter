@@ -8,7 +8,13 @@ import {
 } from "react";
 import type { TextBlock as Block } from "@fastposter/poster-schema";
 import { Select } from "@fastposter/ui";
-import { measureLayout, type LayoutReport } from "@fastposter/poster-renderer";
+import { Switch } from "antd";
+import {
+  documentFontVariables,
+  loadDocumentFonts,
+  measureLayout,
+  type LayoutReport,
+} from "@fastposter/poster-renderer";
 import {
   pinchView,
   moveTextBlock,
@@ -83,13 +89,19 @@ function focusRect(
 export function Stage({
   store,
   state,
+  showGrid = false,
+  onShowGridChange,
   renderEditing,
+  weightPreview,
   onLayout,
   visibleViewport,
 }: {
   store: EditorStore;
   state: EditorState;
+  showGrid?: boolean;
+  onShowGridChange?: (visible: boolean) => void;
   renderEditing?: (block: Block) => ReactNode;
+  weightPreview?: { blockId: string; weight: number } | null;
   onLayout?: (report: LayoutReport) => void;
   /** Visible stage band while the phone inspector covers its lower part. */
   visibleViewport?: Rect | null;
@@ -154,11 +166,20 @@ export function Stage({
       onLayout?.(report);
     };
     measure();
+    let active = true;
+    void loadDocumentFonts(d.fonts)
+      .then(() => {
+        if (active) measure();
+      })
+      .catch(() => undefined);
     const observer = new ResizeObserver(measure);
     root
       .querySelectorAll("[data-text-block]")
       .forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
   }, [d, view.scale, store, onLayout]);
   useLayoutEffect(() => {
     if (!visibleViewport || !layout || !state.selectedId) return;
@@ -364,6 +385,7 @@ export function Stage({
         data-width={d.canvas.width}
         data-height={d.canvas.height}
         style={{
+          ...documentFontVariables(d.fonts),
           width: d.canvas.width,
           height: d.canvas.height,
           transform: `translate(${view.x}px,${view.y}px) scale(${view.scale})`,
@@ -380,6 +402,11 @@ export function Stage({
             key={block.id}
             block={block}
             editing={state.mode === "edit" && state.selectedId === block.id}
+            weightPreview={
+              weightPreview?.blockId === block.id
+                ? weightPreview.weight
+                : undefined
+            }
             onPointerDown={(e) => downBlock(block, e)}
             onEdit={() => {
               store.select(block.id, renderEditing ? "edit" : "select");
@@ -389,6 +416,34 @@ export function Stage({
           </TextBlock>
         ))}
       </div>
+      {showGrid && (
+        <div className="nine-grid" aria-hidden="true" data-nine-grid>
+          {(["v1", "v2"] as const).map((key, i) => (
+            <div
+              key={key}
+              data-nine-grid-line={key}
+              className="nine-grid-line nine-grid-line-vertical"
+              style={{
+                left: view.x + d.canvas.width * view.scale * ((i + 1) / 3),
+                top: view.y,
+                height: d.canvas.height * view.scale,
+              }}
+            />
+          ))}
+          {(["h1", "h2"] as const).map((key, i) => (
+            <div
+              key={key}
+              data-nine-grid-line={key}
+              className="nine-grid-line nine-grid-line-horizontal"
+              style={{
+                top: view.y + d.canvas.height * view.scale * ((i + 1) / 3),
+                left: view.x,
+                width: d.canvas.width * view.scale,
+              }}
+            />
+          ))}
+        </div>
+      )}
       {selected && state.mode === "select" && (
         <SelectionHandles
           block={selected}
@@ -401,6 +456,17 @@ export function Stage({
         {d.canvas.width} × {d.canvas.height} px
         <span>预览缩放不会改变导出尺寸</span>
       </div>
+      {onShowGridChange && (
+        <label className="stage-grid-toggle" data-fp-control="">
+          九宫格
+          <Switch
+            size="small"
+            aria-label="九宫格"
+            checked={showGrid}
+            onChange={(checked) => onShowGridChange(checked)}
+          />
+        </label>
+      )}
       <label className="stage-zoom">
         缩放
         <Select

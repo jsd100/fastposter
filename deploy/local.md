@@ -42,3 +42,11 @@ go run ./server/cmd/maintenance backup            # 暂停写入并备份 MySQL 
 ## 本地富文本编辑
 
 如果更新后编辑模板或作品时报 `Cannot read properties of null (reading 'useRef')`，刷新页面并重新打开编辑器。仍可复现时，停止当前开发进程并重新运行 `pnpm dev`。浏览器验收会给两个测试前端分配独立的 Vite 依赖缓存，常规开发沿用应用的默认缓存目录。 [排查与验证记录](../docs/verification/2026-11-13-antd-default-appearance.md#富文本加载与-vite-缓存)
+
+## 渐变文档升级与回退
+
+1. 首次部署时保持 `FASTPOSTER_GRADIENT_WRITES=false`，两站保持 `VITE_GRADIENT_WRITES` 未设置。在启用前换出所有旧核心服务和导出 worker，将用户站、管理站、核心服务、导出 worker 及 `apps/renderer/dist` 更新为同一次构建的兼容版本。网关按同一版本部署。兼容版本须在项目和模板保存时保护 v2 文档，能消费两代快照，并使用声明 `poster-renderer-v2` 的渲染产物。
+2. 核对既有 v1 作品和模板仍可保存，验证升级前入队的纯色导出可由新 worker 完成。已有 v2 数据时，分别验证重开作品、查看模板及导出渐变。新版 worker 可消费早期以 `poster-renderer-v1` 标记的 v2 快照，并会检查渲染产物能否绘制 v2 文档。
+3. 两个前端以 `VITE_GRADIENT_WRITES=1` 构建。先重启核心服务启用 `FASTPOSTER_GRADIENT_WRITES=true`，再发布这两个前端构建。缓存的旧页面用 v1 草稿更新现有 v2 时会收到拒绝，原文档保留。
+
+回退写入能力时，先将核心服务切回 `FASTPOSTER_GRADIENT_WRITES=false`，再发布关闭渐变编辑的兼容前端构建。保留同一兼容版本的核心服务、worker 和渲染产物，确保已保存的 v2 文档及排队任务继续可读、可导出。若要回退二进制，目标必须具备步骤 1 的全部能力。`671c6e4` 和早期的渐变构建不满足该条件。本变更无需数据库迁移。

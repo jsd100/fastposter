@@ -120,7 +120,12 @@ export function FontPicker({
             className={styles.preview}
             data-fp-font-preview=""
             data-font-family={preview.family}
-            style={{ fontFamily: fontFamily(preview.face.assetId) }}
+            style={{
+              fontFamily: fontFamily(
+                preview.face.assetId,
+                preview.face.version,
+              ),
+            }}
           >
             <span className={styles.sample}>
               {preview.category === "西文" ? "Design Aa 123" : sample}

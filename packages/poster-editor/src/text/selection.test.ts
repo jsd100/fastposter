@@ -1,4 +1,4 @@
-import { it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   parseDocument,
   type PosterDocument,
@@ -203,4 +203,95 @@ it("normalizes empty paragraphs and strips null mark attrs", () => {
       ],
     }).content![0].content![0].marks![0].attrs,
   ).toEqual({ color: "#ff0000" });
+});
+
+describe("applies gradients to selection groups", () => {
+  const gradient = {
+    type: "linear" as const,
+    rangeId: "range-1",
+    angle: 45,
+    stops: [
+      { color: "#ff0000", offset: 0 },
+      { color: "#00ff00", offset: 100 },
+    ],
+  };
+  const multi: RichNode = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "你好风景" }],
+      },
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "世界朋友" }],
+      },
+    ],
+  };
+  const colorOf = (node: RichNode) =>
+    (
+      node.marks?.find((m) => m.type === "textStyle")?.attrs as
+        { color?: unknown } | undefined
+    )?.color;
+
+  it("shares one rangeId across paragraphs in a single application", () => {
+    const next = applyTextStyle(
+      multi,
+      { kind: "block", from: 0, to: 0 },
+      { color: gradient },
+    );
+    const spans = next.content!.flatMap((p) => p.content ?? []);
+    expect(spans.map(colorOf)).toEqual([gradient, gradient]);
+  });
+
+  it("keeps the remaining fragments on the original range after a partial recolor", () => {
+    const whole = applyTextStyle(
+      content,
+      { kind: "block", from: 0, to: 0 },
+      { color: gradient },
+    );
+    const next = applyTextStyle(
+      whole,
+      { kind: "range", from: 3, to: 5 },
+      { color: "#ff0000" },
+    );
+    expect(next.content![0].content!.map((n) => colorOf(n))).toEqual([
+      gradient,
+      "#ff0000",
+      gradient,
+    ]);
+  });
+
+  it("compares gradient selections by value, ignoring rangeId", () => {
+    const two: RichNode = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "AB",
+              marks: [
+                { type: "textStyle", attrs: { color: gradient } as never },
+              ],
+            },
+            {
+              type: "text",
+              text: "CD",
+              marks: [
+                {
+                  type: "textStyle",
+                  attrs: {
+                    color: { ...gradient, rangeId: "range-2" },
+                  } as never,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(selectionStyle(two, 1, 4, defaults).color).toEqual(gradient);
+  });
 });

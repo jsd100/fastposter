@@ -29,8 +29,17 @@ type RenderSnapshot struct {
 	RendererVersion string            `json:"rendererVersion"`
 }
 
+const (
+	SolidRendererVersion    = "poster-renderer-v1"
+	GradientRendererVersion = "poster-renderer-v2"
+)
+
 func (s *Service) resolveRefs(ctx context.Context, tx *sql.Tx, p auth.Principal, d document.Document) (RenderSnapshot, error) {
-	out := RenderSnapshot{Document: d, Fonts: []SnapshotFont{}, RendererVersion: "poster-renderer-v1"}
+	version := SolidRendererVersion
+	if d.SchemaVersion == 2 {
+		version = GradientRendererVersion
+	}
+	out := RenderSnapshot{Document: d, Fonts: []SnapshotFont{}, RendererVersion: version}
 	refs := []document.AssetRef{d.Background}
 	for _, f := range d.Fonts {
 		refs = append(refs, document.AssetRef{AssetID: f.AssetID, Version: f.Version})

@@ -420,6 +420,7 @@ function Workspace({ initial }: { initial: ProjectDTO }) {
           });
         }}
         fontCheckScope={`${user!.id}:project:${initial.id}`}
+        viewPreferenceScope={`web:${user!.id}`}
         onInteractionChange={auto.setInteraction}
         availableFonts={readyFonts}
         onAssetRequest={background}

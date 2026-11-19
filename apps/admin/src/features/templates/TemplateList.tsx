@@ -57,7 +57,7 @@ const TemplateEditor = lazy(() =>
   })),
 );
 
-export function TemplatesPage() {
+export function TemplatesPage({ userId }: { userId: string }) {
   const cache = useQueryClient();
   const [page, setPage] = useState(1),
     [keyword, setKeyword] = useState(""),
@@ -366,7 +366,7 @@ export function TemplatesPage() {
           const document = documents.get(resource.id);
           return (
             <Card
-              className="admin-resource-card"
+              className="admin-resource-card fp-actionable-card"
               data-testid="template-card"
               key={resource.id}
               size="small"
@@ -479,6 +479,7 @@ export function TemplatesPage() {
       {editing && (
         <Suspense fallback={<LoadingState label="正在打开模板编辑器…" />}>
           <TemplateEditor
+            userId={userId}
             resource={editing === "new" ? undefined : editing}
             restoreFocusTo={() =>
               document.querySelector<HTMLElement>("[data-fp-list-entry]")

@@ -1,11 +1,14 @@
 import { getSchema, type Editor } from "@tiptap/react";
 import { Transform } from "@tiptap/pm/transform";
+import type { EditorState } from "@tiptap/pm/state";
 import type {
   InlineStyle,
   PosterDocument,
   RichNode,
   RichMark,
 } from "@fastposter/poster-schema";
+import { gradientValueKey, type FontSource } from "@fastposter/poster-renderer";
+import { familySupportsWeight } from "../panels/font-options";
 import { richTextExtensions } from "./extensions";
 export type TextTarget = {
   kind: "range" | "cursor" | "block";
@@ -28,6 +31,38 @@ export function effectiveInlineStyle(
   const style = { ...defaults, ...attrs } as InlineStyle;
   if (marks.some((m) => m.type.name === "bold")) style.fontWeight = 700;
   return style;
+}
+export function canApplyFontMark(
+  state: Pick<EditorState, "doc" | "selection" | "storedMarks">,
+  defaults: InlineStyle,
+  fonts: FontSource[],
+  mark: "bold" | "italic",
+): boolean {
+  const supports = (marks: readonly MarkLike[]) => {
+    const { fontId, fontWeight } = effectiveInlineStyle(marks, defaults);
+    const family = fonts.find((font) => font.assetId === fontId)?.family;
+    const style =
+      mark === "italic" || marks.some((item) => item.type.name === "italic")
+        ? "italic"
+        : "normal";
+    return (
+      !!family &&
+      familySupportsWeight(
+        fonts,
+        family,
+        mark === "bold" ? 700 : fontWeight,
+        style,
+      )
+    );
+  };
+  const { selection } = state;
+  if (selection.empty)
+    return supports(state.storedMarks ?? selection.$from.marks());
+  let available = true;
+  state.doc.nodesBetween(selection.from, selection.to, (node) => {
+    if (available && node.isText) available = supports(node.marks);
+  });
+  return available;
 }
 export function canonicalRichText(value: unknown): RichNode {
   const n = value as RichNode;
@@ -89,17 +124,25 @@ export function selectionStyle(
     Math.max(0, from),
     Math.min(doc.content.size, to),
     (node) => {
-      if (node.isText)
-        values.push(effectiveInlineStyle(node.marks, defaults));
+      if (node.isText) values.push(effectiveInlineStyle(node.marks, defaults));
     },
   );
   if (!values.length) return { ...defaults };
   const result = { ...values[0] } as {
     [K in keyof InlineStyle]: InlineStyle[K] | null;
   };
-  for (const key of ["fontId", "fontSize", "color", "fontWeight"] as const)
-    if (values.some((v) => v[key] !== values[0][key]))
-      (result as Record<string, unknown>)[key] = null;
+  for (const key of ["fontId", "fontSize", "color", "fontWeight"] as const) {
+    // Two separate applications of one preset differ only by rangeId; that
+    // must not look like a mixed selection to the color panel.
+    const differs =
+      key === "color"
+        ? values.some(
+            (v) =>
+              gradientValueKey(v.color) !== gradientValueKey(values[0].color),
+          )
+        : values.some((v) => v[key] !== values[0][key]);
+    if (differs) (result as Record<string, unknown>)[key] = null;
+  }
   return result;
 }
 export function firstTargetStyle(

@@ -102,11 +102,8 @@ func (w *Worker) Render(ctx context.Context, snapshot projects.RenderSnapshot) (
 	if w.Service == nil || w.Renderer == nil {
 		return "", "", 0, domain.E("NOT_READY", "导出服务尚未初始化")
 	}
-	if snapshot.RendererVersion != "poster-renderer-v1" {
+	if snapshot.RendererVersion != projects.SolidRendererVersion && snapshot.RendererVersion != projects.GradientRendererVersion {
 		return "", "", 0, domain.E("RENDERER_VERSION", "渲染版本已升级，请重新发起导出")
-	}
-	if e := validateFontFaces(snapshot.Document); e != nil {
-		return "", "", 0, domain.E("MISSING_FONT", "缺少所需字重或斜体字体")
 	}
 	if e := os.MkdirAll(w.TempRoot, 0700); e != nil {
 		return "", "", 0, workerError(e)
@@ -126,20 +123,25 @@ func (w *Worker) Render(ctx context.Context, snapshot projects.RenderSnapshot) (
 		if e = copyResource(ctx, w.Service.Store, f.Key, f.SHA256, path); e != nil {
 			return "", "", 0, domain.E("MISSING_FONT", "字体文件缺失或校验失败，请联系管理员")
 		}
-		render.Fonts = append(render.Fonts, ResolvedFont{AssetID: f.AssetID, Version: f.Version, Path: path, Weight: f.Weight, Style: f.Style})
+		render.Fonts = append(render.Fonts, ResolvedFont{
+			AssetID: f.AssetID, Version: f.Version, Path: path,
+			Weight: f.Weight, Style: f.Style,
+		})
+	}
+	paths := make(map[string]string, len(render.Fonts))
+	for _, font := range render.Fonts {
+		paths[font.AssetID] = font.Path
 	}
 	if e = fontfile.CheckDocument(snapshot.Document, func(ref document.FontRef) ([]byte, error) {
-		for _, font := range render.Fonts {
-			if font.AssetID == ref.AssetID && font.Version == ref.Version {
-				return os.ReadFile(font.Path)
-			}
-		}
-		return nil, domain.E("MISSING_FONT", "缺少字体文件")
+		return os.ReadFile(paths[ref.AssetID])
 	}); e != nil {
 		return "", "", 0, e
 	}
 	text, report, e := w.Renderer.RenderText(ctx, render)
 	if e != nil {
+		if errors.Is(e, errRendererBundleVersion) {
+			return "", "", 0, domain.E("RENDERER_VERSION", "当前导出渲染器需要升级，请联系管理员")
+		}
 		if strings.Contains(e.Error(), "文字超出画布") {
 			return "", "", 0, domain.E("OVERFLOW", "文字超出画布，请调整位置、宽度或字号")
 		}

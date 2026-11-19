@@ -233,6 +233,139 @@ async function publishBackground(browser: Browser, title: string) {
  * with zero local uploads, original dimensions/version, a returned id that can
  * be re-opened.
  */
+test("background preview does not select or create", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(150_000);
+  const title = "放大预览 " + Date.now().toString(36);
+  const adminContext = await publishBackground(browser, title);
+  try {
+    await account(page, "bgpreview_create_" + Date.now().toString(36));
+    const creates: unknown[] = [];
+    page.on("request", (req) => {
+      if (
+        req.method() === "POST" &&
+        new URL(req.url()).pathname === "/api/v1/projects"
+      )
+        creates.push(req.postDataJSON());
+    });
+
+    await page.getByRole("button", { name: "新建海报", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "新建海报" })
+      .getByRole("button", { name: "从背景库选择", exact: true })
+      .click();
+    const library = page.getByRole("dialog", { name: "背景库" });
+    await expect(library).toBeVisible();
+    const card = library.getByRole("button", {
+      name: `选择 ${title}`,
+      exact: true,
+    });
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    const zoom = library.getByRole("button", {
+      name: `放大预览 ${title}`,
+      exact: true,
+    });
+    await expect(zoom).toBeVisible();
+    await expect(
+      library.getByRole("button", { name: "", exact: true }),
+    ).toHaveCount(0);
+    const cardSurface = library.locator(".background-card").filter({
+      has: page.getByRole("button", { name: `放大预览 ${title}`, exact: true }),
+    });
+    await page.mouse.move(0, 0);
+    await expect(cardSurface).toHaveCSS("box-shadow", "none");
+    await zoom.focus();
+    await expect(cardSurface).not.toHaveCSS("box-shadow", "none");
+
+    await expect(card).toHaveAttribute("aria-pressed", "false");
+    const originals: string[] = [];
+    page.on("request", (req) => {
+      if (/\/api\/v1\/assets\/[^/]+\/versions\/[^/?]+$/.test(req.url()))
+        originals.push(req.url());
+    });
+    await zoom.press("Enter");
+    const preview = page.getByRole("dialog");
+    await expect(preview).toHaveCount(2);
+    await expect.poll(() => originals.length).toBeGreaterThan(0);
+    const largeImage = page.getByRole("dialog", { name: title, exact: true });
+    const zoomOut = largeImage.getByRole("button", {
+      name: "zoomOut",
+      exact: true,
+    });
+    await expect(zoomOut).toBeDisabled();
+    await largeImage
+      .getByRole("button", { name: "zoomIn", exact: true })
+      .press("Enter");
+    await expect(zoomOut).toBeEnabled();
+    // Opening the large image never selects or creates.
+    await expect(card).toHaveAttribute("aria-pressed", "false");
+    expect(creates.length).toBe(0);
+    await page.keyboard.press("Escape");
+    await expect(preview).toHaveCount(1);
+    await expect(library).toBeVisible();
+    await expect(zoom).toBeFocused();
+    await expect(card).toHaveAttribute("aria-pressed", "false");
+
+    // The real selection path still works after closing the preview.
+    await card.click();
+    await expect(card).toHaveAttribute("aria-pressed", "true");
+    expect(creates.length).toBe(0);
+    await page.keyboard.press("Escape");
+    await expect(library).toHaveCount(0);
+  } finally {
+    await adminContext.close();
+  }
+});
+
+test("background preview keeps filters and closes when the original fails", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(150_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const title = "预览失败 " + Date.now().toString(36);
+  const adminContext = await publishBackground(browser, title);
+  try {
+    await account(page, "bgpreview_fail_" + Date.now().toString(36));
+    const originalRequests: string[] = [];
+    await page.route(/\/api\/v1\/assets\/[^/]+\/versions\/[^/?]+$/, (route) => {
+      originalRequests.push(route.request().url());
+      return route.fulfill({ status: 500, body: "broken" });
+    });
+
+    await page.getByRole("button", { name: "新建海报", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "新建海报" })
+      .getByRole("button", { name: "从背景库选择", exact: true })
+      .click();
+    const library = page.getByRole("dialog", { name: "背景库" });
+    const search = library.getByLabel("搜索预设背景", { exact: true });
+    await search.fill(title);
+    await expect(search).toHaveValue(title);
+    const zoom = library.getByRole("button", {
+      name: `放大预览 ${title}`,
+      exact: true,
+    });
+    await expect(zoom).toBeVisible({ timeout: 20_000 });
+
+    expect(originalRequests).toHaveLength(0);
+    await zoom.click();
+    await expect.poll(() => originalRequests.length).toBeGreaterThan(0);
+    await expect(page.getByRole("dialog")).toHaveCount(2);
+    await expect(
+      page.getByRole("alert").filter({ hasText: "原图加载失败" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(1);
+    await expect(search).toHaveValue(title);
+    await expect(zoom).toBeFocused();
+  } finally {
+    await adminContext.close();
+  }
+});
+
 test("gallery creates at the published background dimensions", async ({
   page,
   browser,

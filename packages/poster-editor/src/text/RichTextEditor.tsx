@@ -8,12 +8,11 @@ import {
 import type { TextBlock } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
 import type { EditorStore, TransactionHandle } from "../store";
-import { richTextExtensions } from "./extensions";
-import {
-  canonicalRichText,
-  effectiveInlineStyle,
-  selectionStyle,
-} from "./selection";
+import { preparePastedText, richTextExtensions } from "./extensions";
+import { WeightPreview } from "./weight-preview";
+import { documentFontSources } from "../fonts/catalog";
+import { gradientWritesEnabled } from "../gradient-writes";
+import { canApplyFontMark, canonicalRichText } from "./selection";
 export function RichTextEditor({
   block,
   store,
@@ -58,55 +57,38 @@ export function RichTextEditor({
     {
       extensions: [
         ...richTextExtensions(),
+        WeightPreview,
         Extension.create({
           name: "unifiedPosterHistory",
           priority: 1000,
           addKeyboardShortcuts() {
-            return {
-              "Mod-b": () => {
-                const b = store
-                  .getState()
-                  .document.textBlocks.find(
-                    (candidate) => candidate.id === refs.current.block.id,
-                  );
-                if (!b) return true;
-                const sel = this.editor.state.selection;
-                const style = sel.empty
-                  ? effectiveInlineStyle(
-                      this.editor.state.storedMarks ?? sel.$from.marks(),
-                      b.defaultStyle,
-                    )
-                  : selectionStyle(b.content, sel.from, sel.to, b.defaultStyle);
-                const family = refs.current.fonts.find(
-                  (font) => font.assetId === style.fontId,
-                )?.family;
-                const canBold =
-                  this.editor.isActive("bold") ||
-                  (family !== undefined &&
-                    refs.current.fonts.some(
-                      (font) =>
-                        font.family === family &&
-                        font.weight === 700 &&
-                        font.style === "normal",
-                    ));
-                if (canBold) this.editor.commands.toggleBold();
-                return true;
-              },
-              "Mod-i": () => {
-                const d = store.getState().document,
-                  b = d.textBlocks.find((b) => b.id === refs.current.block.id);
-                const id =
-                  this.editor.getAttributes("textStyle").fontId ??
-                  b?.defaultStyle.fontId;
-                const family = d.fonts.find((f) => f.assetId === id)?.family;
-                if (
-                  d.fonts.some(
-                    (f) => f.family === family && f.style === "italic",
-                  )
+            const toggle = (mark: "bold" | "italic") => {
+              const doc = store.getState().document;
+              const block = doc.textBlocks.find(
+                (candidate) => candidate.id === refs.current.block.id,
+              );
+              if (!block) return true;
+              const referenced = documentFontSources(
+                refs.current.fonts,
+                doc.fonts,
+              ).filter((font) =>
+                doc.fonts.some((ref) => ref.assetId === font.assetId),
+              );
+              if (
+                this.editor.isActive(mark) ||
+                canApplyFontMark(
+                  this.editor.state,
+                  block.defaultStyle,
+                  referenced,
+                  mark,
                 )
-                  this.editor.commands.toggleItalic();
-                return true;
-              },
+              )
+                this.editor.commands.toggleMark(mark);
+              return true;
+            };
+            return {
+              "Mod-b": () => toggle("bold"),
+              "Mod-i": () => toggle("italic"),
               "Mod-z": () => {
                 store.undo();
                 return true;
@@ -126,6 +108,14 @@ export function RichTextEditor({
       content: block.content,
       immediatelyRender: false,
       editorProps: {
+        transformPasted: (slice) =>
+          preparePastedText(
+            slice,
+            gradientWritesEnabled(),
+            new Set(
+              store.getState().document.fonts.map((font) => font.assetId),
+            ),
+          ),
         attributes: {
           role: "textbox",
           "aria-label": "海报文字编辑",

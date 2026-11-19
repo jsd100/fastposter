@@ -38,7 +38,11 @@ export function CopyList({
   return (
     <div className="copy-list">
       {resources.map((copy) => (
-        <Card className="copy-card" data-testid="copy-card" key={copy.id}>
+        <Card
+          className="copy-card fp-actionable-card"
+          data-testid="copy-card"
+          key={copy.id}
+        >
           <div className="copy-card-body">
             <h3>{copy.title}</h3>
             <p>{copy.body}</p>

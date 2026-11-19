@@ -1,9 +1,13 @@
-import React from "react";
+import React, { useEffect } from "react";
 import type { CSSProperties } from "react";
 import type { PosterDocument, TextBlock } from "@fastposter/poster-schema";
 import { inlineCSS, RichText } from "./RichText";
+import { blockHasGradient, isGradientColor } from "./gradient";
+import { GradientPaint } from "./GradientPaint";
+import { documentFontVariables, loadDocumentFonts } from "./FontRegistry";
 export function blockCSS(b: TextBlock): CSSProperties {
   const e = b.effects;
+  const color = b.defaultStyle.color;
   return {
     position: "absolute",
     left: b.x,
@@ -15,6 +19,9 @@ export function blockCSS(b: TextBlock): CSSProperties {
     opacity: e.opacity,
     background: e.backgroundColor,
     ...inlineCSS(b.defaultStyle),
+    ...(isGradientColor(color)
+      ? ({ "--fp-decoration-color": color.stops[0].color } as CSSProperties)
+      : {}),
     lineHeight: b.paragraphStyle.lineHeight,
     letterSpacing: b.paragraphStyle.letterSpacing,
     textAlign: b.paragraphStyle.align,
@@ -40,12 +47,16 @@ export function PosterFrame({
   backgroundUrl?: string;
   transparentTextOnly?: boolean;
 }) {
+  useEffect(() => {
+    void loadDocumentFonts(d.fonts).catch(() => undefined);
+  }, [d.fonts]);
   return (
     <div
       data-poster-frame
       data-width={d.canvas.width}
       data-height={d.canvas.height}
       style={{
+        ...documentFontVariables(d.fonts),
         position: "relative",
         width: d.canvas.width,
         height: d.canvas.height,
@@ -77,7 +88,12 @@ export function PosterFrame({
           data-y={b.y}
           style={blockCSS(b)}
         >
-          <RichText node={b.content} />
+          <GradientPaint
+            defaultColor={b.defaultStyle.color}
+            hasGradient={blockHasGradient(b)}
+          >
+            <RichText node={b.content} defaultStyle={b.defaultStyle} />
+          </GradientPaint>
         </div>
       ))}
     </div>

@@ -20,7 +20,11 @@ const effects = {
   shadowX: 0,
   shadowY: 0,
 };
-const paragraphStyle = { align: "left" as const, lineHeight: 1.4, letterSpacing: 0 };
+const paragraphStyle = {
+  align: "left" as const,
+  lineHeight: 1.4,
+  letterSpacing: 0,
+};
 const source = (
   assetId: string,
   family: string,
@@ -134,53 +138,55 @@ it("changes only 风景 to the chosen family and keeps outer marks", () => {
     kuaile400,
     available,
   );
-  expect(change.nextDocument.textBlocks[0].content.content![0].content).toEqual([
-    {
-      type: "text",
-      text: "你好",
-      marks: [
-        {
-          type: "textStyle",
-          attrs: {
-            fontId: "serif-900",
-            fontSize: 80,
-            color: "#112233",
-            fontWeight: 900,
+  expect(change.nextDocument.textBlocks[0].content.content![0].content).toEqual(
+    [
+      {
+        type: "text",
+        text: "你好",
+        marks: [
+          {
+            type: "textStyle",
+            attrs: {
+              fontId: "serif-900",
+              fontSize: 80,
+              color: "#112233",
+              fontWeight: 900,
+            },
           },
-        },
-      ],
-    },
-    {
-      type: "text",
-      text: "风景",
-      marks: [
-        {
-          type: "textStyle",
-          attrs: {
-            fontId: "kuaile-400",
-            fontSize: 64,
-            color: "#284632",
-            fontWeight: 400,
+        ],
+      },
+      {
+        type: "text",
+        text: "风景",
+        marks: [
+          {
+            type: "textStyle",
+            attrs: {
+              fontId: "kuaile-400",
+              fontSize: 64,
+              color: "#284632",
+              fontWeight: 400,
+            },
           },
-        },
-      ],
-    },
-    {
-      type: "text",
-      text: "世界",
-      marks: [
-        {
-          type: "textStyle",
-          attrs: {
-            fontId: "serif-400",
-            fontSize: 72,
-            color: "#445566",
-            fontWeight: 400,
+        ],
+      },
+      {
+        type: "text",
+        text: "世界",
+        marks: [
+          {
+            type: "textStyle",
+            attrs: {
+              fontId: "serif-400",
+              fontSize: 72,
+              color: "#445566",
+              fontWeight: 400,
+            },
           },
-        },
-      ],
-    },
-  ]);
+        ],
+      },
+    ],
+  );
   expect(change.nextDocument.textBlocks[0].defaultStyle).toEqual(
     doc.textBlocks[0].defaultStyle,
   );
@@ -228,12 +234,10 @@ it("switches a whole block and preserves the weights the family provides", () =>
       },
     ],
   };
-  const doc = documentWith([block("block", content)], [
-    sans400,
-    sans700,
-    serif400,
-    serif900,
-  ]);
+  const doc = documentWith(
+    [block("block", content)],
+    [sans400, sans700, serif400, serif900],
+  );
   const change = prepareFontChange(
     doc,
     { blockId: "block", target: { kind: "block", from: 0, to: 0 } },
@@ -242,17 +246,13 @@ it("switches a whole block and preserves the weights the family provides", () =>
   );
   const output = change.nextDocument.textBlocks[0];
   expect(output.content.content!.map(plainText)).toEqual(["标题", "正文"]);
-  expect(
-    output.content.content![0].content![0].marks![0].attrs,
-  ).toEqual({
+  expect(output.content.content![0].content![0].marks![0].attrs).toEqual({
     fontId: "serif-900",
     fontSize: 64,
     color: "#284632",
     fontWeight: 900,
   });
-  expect(
-    output.content.content![1].content![0].marks![0].attrs,
-  ).toEqual({
+  expect(output.content.content![1].content![0].marks![0].attrs).toEqual({
     fontId: "serif-400",
     fontSize: 64,
     color: "#284632",
@@ -333,7 +333,10 @@ it("drops unsupported bold and italic only inside the target range", () => {
           {
             type: "text",
             text: "外侧",
-            marks: [styleMark("sans-700", 64, "#000000", 700), { type: "italic" }],
+            marks: [
+              styleMark("sans-700", 64, "#000000", 700),
+              { type: "italic" },
+            ],
           },
         ],
       },
@@ -368,10 +371,7 @@ it("drops unsupported bold and italic only inside the target range", () => {
     {
       type: "text",
       text: "外侧",
-      marks: [
-        styleMark("sans-700", 64, "#000000", 700),
-        { type: "italic" },
-      ],
+      marks: [styleMark("sans-700", 64, "#000000", 700), { type: "italic" }],
     },
   ]);
   expect(change.removeItalic).toBe(true);
@@ -420,14 +420,20 @@ it("keeps cursor bold when the chosen family provides 700", () => {
 
 it("resolves an explicit cursor weight after a family change", () => {
   const doc = documentWith([block("block", mainContent)]);
-  const first = prepareFontChange(doc, cursorAt(7), inter400, availableWithInter, {
-    cursorStyle: {
-      fontId: "sans-400",
-      fontSize: 64,
-      color: "#284632",
-      fontWeight: 400,
+  const first = prepareFontChange(
+    doc,
+    cursorAt(7),
+    inter400,
+    availableWithInter,
+    {
+      cursorStyle: {
+        fontId: "sans-400",
+        fontSize: 64,
+        color: "#284632",
+        fontWeight: 400,
+      },
     },
-  });
+  );
   expect(first.insertionStyle).toEqual({
     fontId: "inter-400",
     fontWeight: 400,
@@ -451,7 +457,69 @@ it("resolves an explicit cursor weight after a family change", () => {
     fontId: "inter-700",
     fontWeight: 700,
   });
-  expect(second.nextDocument.fonts.map((f) => f.assetId)).toContain("inter-700");
+  expect(second.nextDocument.fonts.map((f) => f.assetId)).toContain(
+    "inter-700",
+  );
+});
+
+it("keeps a supported continuous weight on family change", () => {
+  const variableSans: FontSource = Object.assign(
+    source("sans-var", "Noto Sans SC", 400),
+    { minWeight: 100, maxWeight: 900 },
+  );
+  const content: RichNode = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "风景",
+            marks: [styleMark("sans-var", 64, "#284632", 400)],
+          },
+        ],
+      },
+    ],
+  };
+  const base = block("block", content);
+  const doc = documentWith(
+    [{ ...base, defaultStyle: { ...base.defaultStyle, fontId: "sans-var" } }],
+    [variableSans, kuaile400],
+  );
+  const change = prepareFontChange(
+    doc,
+    { blockId: "block", target: { kind: "range", from: 0, to: 2 } },
+    variableSans,
+    [variableSans, kuaile400],
+    { intent: "weight", requestedWeight: 250 } as never,
+  );
+  const selected =
+    change.nextDocument.textBlocks[0].content.content![0].content![0].marks!.find(
+      (mark) => mark.type === "textStyle",
+    )!.attrs;
+  expect(selected).toMatchObject({
+    fontId: "sans-var",
+    fontWeight: 250,
+  });
+  expect(change.adjustments).toEqual([]);
+  expect(change.nextDocument.fonts.map((font) => font.assetId)).toEqual([
+    "sans-var",
+  ]);
+
+  const fallback = prepareFontChange(
+    change.nextDocument,
+    { blockId: "block", target: { kind: "range", from: 0, to: 2 } },
+    kuaile400,
+    [variableSans, kuaile400],
+    { intent: "family" },
+  );
+  const adapted =
+    fallback.nextDocument.textBlocks[0].content.content![0].content![0].marks!.find(
+      (mark) => mark.type === "textStyle",
+    )!.attrs;
+  expect(adapted).toMatchObject({ fontId: "kuaile-400", fontWeight: 400 });
+  expect(fallback.adjustments).toEqual(["新字体没有 250 字重，已使用 400"]);
 });
 
 it("preserves supported weights from mixed families in one selection", () => {
@@ -525,11 +593,13 @@ it("includes implicit italic faces in the probe document", () => {
   );
   expect(change.removeItalic).toBe(false);
   expect(
-    change.nextDocument.fonts.some((font) => font.assetId === "inter-italic-400"),
+    change.nextDocument.fonts.some(
+      (font) => font.assetId === "inter-italic-400",
+    ),
   ).toBe(true);
-  expect(
-    change.probeDocument.fonts.map((font) => font.assetId).sort(),
-  ).toEqual(["inter-400", "inter-italic-400"]);
+  expect(change.probeDocument.fonts.map((font) => font.assetId).sort()).toEqual(
+    ["inter-400", "inter-italic-400"],
+  );
   expect(() => parseDocument(change.probeDocument)).not.toThrow();
 });
 
@@ -564,4 +634,48 @@ it("builds a probe document with only the target text and needed references", ()
     "kuaile-400",
   ]);
   expect(() => parseDocument(change.probeDocument)).not.toThrow();
+});
+
+it("preserves unrelated implicit italic references during a slider edit", () => {
+  const document = documentWith(
+    [
+      block("block", mainContent),
+      {
+        ...block("other", {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Poster", marks: [{ type: "italic" }] },
+              ],
+            },
+          ],
+        }),
+        defaultStyle: {
+          fontId: inter400.assetId,
+          fontWeight: 400,
+          fontSize: 64,
+          color: "#284632",
+        },
+        zIndex: 1,
+      },
+    ],
+    [...bundled, inter400, interItalic400],
+  );
+  const variable = { ...sans400, minWeight: 100, maxWeight: 900 };
+  const change = prepareFontChange(
+    document,
+    { blockId: "block", target: { kind: "range", from: 3, to: 5 } },
+    variable,
+    [
+      variable,
+      ...available.filter((face) => face.assetId !== variable.assetId),
+      inter400,
+      interItalic400,
+    ],
+    { intent: "weight", requestedWeight: 250 },
+  );
+  expect(change.nextDocument.fonts).toContainEqual(ref(interItalic400));
+  expect(change.nextDocument.textBlocks[1]).toEqual(document.textBlocks[1]);
 });

@@ -169,6 +169,7 @@ export function CopyPicker({
         {copies.data?.resources.map((row) => (
           <Button
             key={row.id}
+            className={row.body ? "fp-actionable-card" : undefined}
             aria-label={`使用文案 ${row.title}`}
             disabled={!row.body}
             onClick={() => onChoose(row.body ?? "")}

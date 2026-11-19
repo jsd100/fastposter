@@ -39,3 +39,20 @@ func TestCookieSecurityAndAllowedOrigins(t *testing.T) {
 		t.Fatalf("security config not applied: %+v %v", c, e)
 	}
 }
+
+func TestGradientWritesAreClosedByDefault(t *testing.T) {
+	c, e := Load(map[string]string{"MYSQL_DSN": "x"}, t.TempDir())
+	if e != nil || c.GradientWrites {
+		t.Fatalf("gradient writes must be closed by default: %+v %v", c, e)
+	}
+}
+
+func TestGradientWritesConfigParsing(t *testing.T) {
+	c, e := Load(map[string]string{"MYSQL_DSN": "x", "FASTPOSTER_GRADIENT_WRITES": "1"}, t.TempDir())
+	if e != nil || !c.GradientWrites {
+		t.Fatalf("gradient writes not enabled: %+v %v", c, e)
+	}
+	if _, e = Load(map[string]string{"MYSQL_DSN": "x", "FASTPOSTER_GRADIENT_WRITES": "sometimes"}, t.TempDir()); e == nil || !strings.Contains(e.Error(), "FASTPOSTER_GRADIENT_WRITES") {
+		t.Fatalf("invalid gradient switch accepted: %v", e)
+	}
+}

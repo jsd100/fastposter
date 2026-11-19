@@ -9,7 +9,9 @@ import {
 } from "react";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import { RichTextEditor } from "./text/RichTextEditor";
+import { previewEditorWeight } from "./text/weight-preview";
 import { TextPanel, type TextPanelProps } from "./panels/TextPanel";
+import { gradientWritesEnabled } from "./gradient-writes";
 import { EditorInspector, type InspectorGroup } from "./panels/EditorInspector";
 import {
   captureSelection,
@@ -69,13 +71,19 @@ import {
   type Rect,
   type ViewTransform,
 } from "./geometry";
-import type { FontSource } from "@fastposter/poster-renderer";
+import {
+  type FontSource,
+  isGradientColor,
+  nextGradientRangeId,
+} from "@fastposter/poster-renderer";
 import "./styles.css";
 export type EditorProps = {
   document: PosterDocument;
   onChange: (doc: PosterDocument) => void;
   checkFonts: (candidate: PosterDocument) => Promise<void>;
   fontCheckScope: string;
+  /** Site + account scope for view-only preferences such as the thirds grid. */
+  viewPreferenceScope?: string;
   availableFonts?: FontSource[];
   onAssetRequest?: () => Promise<BackgroundAsset | undefined>;
   onBackgroundLibraryRequest?: () => Promise<BackgroundAsset | undefined>;
@@ -89,6 +97,7 @@ export function Editor({
   onChange,
   checkFonts,
   fontCheckScope,
+  viewPreferenceScope,
   availableFonts = [],
   onAssetRequest,
   onBackgroundLibraryRequest,
@@ -99,6 +108,10 @@ export function Editor({
 }: EditorProps) {
   const textSelection = useRef<{ from: number; to: number } | null>(null);
   const [activeEditor, setActiveEditor] = useState<TiptapEditor | null>(null);
+  const [weightPreview, setWeightPreview] = useState<{
+    blockId: string;
+    weight: number;
+  } | null>(null);
   const [, selectionChanged] = useState(0);
   const layout = useEditorLayout();
   const [layersOpen, setLayersOpen] = useState(true);
@@ -106,6 +119,33 @@ export function Editor({
   const [layerDrawer, setLayerDrawer] = useState(false);
   const [inspectorDrawer, setInspectorDrawer] = useState(false);
   const [group, setGroup] = useState<InspectorGroup>("text");
+  const gridStorageKey = viewPreferenceScope
+    ? `fastposter:view:grid:${viewPreferenceScope}`
+    : null;
+  function readGridPreference(): boolean {
+    if (!gridStorageKey) return false;
+    try {
+      return window.localStorage.getItem(gridStorageKey) === "1";
+    } catch {
+      return false;
+    }
+  }
+  const [showGrid, setShowGrid] = useState(readGridPreference);
+  // Switching account or site reloads that scope's preference; a failed read
+  // leaves the session default (off) while the switch stays usable.
+  useEffect(() => {
+    setShowGrid(readGridPreference());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewPreferenceScope]);
+  function changeShowGrid(visible: boolean) {
+    setShowGrid(visible);
+    if (!gridStorageKey) return;
+    try {
+      window.localStorage.setItem(gridStorageKey, visible ? "1" : "0");
+    } catch {
+      // Storage may be disabled; the in-session toggle still works.
+    }
+  }
   const [sheet, setSheet] = useState<
     "inspector" | "layers" | "background" | null
   >(null);
@@ -347,6 +387,7 @@ export function Editor({
       );
       const target = block ? fontTarget(block.id) : null;
       let cursorStyle: InlineStyle | undefined;
+      let cursorItalic: boolean | undefined;
       if (
         block &&
         target?.target.kind === "cursor" &&
@@ -357,12 +398,14 @@ export function Editor({
           activeEditor.state.storedMarks ??
           activeEditor.state.selection.$from.marks();
         cursorStyle = effectiveInlineStyle(marks, block.defaultStyle);
+        cursorItalic = marks.some((mark) => mark.type.name === "italic");
       }
       return {
         document: current.document,
         target,
         scope: fontCheckScope,
         cursorStyle,
+        cursorItalic,
       };
     },
     apply: applyPreparedFontChange,
@@ -528,6 +571,11 @@ export function Editor({
     return { blockId, target: { kind: "block", from: 0, to: 0 } };
   }
   const activeHandle = useRef<TransactionHandle | null>(null);
+  const gradientGesture = useRef<{
+    handle: TransactionHandle;
+    rangeId: string;
+    target: string;
+  } | null>(null);
   /** The edit target a control gesture is scoped to when it is acquired. */
   function gestureTarget() {
     return `${state.selectedId ?? ""}:${state.mode}:control`;
@@ -598,21 +646,49 @@ export function Editor({
       return;
     }
     withControlGesture(() => {
+      let nextPatch = patch;
+      if (isGradientColor(patch.color)) {
+        if (!gradientWritesEnabled()) return;
+        // A partial edit must get its own range. Reuse that range throughout
+        // the popup gesture so moving a color stop does not fragment it.
+        const { kind, from, to } = fontTarget(selected.id).target;
+        const target = `${selected.id}:${kind}:${from}:${to}`;
+        let handle = store.activeTransaction()!;
+        if (
+          gradientGesture.current?.handle === handle &&
+          gradientGesture.current.target !== target
+        ) {
+          handle = store.acquire("control", `${gestureTarget()}:${target}`);
+          activeHandle.current = handle;
+        }
+        if (gradientGesture.current?.handle !== handle)
+          gradientGesture.current = {
+            handle,
+            target,
+            rangeId: nextGradientRangeId(
+              store.getState().document,
+              selected.id,
+            ),
+          };
+        nextPatch = {
+          ...patch,
+          color: { ...patch.color, rangeId: gradientGesture.current.rangeId },
+        };
+      }
       if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
         if (textSelection.current)
           restoreSelection(activeEditor, textSelection.current);
-        if (patch.fontWeight !== undefined) activeEditor.commands.unsetBold();
-        // setMark triggers RichTextEditor.onUpdate, which writes the real
-        // content and selection inside this gesture's transaction.
-        activeEditor.commands.setMark("textStyle", patch);
+        if (nextPatch.fontWeight !== undefined)
+          activeEditor.commands.unsetBold();
+        activeEditor.commands.setMark("textStyle", nextPatch);
       } else {
         store.updateBlock(selected.id, (b) => ({
           ...b,
-          defaultStyle: { ...b.defaultStyle, ...patch },
+          defaultStyle: { ...b.defaultStyle, ...nextPatch },
           content: applyTextStyle(
             b.content,
             { kind: "block", from: 0, to: 0 },
-            patch,
+            nextPatch,
           ),
         }));
       }
@@ -706,8 +782,27 @@ export function Editor({
         block: selected,
         editor: state.mode === "edit" ? activeEditor : null,
         fonts: availableFonts,
+        fontRefs: state.document.fonts,
+        previewWeight: (weight) => {
+          if (
+            state.mode === "edit" &&
+            activeEditor &&
+            !activeEditor.isDestroyed
+          ) {
+            previewEditorWeight(
+              activeEditor,
+              textSelection.current ?? captureSelection(activeEditor),
+              weight,
+            );
+          } else {
+            setWeightPreview(
+              weight === null ? null : { blockId: selected.id, weight },
+            );
+          }
+        },
         apply,
-        chooseFont: (face, intent) => void fontChoice.choose(face, intent),
+        chooseFont: (face, intent, requestedWeight) =>
+          void fontChoice.choose(face, intent, requestedWeight),
         fontPending: fontChoice.pending,
         sizeBase: firstTargetStyle(state.document, fontTarget(selected.id))
           .fontSize,
@@ -975,6 +1070,14 @@ export function Editor({
         <Stage
           store={store}
           state={state}
+          showGrid={showGrid}
+          onShowGridChange={changeShowGrid}
+          weightPreview={
+            state.mode === "select" &&
+            weightPreview?.blockId === state.selectedId
+              ? weightPreview
+              : null
+          }
           visibleViewport={visibleViewport}
           renderEditing={
             renderEditing

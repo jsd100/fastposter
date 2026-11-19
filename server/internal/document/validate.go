@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"regexp"
+	"slices"
 	"unicode/utf8"
 )
 
@@ -30,12 +31,77 @@ func Parse(raw []byte) (Document, error) {
 	}
 	return d, Validate(d)
 }
+func normalizeAngle(angle float64) float64 {
+	// Match the TypeScript normalization, including its decimal rounding.
+	return math.Mod(math.Mod(angle, 360)+360, 360)
+}
+func normalizeStops(stops []GradientStop) {
+	// Preserve the positions that CSS draws for existing descending stops.
+	offset := 0.0
+	for i := range stops {
+		offset = max(offset, stops[i].Offset)
+		stops[i].Offset = offset
+	}
+}
 func bounded(v, lo, hi float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0) && v >= lo && v <= hi
 }
+func finite(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+func validateStops(stops []GradientStop) error {
+	if len(stops) < 2 || len(stops) > 8 {
+		return errors.New("invalid gradient stops")
+	}
+	for _, s := range stops {
+		if !colorPattern.MatchString(s.Color) || !bounded(s.Offset, 0, 100) {
+			return errors.New("invalid gradient stop")
+		}
+	}
+	return nil
+}
+func validateColor(c TextColor, version int) error {
+	if c.Gradient == nil {
+		if !colorPattern.MatchString(c.Solid) {
+			return errors.New("invalid solid color")
+		}
+		return nil
+	}
+	if version != 2 {
+		return errors.New("gradient requires schema v2")
+	}
+	if g := c.Gradient.Linear; g != nil {
+		if c.Gradient.Radial != nil || g.Type != "linear" || !idPattern.MatchString(g.RangeID) || !finite(g.Angle) {
+			return errors.New("invalid linear gradient")
+		}
+		return validateStops(g.Stops)
+	}
+	if g := c.Gradient.Radial; g != nil {
+		if g.Type != "radial" || !idPattern.MatchString(g.RangeID) || !bounded(g.CenterX, 0, 100) || !bounded(g.CenterY, 0, 100) {
+			return errors.New("invalid radial gradient")
+		}
+		return validateStops(g.Stops)
+	}
+	return errors.New("invalid gradient")
+}
+func gradientRangeID(gradient *Gradient) string {
+	if gradient.Linear != nil {
+		return gradient.Linear.RangeID
+	}
+	return gradient.Radial.RangeID
+}
+func sameGradient(a, b *Gradient) bool {
+	if a.Linear != nil && b.Linear != nil {
+		return normalizeAngle(a.Linear.Angle) == normalizeAngle(b.Linear.Angle) && slices.Equal(a.Linear.Stops, b.Linear.Stops)
+	}
+	if a.Radial != nil && b.Radial != nil {
+		return a.Radial.CenterX == b.Radial.CenterX && a.Radial.CenterY == b.Radial.CenterY && slices.Equal(a.Radial.Stops, b.Radial.Stops)
+	}
+	return false
+}
 func Validate(d Document) error {
 	bad := func(s string) error { return fmt.Errorf("invalid document: %s", s) }
-	if d.SchemaVersion != 1 {
+	if d.SchemaVersion != 1 && d.SchemaVersion != 2 {
 		return bad("unsupported version")
 	}
 	w, h := d.Canvas.Width, d.Canvas.Height
@@ -62,7 +128,24 @@ func Validate(d Document) error {
 		}
 		blocks[b.ID] = true
 		st := b.DefaultStyle
-		if !fonts[st.FontID] || !bounded(st.FontSize, 0.000001, 4096) || !colorPattern.MatchString(st.Color) || st.FontWeight < 100 || st.FontWeight > 900 {
+		if !fonts[st.FontID] || !bounded(st.FontSize, 0.000001, 4096) || st.FontWeight < 100 || st.FontWeight > 900 {
+			return bad("default text style")
+		}
+		ranges := map[string]*Gradient{}
+		checkColor := func(c TextColor) error {
+			if e := validateColor(c, d.SchemaVersion); e != nil {
+				return e
+			}
+			if c.Gradient != nil {
+				id := gradientRangeID(c.Gradient)
+				if previous := ranges[id]; previous != nil && !sameGradient(previous, c.Gradient) {
+					return errors.New("conflicting gradient range configuration")
+				}
+				ranges[id] = c.Gradient
+			}
+			return nil
+		}
+		if e := checkColor(st.Color); e != nil {
 			return bad("default text style")
 		}
 		p := b.ParagraphStyle
@@ -73,14 +156,14 @@ func Validate(d Document) error {
 		if !bounded(e.Opacity, 0, 1) || !bounded(e.Padding, 0, 4096) || e.Padding*2 >= b.Width || !colorPattern.MatchString(e.BackgroundColor) || !colorPattern.MatchString(e.StrokeColor) || !colorPattern.MatchString(e.ShadowColor) || !bounded(e.StrokeWidth, 0, 100) || !bounded(e.ShadowBlur, 0, 500) || !bounded(e.ShadowX, -8192, 8192) || !bounded(e.ShadowY, -8192, 8192) {
 			return bad("effects")
 		}
-		count, err := validateNode(b.Content, "doc", fonts)
+		count, err := validateNode(b.Content, "doc", fonts, checkColor)
 		if err != nil || count > 10000 {
 			return bad("rich text or character limit")
 		}
 	}
 	return nil
 }
-func validateNode(n Node, expected string, fonts map[string]bool) (int, error) {
+func validateNode(n Node, expected string, fonts map[string]bool, checkColor func(TextColor) error) (int, error) {
 	fail := errors.New("invalid rich text")
 	if n.Type != expected {
 		return 0, fail
@@ -97,7 +180,7 @@ func validateNode(n Node, expected string, fonts map[string]bool) (int, error) {
 			} else if c.Type == "hardBreak" {
 				want = "hardBreak"
 			}
-			v, e := validateNode(c, want, fonts)
+			v, e := validateNode(c, want, fonts, checkColor)
 			if e != nil {
 				return 0, e
 			}
@@ -132,8 +215,8 @@ func validateNode(n Node, expected string, fonts map[string]bool) (int, error) {
 						return 0, fail
 					}
 				case "color":
-					s, ok := v.(string)
-					if !ok || !colorPattern.MatchString(s) {
+					color, e := decodeMarkColor(v)
+					if e != nil || checkColor(color) != nil {
 						return 0, fail
 					}
 				case "fontSize":

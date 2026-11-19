@@ -1,3 +1,26 @@
+import type { FontSource } from "@fastposter/poster-renderer";
+import type { FontRef } from "@fastposter/poster-schema";
+
+export function documentFontSources(
+  fonts: FontSource[],
+  refs: readonly FontRef[],
+) {
+  const byId = new Map(fonts.map((font) => [font.assetId, font]));
+  for (const ref of refs) {
+    const matching = fonts.find(
+      (font) => font.assetId === ref.assetId && font.version === ref.version,
+    );
+    byId.set(
+      ref.assetId,
+      matching ?? {
+        ...ref,
+        url: `/api/v1/assets/${ref.assetId}/versions/${ref.version}`,
+      },
+    );
+  }
+  return [...byId.values()];
+}
+
 export type FontCategory = "通用" | "文艺" | "标题" | "西文";
 const catalog: Record<string, { label: string; category: FontCategory }> = {
   "Noto Sans SC": { label: "思源黑体", category: "通用" },

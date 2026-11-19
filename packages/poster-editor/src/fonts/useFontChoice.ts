@@ -1,19 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { loadFonts, type FontSource } from "@fastposter/poster-renderer";
+import {
+  loadDocumentFonts,
+  loadFonts,
+  type FontSource,
+} from "@fastposter/poster-renderer";
 import type { InlineStyle, PosterDocument } from "@fastposter/poster-schema";
 import { useNotify } from "@fastposter/ui";
 import {
   prepareFontChange,
+  fontTargetIds,
   type FontChoiceIntent,
   type PreparedFontChange,
 } from "./prepare-change";
 import type { FontTarget } from "../text/selection";
+import { documentFontSources } from "./catalog";
 
 export type FontChoiceSnapshot = {
   document: PosterDocument;
   target: FontTarget | null;
   scope: string;
   cursorStyle?: InlineStyle;
+  cursorItalic?: boolean;
 };
 
 export type FontChoiceError = {
@@ -37,30 +44,10 @@ function sameSnapshot(a: FontChoiceSnapshot, b: FontChoiceSnapshot) {
     a.scope === b.scope &&
     a.document === b.document &&
     sameTarget(a.target, b.target) &&
+    a.cursorItalic === b.cursorItalic &&
     JSON.stringify(a.cursorStyle ?? null) ===
       JSON.stringify(b.cursorStyle ?? null)
   );
-}
-
-function sourcesFor(
-  previous: PosterDocument,
-  next: PosterDocument,
-  fonts: FontSource[],
-  chosen: FontSource,
-) {
-  const key = (font: { assetId: string; version: string }) =>
-    `${font.assetId}@${font.version}`;
-  const existing = new Set(previous.fonts.map(key));
-  const sources = new Map<string, FontSource>([[key(chosen), chosen]]);
-  for (const ref of next.fonts) {
-    if (existing.has(key(ref))) continue;
-    const source =
-      fonts.find(
-        (font) => font.assetId === ref.assetId && font.version === ref.version,
-      ) ?? fonts.find((font) => font.assetId === ref.assetId);
-    if (source) sources.set(key(source), source);
-  }
-  return [...sources.values()];
 }
 
 export function useFontChoice({
@@ -80,6 +67,7 @@ export function useFontChoice({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<FontChoiceError | null>(null);
   const pendingRef = useRef(false);
+  const errorTarget = useRef<FontChoiceSnapshot | null>(null);
   const generation = useRef(0);
   const alive = useRef(true);
   const scopeRef = useRef(scope);
@@ -103,14 +91,27 @@ export function useFontChoice({
   useEffect(() => {
     generation.current += 1;
     pendingRef.current = false;
+    errorTarget.current = null;
     setPending(false);
     setError(null);
   }, [scope]);
+  useEffect(() => {
+    if (errorTarget.current && !sameSnapshot(errorTarget.current, snapshot())) {
+      errorTarget.current = null;
+      setError(null);
+    }
+  });
 
-  async function choose(font: FontSource, intent: FontChoiceIntent = "family") {
+  async function choose(
+    font: FontSource,
+    intent: FontChoiceIntent = "family",
+    requestedWeight?: number,
+    expected?: FontChoiceSnapshot,
+  ) {
     if (pendingRef.current) return;
     const started = snapshotRef.current();
-    if (!started.target) return;
+    if (!started.target || (expected && !sameSnapshot(expected, started)))
+      return;
     const run = ++generation.current;
     const current = () => {
       if (!alive.current || run !== generation.current) return false;
@@ -119,17 +120,54 @@ export function useFontChoice({
     pendingRef.current = true;
     setPending(true);
     setError(null);
+    errorTarget.current = null;
     try {
+      const sources = documentFontSources(
+        [...fontsRef.current, font],
+        started.document.fonts,
+      );
+      const selected =
+        sources.find((item) => item.assetId === font.assetId) ?? font;
+      const families = new Set([selected.family]);
+      const block = started.document.textBlocks.find(
+        (item) => item.id === started.target?.blockId,
+      );
+      if (intent === "weight" && block) {
+        for (const id of fontTargetIds(
+          block,
+          started.target.target,
+          started.cursorStyle?.fontId,
+        )) {
+          const source = sources.find((item) => item.assetId === id);
+          if (source) families.add(source.family);
+        }
+      }
+      // The catalog carries nominal weights. Inspect the chosen immutable data
+      // before resolving a continuous weight, even if no preview was opened.
+      await loadFonts([selected]);
+      await Promise.allSettled(
+        sources
+          .filter(
+            (source) =>
+              source.assetId !== selected.assetId &&
+              families.has(source.family),
+          )
+          .map((source) => loadFonts([source])),
+      );
+      if (!current()) return;
       const change = prepareFontChange(
         started.document,
         started.target,
-        font,
-        fontsRef.current,
-        { cursorStyle: started.cursorStyle, intent },
+        selected,
+        sources,
+        {
+          cursorStyle: started.cursorStyle,
+          cursorItalic: started.cursorItalic,
+          intent,
+          requestedWeight,
+        },
       );
-      await loadFonts(
-        sourcesFor(started.document, change.nextDocument, fontsRef.current, font),
-      );
+      await loadDocumentFonts(change.nextDocument.fonts);
       if (!current()) return;
       await checkRef.current(change.probeDocument);
       if (!current()) return;
@@ -151,14 +189,18 @@ export function useFontChoice({
           candidate.assetId !== font.assetId,
       );
       const useChinese = message.includes("缺少字形") && alternative;
+      errorTarget.current = started;
       setError({
         message,
         action: useChinese
           ? {
               label: "改用思源黑体",
-              run: () => void choose(alternative, intent),
+              run: () => void choose(alternative, "family", undefined, started),
             }
-          : { label: "重试", run: () => void choose(font, intent) },
+          : {
+              label: "重试",
+              run: () => void choose(font, intent, requestedWeight, started),
+            },
       });
     } finally {
       if (run === generation.current) pendingRef.current = false;

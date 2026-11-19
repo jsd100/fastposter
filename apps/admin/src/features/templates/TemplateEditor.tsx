@@ -32,11 +32,13 @@ import {
 } from "../../api";
 
 export function TemplateEditor({
+  userId,
   resource,
   close,
   saved,
   restoreFocusTo,
 }: {
+  userId: string;
   resource?: ResourceDTO;
   close: () => void;
   saved: () => Promise<void>;
@@ -354,6 +356,7 @@ export function TemplateEditor({
               });
             }}
             fontCheckScope={`admin:template:${resource?.id ?? "new"}`}
+            viewPreferenceScope={`admin:${userId}`}
             availableFonts={availableFonts}
             onAssetRequest={background}
             onOverflowChange={setOverflow}

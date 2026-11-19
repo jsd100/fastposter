@@ -59,6 +59,12 @@ export class DocumentHistory<T> {
     if (!this.active) this.begin();
     this.current = clone(value);
   }
+  mapSnapshots(map: (value: T) => T) {
+    this.current = map(this.current);
+    this.past = this.past.map(map);
+    this.future = this.future.map(map);
+    if (this.pending !== undefined) this.pending = map(this.pending);
+  }
   commit() {
     if (!this.active) return;
     const previous = this.pending as T;

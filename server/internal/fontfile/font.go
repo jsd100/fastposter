@@ -9,6 +9,7 @@ import (
 	fontconvert "github.com/tdewolff/font"
 	"golang.org/x/image/font/sfnt"
 	"io"
+	"math"
 	"unicode"
 )
 
@@ -18,10 +19,14 @@ const MaxDecodedBytes = 30 << 20
 func invalid() error { return domain.E("INVALID_FONT", "字体文件损坏或格式不受支持") }
 
 type Face struct {
-	Data   []byte
-	Font   *sfnt.Font
-	Weight int
-	Style  string
+	Data      []byte
+	Font      *sfnt.Font
+	Weight    int
+	MinWeight int
+	MaxWeight int
+	Style     string
+	normal    bool
+	italic    bool
 }
 
 func base128(b []byte, pos *int) (uint32, error) {
@@ -112,18 +117,45 @@ func Parse(b []byte, weight int, style string) (*Face, error) {
 func ParseNormalized(b []byte, weight int, style string) (*Face, error) {
 	return parse(b, weight, style, MaxDecodedBytes)
 }
-func parse(b []byte, weight int, style string, maxBytes int) (face *Face, err error) {
+
+// Inspect reads the real style and weight axis from referenced stored bytes.
+// Stored assets may already be decoded and can exceed the upload limit, so it
+// uses the decoded limit like ParseNormalized. It is deliberately independent
+// of any client-declared range.
+func Inspect(b []byte) (*Face, error) {
+	return inspect(b, MaxDecodedBytes)
+}
+
+func (f *Face) supports(weight int, style string) bool {
+	return weight >= f.MinWeight && weight <= f.MaxWeight &&
+		((style == "normal" && f.normal) || (style == "italic" && f.italic))
+}
+
+func parse(b []byte, weight int, style string, maxBytes int) (*Face, error) {
+	face, e := inspect(b, maxBytes)
+	if e != nil {
+		return nil, e
+	}
+	if !face.supports(weight, style) {
+		return nil, domain.E("MISSING_FONT", "文件未提供所声明的字重或斜体样式，不能使用合成字形")
+	}
+	face.Weight = weight
+	face.Style = style
+	return face, nil
+}
+
+func inspect(b []byte, maxBytes int) (face *Face, err error) {
 	defer func() {
 		if recover() != nil {
 			face = nil
 			err = invalid()
 		}
 	}()
+	if len(b) < 12 {
+		return nil, invalid()
+	}
 	if len(b) > maxBytes {
 		return nil, domain.E("PAYLOAD_TOO_LARGE", "字体文件不能超过 20 MiB")
-	}
-	if len(b) < 12 || weight < 100 || weight > 900 || (style != "normal" && style != "italic") {
-		return nil, invalid()
 	}
 	if string(b[:4]) == "wOF2" {
 		if e := preflightWOFF2(b); e != nil {
@@ -161,42 +193,46 @@ func parse(b []byte, weight int, style string, maxBytes int) (face *Face, err er
 	if len(os2) < 64 {
 		return nil, invalid()
 	}
-	actualWeight := int(binary.BigEndian.Uint16(os2[4:6]))
-	italic := binary.BigEndian.Uint16(os2[62:64])&1 != 0
-	weightMatches := weight == actualWeight
-	styleMatches := (style == "italic") == italic
+	weight := int(binary.BigEndian.Uint16(os2[4:6]))
+	minWeight, maxWeight := weight, weight
+	italicDefault := binary.BigEndian.Uint16(os2[62:64])&1 != 0
+	normal, italic := !italicDefault, italicDefault
 	if fvar := tables["fvar"]; len(fvar) >= 16 {
 		offset, count, size := int(binary.BigEndian.Uint16(fvar[4:6])), int(binary.BigEndian.Uint16(fvar[8:10])), int(binary.BigEndian.Uint16(fvar[10:12]))
-		if count > 16 || size < 20 || offset+count*size > len(fvar) {
+		if offset < 16 || count > 16 || size < 20 || offset+count*size > len(fvar) {
 			return nil, invalid()
 		}
+		slanted := false
 		for i := range count {
 			axis := fvar[offset+i*size : offset+i*size+20]
 			min, max := float64(int32(binary.BigEndian.Uint32(axis[4:8])))/65536, float64(int32(binary.BigEndian.Uint32(axis[12:16])))/65536
+			if min > max {
+				return nil, invalid()
+			}
 			switch string(axis[:4]) {
 			case "wght":
-				weightMatches = float64(weight) >= min && float64(weight) <= max
+				minWeight, maxWeight = int(math.Ceil(min)), int(math.Floor(max))
 			case "ital":
-				want := 0.0
-				if style == "italic" {
-					want = 1
-				}
-				styleMatches = want >= min && want <= max
+				normal, italic = min <= 0 && max >= 0, min <= 1 && max >= 1
 			case "slnt":
-				if style == "italic" && (min < 0 || max > 0) {
-					styleMatches = true
-				}
+				slanted = min < 0 || max > 0
 			}
 		}
-	}
-	if !weightMatches || !styleMatches {
-		return nil, domain.E("MISSING_FONT", "文件未提供所声明的字重或斜体样式，不能使用合成字形")
+		italic = italic || slanted
 	}
 	parsed, e := sfnt.Parse(b)
 	if e != nil {
 		return nil, invalid()
 	}
-	return &Face{Data: b, Font: parsed, Weight: weight, Style: style}, nil
+	actualStyle := "normal"
+	if italicDefault {
+		actualStyle = "italic"
+	}
+	return &Face{
+		Data: b, Font: parsed, Weight: weight,
+		MinWeight: minWeight, MaxWeight: maxWeight, Style: actualStyle,
+		normal: normal, italic: italic,
+	}, nil
 }
 func (f *Face) CheckText(text string) error {
 	var buffer sfnt.Buffer

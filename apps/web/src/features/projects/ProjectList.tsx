@@ -126,7 +126,7 @@ export function ProjectListView({
         <Card
           key={project.id}
           data-testid="project-card"
-          className="project-card"
+          className={`project-card fp-actionable-card${trash ? " project-card-trash" : ""}`}
           size="small"
           hoverable={!trash}
           cover={

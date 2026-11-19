@@ -1,22 +1,49 @@
 import { z } from "zod";
-import type { PosterDocument, RichNode } from "./types";
+import type {
+  LinearGradient,
+  PosterDocument,
+  RadialGradient,
+  RichNode,
+  TextColor,
+} from "./types";
 const id = z
   .string()
   .min(1)
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
 const color = z.string().regex(/^#[a-fA-F0-9]{6}([a-fA-F0-9]{2})?$/);
+const offset = z.number().min(0).max(100);
+const stop = z.object({ color, offset }).strict();
+const stops = z.array(stop).min(2).max(8);
+const linear = z
+  .object({
+    type: z.literal("linear"),
+    rangeId: id,
+    angle: z.number().finite(),
+    stops,
+  })
+  .strict();
+const radial = z
+  .object({
+    type: z.literal("radial"),
+    rangeId: id,
+    centerX: offset,
+    centerY: offset,
+    stops,
+  })
+  .strict();
+const textColor = z.union([color, linear, radial]);
 const inline = z
   .object({
     fontId: id,
     fontSize: z.number().positive().max(4096),
-    color,
+    color: textColor,
     fontWeight: z.number().int().min(100).max(900),
   })
   .strict();
 const shape = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.union([z.literal(1), z.literal(2)]),
     canvas: z
       .object({
         width: z.number().int().positive().max(8192),
@@ -135,6 +162,58 @@ function assertRich(
   }
   return Array.from(n.text).length;
 }
+type Gradient = LinearGradient | RadialGradient;
+function isGradient(color: TextColor): color is Gradient {
+  return typeof color === "object" && color !== null;
+}
+function normalizeAngle(angle: number): number {
+  return ((angle % 360) + 360) % 360;
+}
+function normalizeGradient(color: Gradient): Gradient {
+  // CSS clamps stops to the greatest preceding position. Match the existing
+  // rendered appearance while exposing ordered stops to the editor.
+  let previousOffset = 0;
+  const stops = color.stops.map((stop) => {
+    previousOffset = Math.max(previousOffset, stop.offset);
+    return { ...stop, offset: previousOffset };
+  });
+  return color.type === "linear"
+    ? { ...color, angle: normalizeAngle(color.angle), stops }
+    : { ...color, stops };
+}
+export function parseTextColor(input: unknown): TextColor {
+  const color = textColor.parse(input);
+  return isGradient(color) ? normalizeGradient(color) : color;
+}
+function gradientConfigKey(gradient: Gradient): string {
+  const stops = gradient.stops.map((s) => `${s.color}@${s.offset}`).join(",");
+  return gradient.type === "linear"
+    ? `linear|${gradient.angle}|${stops}`
+    : `radial|${gradient.centerX},${gradient.centerY}|${stops}`;
+}
+function mapMarkColors(
+  node: RichNode,
+  visit: (color: TextColor) => TextColor,
+): RichNode {
+  if (node.content) {
+    return {
+      ...node,
+      content: node.content.map((child) => mapMarkColors(child, visit)),
+    };
+  }
+  if (!node.marks) return node;
+  return {
+    ...node,
+    marks: node.marks.map((mark) => {
+      if (mark.type !== "textStyle" || mark.attrs?.color === undefined)
+        return mark;
+      return {
+        ...mark,
+        attrs: { ...mark.attrs, color: visit(mark.attrs.color) },
+      };
+    }),
+  };
+}
 export function parseDocument(input: unknown): PosterDocument {
   if (
     new TextEncoder().encode(JSON.stringify(input)).byteLength >
@@ -160,6 +239,24 @@ export function parseDocument(input: unknown): PosterDocument {
       throw Error("Missing font reference");
     if (assertRich(b.content, "doc", fonts) > 10000)
       throw Error("Block exceeds 10000 characters");
+
+    // v1 documents must stay solid, and one block-local rangeId always shares a
+    // single normalized config. Whether a deployment accepts gradient writes is
+    // decided at the server write boundary, not by this schema.
+    const ranges = new Map<string, string>();
+    const checkColor = (color: TextColor): TextColor => {
+      if (!isGradient(color)) return color;
+      if (d.schemaVersion === 1) throw Error("Gradient requires schema v2");
+      const normalized = normalizeGradient(color);
+      const key = gradientConfigKey(normalized);
+      const previous = ranges.get(normalized.rangeId);
+      if (previous !== undefined && previous !== key)
+        throw Error("Conflicting gradient range configuration");
+      ranges.set(normalized.rangeId, key);
+      return normalized;
+    };
+    b.defaultStyle.color = checkColor(b.defaultStyle.color);
+    b.content = mapMarkColors(b.content, checkColor);
   }
   return d;
 }

@@ -154,7 +154,7 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
   const input = await selectScenery(page);
   const font = page.getByLabel("文字字体", { exact: true });
-  // The 500-only Latin family cannot cover the selected Chinese, so the
+  // The Latin family cannot cover the selected Chinese, so the
   // preflight rejects it and the untouched document stays exportable.
   await font.click();
   await expect(page.getByRole("listbox")).toBeVisible();
@@ -171,7 +171,10 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
   // The combobox keeps its search field empty once the menu closes; the chosen
   // family is what the trigger shows.
   await expect(selectValue(page, "文字字体")).toHaveText("思源黑体");
-  await expect(selectValue(page, "文字字重")).toHaveText("400");
+  await expect(page.getByRole("slider", { name: "文字字重" })).toHaveAttribute(
+    "aria-valuenow",
+    "400",
+  );
   await expect(
     page.getByRole("button", { name: "导出 PNG", exact: true }),
   ).toBeEnabled();
@@ -180,11 +183,15 @@ test("uploaded actual 500-weight font warns missing glyphs and remains usable af
     .filter({ hasText: "缺少字形" })
     .getByTestId("notice-close")
     .click();
-  // English text has glyphs, so the same family applies at weight 500.
+  // The selected file is nominally 500 and its real axis also supports 400.
+  // A family change preserves the supported weight of the English selection.
   await input.fill("Poster 2026");
   await input.press("ControlOrMeta+A");
   await chooseOption(page, "文字字体", "Test Inter");
-  await expect(selectValue(page, "文字字重")).toHaveText("500");
+  await expect(page.getByRole("slider", { name: "文字字重" })).toHaveAttribute(
+    "aria-valuenow",
+    "400",
+  );
   await expect(input.getByText("Poster 2026", { exact: true })).toHaveCSS(
     "font-family",
     /fp_/,

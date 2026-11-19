@@ -268,7 +268,7 @@ export function TemplatePicker({
             <Card
               key={resource.id}
               size="small"
-              className="template-card"
+              className="template-card fp-actionable-card"
               cover={
                 <div className="template-card-preview">
                   {document && (

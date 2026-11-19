@@ -119,6 +119,18 @@
   gap: 8px;
 }
 
+/* Trash cards give the full row to the title/meta and place the two actions
+   on their own line, so a long title cannot squeeze a button past the edge. */
+.project-card-trash .project-card-info {
+  display: block;
+}
+.project-card-trash .trash-actions {
+  margin-top: 12px;
+}
+.project-card-trash .trash-actions > button {
+  min-height: 44px;
+}
+
 .project-card-info h3,
 .template-card-info h3 {
   margin: 0;
@@ -335,7 +347,7 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 152px), 1fr));
 }
 
-.background-picker-grid .button,
+.background-card > .background-select,
 .copy-picker-list .button {
   display: flex;
   flex-direction: column;
@@ -348,12 +360,24 @@
   overflow-wrap: anywhere;
 }
 
-.background-picker-grid .button > span,
+.background-select > span,
 .copy-picker-list .button > span {
   display: block;
   max-width: 100%;
 }
 
+.background-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.background-card > .background-select {
+  flex: 1;
+}
+.background-card > .background-zoom {
+  min-height: 44px;
+  margin-top: 4px;
+}
 .background-picker-grid img {
   aspect-ratio: 4 / 3;
   width: 100%;

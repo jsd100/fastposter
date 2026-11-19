@@ -2,6 +2,13 @@ import { describe, it, expect } from "vitest";
 import valid from "../../../tests/fixtures/documents/valid-mixed.json";
 import overflow from "../../../tests/fixtures/documents/overflow-width.json";
 import unknown from "../../../tests/fixtures/documents/unknown-mark.json";
+import gradientV2 from "../../../tests/fixtures/documents/gradient-v2.json";
+import gradientInV1 from "../../../tests/fixtures/documents/gradient-in-v1.json";
+import gradientConflicting from "../../../tests/fixtures/documents/gradient-conflicting-range.json";
+import gradientNineStops from "../../../tests/fixtures/documents/gradient-nine-stops.json";
+import gradientOffsetRange from "../../../tests/fixtures/documents/gradient-offset-out-of-range.json";
+import gradientUnknownKey from "../../../tests/fixtures/documents/gradient-unknown-key.json";
+import gradientAngle from "../../../tests/fixtures/documents/gradient-angle-normalize.json";
 import { parseDocument, migrateDocument } from "./index";
 describe("versioned document boundary", () => {
   it("preserves mixed inline marks on round trip", () =>
@@ -35,12 +42,51 @@ describe("versioned document boundary", () => {
       expect(() => parseDocument({ ...valid, canvas })).toThrow();
   });
   it("rejects unknown versions, dangling font ids and oversized data", () => {
-    expect(() => migrateDocument({ ...valid, schemaVersion: 2 })).toThrow();
+    expect(() => migrateDocument({ ...valid, schemaVersion: 3 })).toThrow();
     const d = structuredClone(valid);
     d.textBlocks[0].defaultStyle.fontId = "missing";
     expect(() => parseDocument(d)).toThrow();
     expect(() =>
       parseDocument({ ...valid, extra: "x".repeat(2 * 1024 * 1024) }),
     ).toThrow();
+  });
+});
+
+describe("schema v2 text gradients", () => {
+  it("round-trips a v2 document with default and inline gradients", () => {
+    expect(parseDocument(JSON.parse(JSON.stringify(gradientV2)))).toEqual(
+      gradientV2,
+    );
+  });
+  it("accepts a v1 solid document unchanged", () => {
+    expect(parseDocument(JSON.parse(JSON.stringify(valid)))).toEqual(valid);
+  });
+  it.each([
+    ["gradient in v1", gradientInV1],
+    ["conflicting range config", gradientConflicting],
+    ["nine stops", gradientNineStops],
+    ["offset out of range", gradientOffsetRange],
+    ["unknown key", gradientUnknownKey],
+  ])("rejects %s", (_label, doc) => {
+    expect(() => parseDocument(JSON.parse(JSON.stringify(doc)))).toThrow();
+  });
+  it("normalizes a linear angle into [0,360)", () => {
+    const parsed = parseDocument(JSON.parse(JSON.stringify(gradientAngle)));
+    const angle = (parsed.textBlocks[0].defaultStyle.color as { angle: number })
+      .angle;
+    expect(angle).toBe(45);
+  });
+  it("preserves earlier CSS output by clamping descending stop positions", () => {
+    const input = structuredClone(gradientV2);
+    const gradient = input.textBlocks[0].defaultStyle.color;
+    gradient.rangeId = "descending";
+    gradient.stops[1].offset = 60;
+    gradient.stops[2].offset = 30;
+    const parsed = parseDocument(input);
+    const color = parsed.textBlocks[0].defaultStyle.color;
+    expect(
+      typeof color === "object" && color.stops.map((s) => s.offset),
+    ).toEqual([0, 60, 60, 100]);
+    expect(gradient.stops[2].offset).toBe(30);
   });
 });
