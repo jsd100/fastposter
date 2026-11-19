@@ -4,6 +4,7 @@ import type {
   TextBlock,
 } from "@fastposter/poster-schema";
 import type { NumberDraftSnapshot } from "@fastposter/ui";
+import { blockHasGradient } from "@fastposter/poster-renderer";
 import { DocumentHistory } from "./history";
 import type { ViewTransform } from "./geometry";
 export type EditorMode = "select" | "edit";
@@ -129,6 +130,16 @@ export function createEditorStore(
   onChange?: (doc: PosterDocument) => void,
 ) {
   const history = new DocumentHistory(initial);
+  const asVersionTwo = (doc: PosterDocument): PosterDocument =>
+    doc.schemaVersion === 2 ? doc : { ...doc, schemaVersion: 2 };
+  function updateDocument(doc: PosterDocument) {
+    if (doc.schemaVersion === 2 && history.value.schemaVersion === 1) {
+      // The wire format can already have been sent to autosave. Reverting a
+      // style or cancelling a gesture must never downgrade that format.
+      history.mapSnapshots(asVersionTwo);
+    }
+    history.update(history.value.schemaVersion === 2 ? asVersionTwo(doc) : doc);
+  }
   // The edit session is the only owner of gesture transactions. Handles are
   // matched against both this registry and the history token, so a stale
   // callback can never commit a transaction started after it.
@@ -276,7 +287,7 @@ export function createEditorStore(
       emit();
     },
     update: (doc: PosterDocument) => {
-      history.update(doc);
+      updateDocument(doc);
       emit(true);
     },
     commit: () => {
@@ -290,17 +301,20 @@ export function createEditorStore(
     transact: (change: (doc: PosterDocument) => PosterDocument) => {
       history.commit();
       history.begin();
-      history.update(change(history.value));
+      updateDocument(change(history.value));
       history.commit();
       emit(true);
     },
     updateBlock: (id: string, change: (block: TextBlock) => TextBlock) => {
-      history.update({
-        ...history.value,
-        textBlocks: history.value.textBlocks.map((b) =>
-          b.id === id ? change(b) : b,
-        ),
+      const current = history.value;
+      let version = current.schemaVersion;
+      const textBlocks = current.textBlocks.map((block) => {
+        if (block.id !== id) return block;
+        const next = change(block);
+        if (version === 1 && blockHasGradient(next)) version = 2;
+        return next;
       });
+      updateDocument({ ...current, schemaVersion: version, textBlocks });
       emit(true);
     },
     undo: () => {

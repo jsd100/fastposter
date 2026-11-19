@@ -1,16 +1,12 @@
 import React from "react";
 import type { CSSProperties } from "react";
 import type { RichNode, InlineStyle } from "@fastposter/poster-schema";
-import { fontFamily } from "./FontRegistry";
-import {
-  gradientCSS,
-  GRADIENT_RANGE_ATTRIBUTE,
-  isGradientColor,
-} from "./gradient";
+import { posterFontFamily } from "./FontRegistry";
+import { GRADIENT_RANGE_ATTRIBUTE, isGradientColor } from "./gradient";
 export function inlineCSS(style: Partial<InlineStyle>): CSSProperties {
   const gradient = isGradientColor(style.color) ? style.color : null;
   return {
-    fontFamily: style.fontId ? fontFamily(style.fontId) : undefined,
+    fontFamily: style.fontId ? posterFontFamily(style.fontId) : undefined,
     fontSize: style.fontSize,
     color: gradient
       ? "transparent"
@@ -18,13 +14,6 @@ export function inlineCSS(style: Partial<InlineStyle>): CSSProperties {
         ? style.color
         : undefined,
     fontWeight: style.fontWeight,
-    ...(gradient
-      ? {
-          backgroundImage: gradientCSS(gradient),
-          backgroundClip: "text" as const,
-          WebkitBackgroundClip: "text",
-        }
-      : {}),
   };
 }
 export function RichText({
@@ -72,10 +61,17 @@ export function RichText({
       .filter(Boolean)
       .join(" ") || undefined;
   const gradient = isGradientColor(attrs.color) ? attrs.color : null;
+  if (gradient && css.textDecoration)
+    css.textDecorationColor = gradient.stops[0].color;
   return (
     <span
       style={css}
-      {...(gradient ? { [GRADIENT_RANGE_ATTRIBUTE]: gradient.rangeId } : {})}
+      {...(gradient
+        ? {
+            [GRADIENT_RANGE_ATTRIBUTE]: gradient.rangeId,
+            "data-gradient": JSON.stringify(gradient),
+          }
+        : { "data-poster-color": "" })}
     >
       {node.text}
     </span>

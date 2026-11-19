@@ -6,11 +6,7 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from "react";
-import type {
-  LinearGradient,
-  RadialGradient,
-  TextColor,
-} from "@fastposter/poster-schema";
+import type { TextColor } from "@fastposter/poster-schema";
 import {
   gradientCSS,
   isGradientColor,
@@ -23,11 +19,13 @@ import { gradientWritesEnabled } from "../gradient-writes";
 import styles from "./ColorField.module.css";
 
 const DEFAULT_SOLID = "#000000";
-const clone = (value: TextGradient): TextGradient =>
-  JSON.parse(JSON.stringify(value)) as TextGradient;
-
-function newGradient(kind: "linear" | "radial", rangeId: string): TextGradient {
-  const stops = [
+export function gradientWithType(
+  kind: TextGradient["type"],
+  current?: TextGradient,
+): TextGradient {
+  if (current?.type === kind) return current;
+  const rangeId = current?.rangeId ?? "";
+  const stops = current?.stops ?? [
     { color: "#FFB75E", offset: 0 },
     { color: "#ED8F03", offset: 100 },
   ];
@@ -45,15 +43,6 @@ function GradientEditor({
 }) {
   const rangeId = value.rangeId;
   const patch = (next: TextGradient) => onChange({ ...next, rangeId });
-  const setType = (type: "linear" | "radial") => {
-    if (value.type === type) return;
-    const stops = value.stops.slice(0, 2);
-    patch(
-      type === "linear"
-        ? { type: "linear", rangeId, angle: 90, stops }
-        : { type: "radial", rangeId, centerX: 50, centerY: 50, stops },
-    );
-  };
   const setStop = (index: number, stop: { color?: string; offset?: number }) =>
     patch({
       ...value,
@@ -63,17 +52,6 @@ function GradientEditor({
     <div className={styles.gradientEditor}>
       <div className={styles.gradientRow}>
         <label>
-          类型
-          <select
-            aria-label="渐变类型"
-            value={value.type}
-            onChange={(e) => setType(e.target.value as "linear" | "radial")}
-          >
-            <option value="linear">线性</option>
-            <option value="radial">径向</option>
-          </select>
-        </label>
-        <label>
           预设
           <select
             aria-label="渐变预设"
@@ -82,7 +60,7 @@ function GradientEditor({
               const item = gradientPresets.find(
                 (preset) => preset.label === e.target.value,
               );
-              if (item) onChange(clone(item.value));
+              if (item) onChange(item.value);
             }}
           >
             <option value="">选择预设</option>
@@ -98,7 +76,7 @@ function GradientEditor({
         <label className={styles.gradientRow}>
           角度 {value.angle}°
           <Slider
-            aria-label="渐变角度"
+            ariaLabelForHandle="渐变角度"
             min={0}
             max={359}
             step={1}
@@ -111,7 +89,7 @@ function GradientEditor({
           <label>
             圆心 X {value.centerX}%
             <Slider
-              aria-label="圆心 X"
+              ariaLabelForHandle="圆心 X"
               min={0}
               max={100}
               value={value.centerX}
@@ -121,7 +99,7 @@ function GradientEditor({
           <label>
             圆心 Y {value.centerY}%
             <Slider
-              aria-label="圆心 Y"
+              ariaLabelForHandle="圆心 Y"
               min={0}
               max={100}
               value={value.centerY}
@@ -155,14 +133,17 @@ function GradientEditor({
             <input
               aria-label={`色标 ${index + 1} 位置`}
               type="number"
-              min={0}
-              max={100}
+              min={value.stops[index - 1]?.offset ?? 0}
+              max={value.stops[index + 1]?.offset ?? 100}
               value={stop.offset}
               onChange={(e) => {
                 const offset = Number(e.target.value);
                 if (Number.isFinite(offset))
                   setStop(index, {
-                    offset: Math.max(0, Math.min(100, offset)),
+                    offset: Math.max(
+                      value.stops[index - 1]?.offset ?? 0,
+                      Math.min(value.stops[index + 1]?.offset ?? 100, offset),
+                    ),
                   });
               }}
             />
@@ -370,8 +351,9 @@ function GradientTrigger({
               value={value.type}
               onChange={(e) => {
                 const kind = e.target.value;
-                if (kind === "solid") emit(DEFAULT_SOLID);
-                else emit({ ...value, type: kind } as TextGradient);
+                if (kind === "solid") emit(value.stops[0].color);
+                else if (kind === "linear" || kind === "radial")
+                  emit(gradientWithType(kind, value));
               }}
             >
               <option value="solid">纯色</option>
@@ -387,6 +369,7 @@ function GradientTrigger({
             onClick={() => {
               setOpen(false);
               end("commit");
+              trigger.current?.focus();
             }}
           >
             完成

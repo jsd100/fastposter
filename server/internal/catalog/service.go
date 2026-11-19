@@ -61,6 +61,11 @@ func (s *Service) checkWrite(currentVersion int, d document.Document) error {
 	}
 	return nil
 }
+
+// CheckCreateDocument lets importers validate before storing referenced assets.
+func (s *Service) CheckCreateDocument(d document.Document) error {
+	return s.checkWrite(0, d)
+}
 func validKind(kind string) bool {
 	switch kind {
 	case "background", "font", "template", "copy", "background-category", "font-category", "template-category", "copy-category":
@@ -348,6 +353,11 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 		if e = s.checkWrite(currentVersion, doc); e != nil {
 			return Resource{}, e
 		}
+		canonical, err := json.Marshal(doc)
+		if err != nil || len(canonical) > 2<<20 {
+			return Resource{}, domain.E("INVALID_INPUT", "模板文档过大或无效")
+		}
+		input.Document = string(canonical)
 		templateRefs, e = s.TemplateValidator(ctx, p, doc)
 		if e != nil {
 			return Resource{}, e

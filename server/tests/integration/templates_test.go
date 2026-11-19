@@ -3,9 +3,12 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fastposter/server/internal/assets"
 	"fastposter/server/internal/auth"
 	"fastposter/server/internal/catalog"
+	"fastposter/server/internal/document"
+	"fastposter/server/internal/domain"
 	"fastposter/server/internal/storage"
 	"fastposter/server/internal/templates"
 	"os"
@@ -125,5 +128,66 @@ func TestTemplateArchiveRoundtripRetainsPrivateMixedStyles(t *testing.T) {
 	}
 	if a.ID == b.ID || a.Document.Background.AssetID == b.Document.Background.AssetID || string(mustJSON(a.Document.TextBlocks)) != string(mustJSON(b.Document.TextBlocks)) {
 		t.Fatal("template import did not preserve independent mixed-text document")
+	}
+}
+
+func TestGradientTemplateImportsRejectBeforeUploadingBackground(t *testing.T) {
+	p, db, _ := projectService(t)
+	ctx := context.Background()
+	admin := auth.Principal{UserID: "u1", Role: "admin"}
+	root := repoRoot(t)
+	image, e := os.Open(filepath.Join(root, "tests/fixtures/images/editor.png"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer image.Close()
+	info, e := p.Store.Put(ctx, storage.NewKey("gradient-template"), image)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec("UPDATE asset_versions SET normalized_key=?,normalized_sha256=?,normalized_size=? WHERE asset_id='bg-1'", string(info.Key), info.SHA256, info.Size); e != nil {
+		t.Fatal(e)
+	}
+	images := assets.NewService(db, p.Store, &assets.Normalizer{MagickPath: "magick", ProfilePath: filepath.Join(root, "assets/color/sRGB.icc"), PolicyDir: filepath.Join(root, "deploy/imagemagick")}, t.TempDir())
+	c := catalog.NewService(db, p.Store, images)
+	s := templates.NewService(db, p.Store, p, images, c, t.TempDir())
+	raw, e := os.ReadFile(filepath.Join(root, "tests/fixtures/documents/gradient-v2.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	doc, e := document.Parse(raw)
+	if e != nil {
+		t.Fatal(e)
+	}
+	project, e := p.WithGradientWrites(true).Create(ctx, admin, "渐变模板包", doc)
+	if e != nil {
+		t.Fatal(e)
+	}
+	p.WithGradientWrites(false)
+	key, e := s.Export(ctx, admin, project.ID)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, kind := range []string{"project", "resource"} {
+		t.Run(kind, func(t *testing.T) {
+			pack, e := p.Store.Open(ctx, key)
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer pack.Close()
+			if kind == "project" {
+				_, e = s.Import(ctx, admin, pack)
+			} else {
+				_, e = s.ImportResource(ctx, admin, pack)
+			}
+			var known *domain.Error
+			if !errors.As(e, &known) || known.Code != "INVALID_INPUT" || !bytes.Contains([]byte(known.Message), []byte("渐变写入")) {
+				t.Fatalf("expected closed write policy error, got %v", e)
+			}
+			var count int
+			if e = db.QueryRow("SELECT COUNT(*) FROM assets WHERE kind='image'").Scan(&count); e != nil || count != 2 {
+				t.Fatalf("rejected import added an image asset: count=%d, err=%v", count, e)
+			}
+		})
 	}
 }

@@ -94,3 +94,32 @@ func TestVariableWeightUsesReferencedVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestContinuousWeightsReuseInspectedVersion(t *testing.T) {
+	bytes, e := os.ReadFile("../../../assets/fonts/NotoSansSC-VF.ttf")
+	if e != nil {
+		t.Fatal(e)
+	}
+	font := document.FontRef{AssetID: "variable", Version: "1", Family: "Demo", Weight: 400, Style: "normal"}
+	runs := []document.Node{}
+	for _, weight := range []int{250, 350, 450, 550, 250} {
+		runs = append(runs, document.Node{Type: "text", Text: "海报", Marks: []document.Mark{{
+			Type: "textStyle", Attrs: map[string]any{"fontWeight": weight},
+		}}})
+	}
+	d := document.Document{Fonts: []document.FontRef{font}, TextBlocks: []document.TextBlock{{
+		DefaultStyle: document.InlineStyle{FontID: font.AssetID, FontWeight: font.Weight},
+		Content:      document.Node{Type: "doc", Content: []document.Node{{Type: "paragraph", Content: runs}}},
+	}}}
+	loads := 0
+	e = CheckDocument(d, func(ref document.FontRef) ([]byte, error) {
+		loads++
+		return bytes, nil
+	})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if loads != 1 {
+		t.Fatalf("loaded one immutable version %d times", loads)
+	}
+}

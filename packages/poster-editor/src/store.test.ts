@@ -292,3 +292,28 @@ it("cancelNumberSession rolls a committed input session back to its start", () =
   expect(store.getState().canUndo).toBe(false);
   expect(store.getState().canRedo).toBe(false);
 });
+
+it("undo and cancel restore content without reverting an emitted v2 version", () => {
+  const emitted: number[] = [];
+  const store = createEditorStore(emptyDoc(), (doc) =>
+    emitted.push(doc.schemaVersion),
+  );
+  store.transact((doc) => ({
+    ...doc,
+    schemaVersion: 2,
+    canvas: { ...doc.canvas, width: 900 },
+  }));
+  store.undo();
+  expect(store.getState().document).toMatchObject({
+    schemaVersion: 2,
+    canvas: { width: 1200 },
+  });
+  store.redo();
+  expect(store.getState().document.canvas.width).toBe(900);
+  store.reset(emptyDoc());
+  store.begin();
+  store.update({ ...emptyDoc(), schemaVersion: 2 });
+  store.cancel();
+  expect(store.getState().document.schemaVersion).toBe(2);
+  expect(emitted).toEqual([2, 2, 2, 2, 2]);
+});

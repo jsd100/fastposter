@@ -508,11 +508,11 @@ it("keeps a supported continuous weight on family change", () => {
   ]);
 
   const fallback = prepareFontChange(
-    doc,
+    change.nextDocument,
     { blockId: "block", target: { kind: "range", from: 0, to: 2 } },
     kuaile400,
     [variableSans, kuaile400],
-    { intent: "weight", requestedWeight: 250 } as never,
+    { intent: "family" },
   );
   const adapted =
     fallback.nextDocument.textBlocks[0].content.content![0].content![0].marks!.find(
@@ -634,4 +634,48 @@ it("builds a probe document with only the target text and needed references", ()
     "kuaile-400",
   ]);
   expect(() => parseDocument(change.probeDocument)).not.toThrow();
+});
+
+it("preserves unrelated implicit italic references during a slider edit", () => {
+  const document = documentWith(
+    [
+      block("block", mainContent),
+      {
+        ...block("other", {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Poster", marks: [{ type: "italic" }] },
+              ],
+            },
+          ],
+        }),
+        defaultStyle: {
+          fontId: inter400.assetId,
+          fontWeight: 400,
+          fontSize: 64,
+          color: "#284632",
+        },
+        zIndex: 1,
+      },
+    ],
+    [...bundled, inter400, interItalic400],
+  );
+  const variable = { ...sans400, minWeight: 100, maxWeight: 900 };
+  const change = prepareFontChange(
+    document,
+    { blockId: "block", target: { kind: "range", from: 3, to: 5 } },
+    variable,
+    [
+      variable,
+      ...available.filter((face) => face.assetId !== variable.assetId),
+      inter400,
+      interItalic400,
+    ],
+    { intent: "weight", requestedWeight: 250 },
+  );
+  expect(change.nextDocument.fonts).toContainEqual(ref(interItalic400));
+  expect(change.nextDocument.textBlocks[1]).toEqual(document.textBlocks[1]);
 });

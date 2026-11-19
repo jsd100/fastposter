@@ -108,7 +108,7 @@ func remapFonts(d document.Document, fonts map[string]document.FontRef) document
 	}
 	return d
 }
-func (s *Service) importDocument(ctx context.Context, p auth.Principal, src io.Reader) (document.Document, string, error) {
+func (s *Service) importDocument(ctx context.Context, p auth.Principal, src io.Reader, checkCreate func(document.Document) error) (document.Document, string, error) {
 	if e := auth.RequireUsable(p); e != nil {
 		return document.Document{}, "", e
 	}
@@ -130,6 +130,9 @@ func (s *Service) importDocument(ctx context.Context, p auth.Principal, src io.R
 	if e != nil {
 		return document.Document{}, "", e
 	}
+	if e = checkCreate(archive.Document); e != nil {
+		return document.Document{}, "", e
+	}
 	fonts, e := s.ResolveFonts(ctx, p, archive.Manifest.Fonts)
 	if e != nil {
 		return document.Document{}, "", e
@@ -148,7 +151,7 @@ func (s *Service) importDocument(ctx context.Context, p auth.Principal, src io.R
 	return d, archive.Manifest.Title, nil
 }
 func (s *Service) Import(ctx context.Context, p auth.Principal, src io.Reader) (projects.Project, error) {
-	d, title, e := s.importDocument(ctx, p, src)
+	d, title, e := s.importDocument(ctx, p, src, s.Projects.CheckCreateDocument)
 	if e != nil {
 		return projects.Project{}, e
 	}
@@ -158,7 +161,7 @@ func (s *Service) ImportResource(ctx context.Context, p auth.Principal, src io.R
 	if e := auth.RequireAdmin(p); e != nil {
 		return catalog.Resource{}, e
 	}
-	d, title, e := s.importDocument(ctx, p, src)
+	d, title, e := s.importDocument(ctx, p, src, s.Catalog.CheckCreateDocument)
 	if e != nil {
 		return catalog.Resource{}, e
 	}

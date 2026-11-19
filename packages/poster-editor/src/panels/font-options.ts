@@ -1,4 +1,4 @@
-import type { FontSource } from "@fastposter/poster-renderer";
+import { fontWeightBounds, type FontSource } from "@fastposter/poster-renderer";
 export function fontWeights(fonts: FontSource[], family: string | undefined) {
   return fonts
     .filter((f) => f.family === family && f.style === "normal")
@@ -7,21 +7,33 @@ export function fontWeights(fonts: FontSource[], family: string | undefined) {
       (f, i, a) => a.findIndex((other) => other.weight === f.weight) === i,
     );
 }
+
+export function familySupportsWeight(
+  fonts: FontSource[],
+  family: string,
+  weight: number,
+  style: FontSource["style"] = "normal",
+) {
+  return fonts.some((font) => {
+    if (font.family !== family || font.style !== style) return false;
+    const bounds = fontWeightBounds(font);
+    return bounds
+      ? weight >= bounds.minWeight && weight <= bounds.maxWeight
+      : font.weight === weight;
+  });
+}
 /** Variable faces expose 1-step weights inside the 100–700 product range. */
 export function fontWeightRange(
   fonts: FontSource[],
   family: string | undefined,
 ): [number, number] | null {
-  const face = fonts.find(
-    (f) =>
-      f.family === family &&
-      f.style === "normal" &&
-      f.minWeight != null &&
-      f.maxWeight != null,
-  );
-  if (!face) return null;
-  const min = Math.max(100, face.minWeight!);
-  const max = Math.min(700, face.maxWeight!);
+  const range = fonts
+    .filter((font) => font.family === family && font.style === "normal")
+    .map(fontWeightBounds)
+    .find((weight) => weight && weight.minWeight < weight.maxWeight);
+  if (!range) return null;
+  const min = Math.max(100, range.minWeight);
+  const max = Math.min(700, range.maxWeight);
   return min <= max ? [min, max] : null;
 }
 

@@ -5,7 +5,6 @@ import {
   gradientValueKey,
   isGradientColor,
   nextGradientRangeId,
-  layoutGradientRanges,
 } from "./gradient";
 
 const linear = {
@@ -123,35 +122,5 @@ describe("gradient range identity", () => {
       ],
     } as unknown as PosterDocument;
     expect(nextGradientRangeId(twice, "block")).toBe("range-3");
-  });
-});
-
-describe("shared coordinate layout", () => {
-  function span(rangeId: string, rect: [number, number, number, number]) {
-    return {
-      style: {} as Record<string, string>,
-      getAttribute: (name: string) =>
-        name === "data-gradient-range" ? rangeId : null,
-      getBoundingClientRect: () => ({
-        left: rect[0],
-        top: rect[1],
-        right: rect[2],
-        bottom: rect[3],
-      }),
-    } as unknown as HTMLElement;
-  }
-  it("sizes every fragment to the union and offsets it by its own origin", () => {
-    const first = span("A", [10, 20, 110, 60]);
-    const second = span("A", [30, 70, 130, 110]);
-    const other = span("B", [200, 20, 260, 60]);
-    const root = {
-      querySelectorAll: () => [first, second, other],
-      getBoundingClientRect: () => ({ left: 10, top: 20 }),
-    } as unknown as ParentNode;
-    layoutGradientRanges(root);
-    expect(first.style.backgroundSize).toBe("120px 90px");
-    expect(first.style.backgroundPosition).toBe("0px 0px");
-    expect(second.style.backgroundPosition).toBe("-20px -50px");
-    expect(other.style.backgroundSize).toBe("60px 40px");
   });
 });

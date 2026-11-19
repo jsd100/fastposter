@@ -198,6 +198,15 @@ test("nine-grid follows the canvas without writing", async ({ page }) => {
   await gridSwitch.click();
   await expect(lines).toHaveCount(0);
   expect(writes).toHaveLength(0);
+
+  await page.setViewportSize({ width: 320, height: 700 });
+  const selection = page.locator(".selection-outline");
+  await expect(selection).toBeVisible();
+  await page
+    .locator(".stage-grid-toggle")
+    .click({ position: { x: 14, y: 22 } });
+  await expect(lines).toHaveCount(4);
+  await expect(selection).toBeVisible();
 });
 
 test("nine-grid preference is account scoped", async ({ page }) => {
@@ -274,4 +283,42 @@ test("nine-grid does not change exported pixels", async ({ page }) => {
     await writeFile(path.join(outDir, "grid-on.png"), on);
   }
   expect(off.equals(on)).toBe(true);
+});
+
+test("admin nine-grid reads and writes the signed-in account preference", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:15174/admin/login");
+  await page.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+  await page
+    .getByLabel("密码", { exact: true })
+    .fill("fastposter-test-only-password");
+  await page.getByRole("button", { name: "登录管理后台", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/overview$/);
+  const reply = await page.request.get("http://127.0.0.1:15174/api/v1/auth/me");
+  expect(reply.ok()).toBe(true);
+  const { user } = await reply.json();
+  const accountKey = `fastposter:view:grid:admin:${user.id}`;
+  const previousKey = "fastposter:view:grid:admin:template";
+  await page.evaluate(
+    ([own, previous]) => {
+      localStorage.setItem(own, "0");
+      localStorage.setItem(previous, "1");
+    },
+    [accountKey, previousKey],
+  );
+
+  await page.getByRole("link", { name: "模板", exact: true }).click();
+  await page.getByRole("button", { name: "新建模板", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "模板编辑器" });
+  await editor
+    .getByLabel("模板背景图片文件", { exact: true })
+    .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+  const toggle = editor.getByRole("switch", { name: "九宫格", exact: true });
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await toggle.press("Space");
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  expect(
+    await page.evaluate((key) => localStorage.getItem(key), accountKey),
+  ).toBe("1");
 });

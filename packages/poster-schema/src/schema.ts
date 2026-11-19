@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type {
-  InlineStyle,
   LinearGradient,
   PosterDocument,
   RadialGradient,
@@ -170,20 +169,50 @@ function isGradient(color: TextColor): color is Gradient {
 function normalizeAngle(angle: number): number {
   return ((angle % 360) + 360) % 360;
 }
+function normalizeGradient(color: Gradient): Gradient {
+  // CSS clamps stops to the greatest preceding position. Match the existing
+  // rendered appearance while exposing ordered stops to the editor.
+  let previousOffset = 0;
+  const stops = color.stops.map((stop) => {
+    previousOffset = Math.max(previousOffset, stop.offset);
+    return { ...stop, offset: previousOffset };
+  });
+  return color.type === "linear"
+    ? { ...color, angle: normalizeAngle(color.angle), stops }
+    : { ...color, stops };
+}
+export function parseTextColor(input: unknown): TextColor {
+  const color = textColor.parse(input);
+  return isGradient(color) ? normalizeGradient(color) : color;
+}
 function gradientConfigKey(gradient: Gradient): string {
   const stops = gradient.stops.map((s) => `${s.color}@${s.offset}`).join(",");
   return gradient.type === "linear"
-    ? `linear|${normalizeAngle(gradient.angle)}|${stops}`
+    ? `linear|${gradient.angle}|${stops}`
     : `radial|${gradient.centerX},${gradient.centerY}|${stops}`;
 }
-function visitMarkStyles(
+function mapMarkColors(
   node: RichNode,
-  visit: (attrs: Partial<InlineStyle>) => void,
-): void {
-  for (const mark of node.marks ?? []) {
-    if (mark.type === "textStyle" && mark.attrs) visit(mark.attrs);
+  visit: (color: TextColor) => TextColor,
+): RichNode {
+  if (node.content) {
+    return {
+      ...node,
+      content: node.content.map((child) => mapMarkColors(child, visit)),
+    };
   }
-  for (const child of node.content ?? []) visitMarkStyles(child, visit);
+  if (!node.marks) return node;
+  return {
+    ...node,
+    marks: node.marks.map((mark) => {
+      if (mark.type !== "textStyle" || mark.attrs?.color === undefined)
+        return mark;
+      return {
+        ...mark,
+        attrs: { ...mark.attrs, color: visit(mark.attrs.color) },
+      };
+    }),
+  };
 }
 export function parseDocument(input: unknown): PosterDocument {
   if (
@@ -218,10 +247,7 @@ export function parseDocument(input: unknown): PosterDocument {
     const checkColor = (color: TextColor): TextColor => {
       if (!isGradient(color)) return color;
       if (d.schemaVersion === 1) throw Error("Gradient requires schema v2");
-      const normalized: Gradient =
-        color.type === "linear"
-          ? { ...color, angle: normalizeAngle(color.angle) }
-          : color;
+      const normalized = normalizeGradient(color);
       const key = gradientConfigKey(normalized);
       const previous = ranges.get(normalized.rangeId);
       if (previous !== undefined && previous !== key)
@@ -230,9 +256,7 @@ export function parseDocument(input: unknown): PosterDocument {
       return normalized;
     };
     b.defaultStyle.color = checkColor(b.defaultStyle.color);
-    visitMarkStyles(b.content, (attrs) => {
-      if (attrs.color !== undefined) attrs.color = checkColor(attrs.color);
-    });
+    b.content = mapMarkColors(b.content, checkColor);
   }
   return d;
 }

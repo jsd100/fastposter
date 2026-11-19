@@ -1,12 +1,14 @@
 import { getSchema, type Editor } from "@tiptap/react";
 import { Transform } from "@tiptap/pm/transform";
+import type { EditorState } from "@tiptap/pm/state";
 import type {
   InlineStyle,
   PosterDocument,
   RichNode,
   RichMark,
 } from "@fastposter/poster-schema";
-import { gradientValueKey } from "@fastposter/poster-renderer";
+import { gradientValueKey, type FontSource } from "@fastposter/poster-renderer";
+import { familySupportsWeight } from "../panels/font-options";
 import { richTextExtensions } from "./extensions";
 export type TextTarget = {
   kind: "range" | "cursor" | "block";
@@ -29,6 +31,38 @@ export function effectiveInlineStyle(
   const style = { ...defaults, ...attrs } as InlineStyle;
   if (marks.some((m) => m.type.name === "bold")) style.fontWeight = 700;
   return style;
+}
+export function canApplyFontMark(
+  state: Pick<EditorState, "doc" | "selection" | "storedMarks">,
+  defaults: InlineStyle,
+  fonts: FontSource[],
+  mark: "bold" | "italic",
+): boolean {
+  const supports = (marks: readonly MarkLike[]) => {
+    const { fontId, fontWeight } = effectiveInlineStyle(marks, defaults);
+    const family = fonts.find((font) => font.assetId === fontId)?.family;
+    const style =
+      mark === "italic" || marks.some((item) => item.type.name === "italic")
+        ? "italic"
+        : "normal";
+    return (
+      !!family &&
+      familySupportsWeight(
+        fonts,
+        family,
+        mark === "bold" ? 700 : fontWeight,
+        style,
+      )
+    );
+  };
+  const { selection } = state;
+  if (selection.empty)
+    return supports(state.storedMarks ?? selection.$from.marks());
+  let available = true;
+  state.doc.nodesBetween(selection.from, selection.to, (node) => {
+    if (available && node.isText) available = supports(node.marks);
+  });
+  return available;
 }
 export function canonicalRichText(value: unknown): RichNode {
   const n = value as RichNode;

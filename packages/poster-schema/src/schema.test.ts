@@ -76,4 +76,17 @@ describe("schema v2 text gradients", () => {
       .angle;
     expect(angle).toBe(45);
   });
+  it("preserves earlier CSS output by clamping descending stop positions", () => {
+    const input = structuredClone(gradientV2);
+    const gradient = input.textBlocks[0].defaultStyle.color;
+    gradient.rangeId = "descending";
+    gradient.stops[1].offset = 60;
+    gradient.stops[2].offset = 30;
+    const parsed = parseDocument(input);
+    const color = parsed.textBlocks[0].defaultStyle.color;
+    expect(
+      typeof color === "object" && color.stops.map((s) => s.offset),
+    ).toEqual([0, 60, 60, 100]);
+    expect(gradient.stops[2].offset).toBe(30);
+  });
 });

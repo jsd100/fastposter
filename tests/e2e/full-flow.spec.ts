@@ -87,7 +87,7 @@ test("background preview does not replace", async ({ page, browser }) => {
 
     const originals: string[] = [];
     page.on("request", (req) => {
-      if (/\/api\/v1\/assets\/[^/]+\/versions\/[^/]+$/.test(req.url()))
+      if (/\/api\/v1\/assets\/[^/]+\/versions\/[^/?]+$/.test(req.url()))
         originals.push(req.url());
     });
     await zoom.focus();

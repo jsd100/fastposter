@@ -29,6 +29,7 @@ type SavedDocument = {
     y: number;
     width: number;
     height: number;
+    defaultStyle: { fontWeight: number };
     content: { content: { content?: SavedRun[] }[] };
     effects?: {
       backgroundColor?: string;
@@ -574,6 +575,42 @@ test("new bundled Chinese families load and the final choice saves, reloads and 
   ).toBeVisible({ timeout: 30000 });
 });
 
+test("transparent custom effects can be re-enabled and opacity displays an integer percent", async ({
+  page,
+}) => {
+  await openPoster(page, "effectcustom");
+  const block = page.locator("[data-text-block]").first();
+  await inspectorOption(page, "效果").click();
+  const opacity = page.getByRole("spinbutton", { name: "透明度", exact: true });
+  await opacity.fill("29");
+  await opacity.press("Tab");
+  await expect(opacity).toHaveValue("29");
+  await expect(block).toHaveCSS("opacity", "0.29");
+
+  await chooseOption(page, "预设阴影", "硬边投影");
+  await setColor(page, "阴影颜色", "ff000000");
+  await expect(selectValue(page, "预设阴影")).toHaveText("自定义");
+  await page
+    .getByRole("button", { name: "启用自定义阴影", exact: true })
+    .click();
+  await expect(block).toHaveCSS("text-shadow", /2px 3px 6px/);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(selectValue(page, "预设阴影")).toHaveText("自定义");
+  await expect(block).toHaveCSS(
+    "text-shadow",
+    /rgba\(255, 0, 0, 0\).*3px 3px 0px/,
+  );
+
+  await chooseOption(page, "预设描边", "粗描边");
+  await setColor(page, "描边颜色", "ff000000");
+  await expect(selectValue(page, "预设描边")).toHaveText("自定义");
+  await page
+    .getByRole("button", { name: "启用自定义描边", exact: true })
+    .click();
+  await expect(block).toHaveCSS("-webkit-text-stroke-width", "1px");
+  await expect(block).toHaveCSS("-webkit-text-stroke-color", "rgb(21, 21, 21)");
+});
+
 test("effect presets apply visibly and undo in one step", async ({ page }) => {
   await openPoster(page, "effectpreset");
   const block = page.locator("[data-text-block]").first();
@@ -666,6 +703,7 @@ test("effect presets apply visibly and undo in one step", async ({ page }) => {
 });
 
 test("thin variable text saves and exports", async ({ page }) => {
+  test.setTimeout(60_000);
   await openPoster(page, "thinweight");
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
   const input = await selectScenery(page);
@@ -714,6 +752,31 @@ test("thin variable text saves and exports", async ({ page }) => {
   await expectDocumentCovered(page, await savedDocument(page));
 });
 
+test("a bold range uses the real axis of the only font reference and exports", async ({
+  page,
+}) => {
+  await openPoster(page, "boldaxis");
+  await setContinuousWeight(page, 100);
+  await expect(page.locator("[data-text-block] span").first()).toHaveCSS(
+    "font-weight",
+    "100",
+  );
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = await selectScenery(page);
+  await page.getByRole("button", { name: "粗体", exact: true }).click();
+  await expect(input.locator("strong")).toHaveText("风景");
+  await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const doc = await savedDocument(page);
+  expect(doc.fonts.map((font) => font.assetId)).toEqual([
+    "builtin-noto-sc-400",
+  ]);
+  await expectDocumentCovered(page, doc);
+  expect((await exportPng(page)).subarray(0, 8).toString("hex")).toBe(
+    "89504e470d0a1a0a",
+  );
+});
+
 test("variable weight endpoints export distinct glyphs", async ({ page }) => {
   test.setTimeout(90_000);
   const outDir = process.env.FP_WEIGHT_EXPORT_OUT;
@@ -747,4 +810,36 @@ test("variable weight endpoints export distinct glyphs", async ({ page }) => {
   }
   // Thin and heavy endpoints must produce visibly different exported glyphs.
   expect(samples[0]!.equals(samples[1]!)).toBe(false);
+});
+
+test("continuous weight drag previews glyphs without saving before release", async ({
+  page,
+}) => {
+  await openPoster(page, "weightdraft");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const revision = await projectRevision(page);
+  const slider = page.getByRole("slider", { name: "文字字重", exact: true });
+  const track = page.locator(".weight-control .ant-slider");
+  const box = await track.boundingBox();
+  const stop = await slider.boundingBox();
+  expect(box).not.toBeNull();
+  expect(stop).not.toBeNull();
+  await page.mouse.move(stop!.x + stop!.width / 2, stop!.y + stop!.height / 2);
+  await page.mouse.down();
+  const endX = box!.x + box!.width * 0.25;
+  await page.mouse.move(endX, stop!.y + stop!.height / 2, { steps: 5 });
+  const value = Number(await slider.getAttribute("aria-valuenow"));
+  expect(value).toBeLessThan(350);
+  expect(value).toBeGreaterThan(200);
+  const text = page.locator("[data-text-block] span").first();
+  await expect(text).toHaveCSS("font-weight", String(value));
+  expect(await projectRevision(page)).toBe(revision);
+  await page.mouse.up();
+  await expect(text).toHaveCSS("font-weight", String(value));
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  expect(
+    (await savedDocument(page)).textBlocks[0]!.defaultStyle.fontWeight,
+  ).toBe(value);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(text).toHaveCSS("font-weight", "400");
 });

@@ -1,9 +1,11 @@
 import { StarterKit } from "@tiptap/starter-kit";
 import { TextStyle } from "@tiptap/extension-text-style";
+import { Fragment, Slice } from "@tiptap/pm/model";
+import { parseTextColor } from "@fastposter/poster-schema";
 import {
-  fontFamily,
-  gradientCSS,
+  posterFontFamily,
   GRADIENT_RANGE_ATTRIBUTE,
+  gradientValueKey,
   isGradientColor,
 } from "@fastposter/poster-renderer";
 export const PosterTextStyle = TextStyle.extend({
@@ -16,7 +18,7 @@ export const PosterTextStyle = TextStyle.extend({
           attrs.fontId
             ? {
                 "data-font-id": attrs.fontId,
-                style: `font-family:${fontFamily(attrs.fontId)}`,
+                style: `font-family:${posterFontFamily(attrs.fontId)}`,
               }
             : {},
       },
@@ -33,19 +35,12 @@ export const PosterTextStyle = TextStyle.extend({
       },
       color: {
         default: null,
-        // Pasted HTML carries the full gradient; reparsing assigns a fresh
-        // rangeId so the pasted range never joins an existing one.
         parseHTML: (el) => {
           const raw = el.getAttribute("data-gradient");
           if (!raw) return null;
           try {
-            const gradient = JSON.parse(raw) as Record<string, unknown>;
-            if (gradient.type !== "linear" && gradient.type !== "radial")
-              return null;
-            return {
-              ...gradient,
-              rangeId: `pasted-${Math.random().toString(36).slice(2, 10)}`,
-            };
+            const gradient = parseTextColor(JSON.parse(raw));
+            return isGradientColor(gradient) ? gradient : null;
           } catch {
             return null;
           }
@@ -53,11 +48,15 @@ export const PosterTextStyle = TextStyle.extend({
         renderHTML: (attrs) => {
           if (!attrs.color) return {};
           const gradient = isGradientColor(attrs.color) ? attrs.color : null;
-          if (!gradient) return { style: `color:${attrs.color}` };
+          if (!gradient)
+            return {
+              "data-poster-color": "",
+              style: `color:${attrs.color};--fp-decoration-color:currentColor`,
+            };
           return {
             [GRADIENT_RANGE_ATTRIBUTE]: gradient.rangeId,
             "data-gradient": JSON.stringify(gradient),
-            style: `color:transparent;background-image:${gradientCSS(gradient)};background-clip:text;-webkit-background-clip:text`,
+            style: `color:transparent;--fp-decoration-color:${gradient.stops[0].color}`,
           };
         },
       },
@@ -70,6 +69,44 @@ export const PosterTextStyle = TextStyle.extend({
     };
   },
 });
+
+export function preparePastedText(
+  slice: Slice,
+  allowGradients: boolean,
+  fontIds: ReadonlySet<string>,
+): Slice {
+  const ranges = new Map<string, string>();
+  function visit(fragment: Fragment): Fragment {
+    const children = [];
+    for (let i = 0; i < fragment.childCount; i++) {
+      const node = fragment.child(i);
+      const marks = node.marks.map((mark) => {
+        if (mark.type.name !== "textStyle") return mark;
+        const attrs = { ...mark.attrs };
+        if (attrs.fontId && !fontIds.has(attrs.fontId)) attrs.fontId = null;
+        const color = attrs.color;
+        if (!isGradientColor(color)) return mark.type.create(attrs);
+        if (!allowGradients) return mark.type.create({ ...attrs, color: null });
+        const key = `${color.rangeId}:${gradientValueKey(color)}`;
+        let rangeId = ranges.get(key);
+        if (!rangeId) {
+          rangeId = `pasted-${crypto.randomUUID()}`;
+          ranges.set(key, rangeId);
+        }
+        return mark.type.create({
+          ...attrs,
+          color: { ...color, rangeId },
+        });
+      });
+      children.push(
+        node.copy(node.isLeaf ? node.content : visit(node.content)).mark(marks),
+      );
+    }
+    return Fragment.fromArray(children);
+  }
+  return new Slice(visit(slice.content), slice.openStart, slice.openEnd);
+}
+
 export function richTextExtensions() {
   return [
     StarterKit.configure({

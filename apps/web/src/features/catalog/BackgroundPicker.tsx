@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  cloneElement,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type RefObject,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Image, Pagination } from "antd";
 import {
@@ -14,6 +21,7 @@ import {
   Select,
   Status,
   TextInput,
+  restoreLayerFocus,
   useErrorNotice,
 } from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
@@ -49,6 +57,54 @@ function sameSelection(a: Selection | null, b: Selection | null) {
   );
 }
 
+type Preview = {
+  target: Selection;
+  title: string;
+  src: string | undefined;
+  opener: HTMLButtonElement;
+};
+
+function BackgroundPreview({
+  preview,
+  searchInput,
+  close,
+}: {
+  preview: Preview;
+  searchInput: RefObject<HTMLInputElement | null>;
+  close: () => void;
+}) {
+  const [failed, setFailed] = useState(!preview.src);
+  useEffect(
+    () => () => restoreLayerFocus(preview.opener, () => searchInput.current),
+    [preview.opener, searchInput],
+  );
+
+  return (
+    <Image
+      alt={preview.title}
+      styles={{ root: { display: "none" } }}
+      preview={{
+        open: true,
+        src: preview.src,
+        onOpenChange: (open) => {
+          // Unmount the preview on close so an interrupted transition cannot
+          // leave an invisible modal over the library.
+          if (!open) close();
+        },
+        imageRender: (image) =>
+          failed ? (
+            <Status tone="error">原图加载失败，请关闭预览后重试。</Status>
+          ) : (
+            cloneElement(image as ReactElement<{ onError: () => void }>, {
+              onError: () => setFailed(true),
+            })
+          ),
+        actionsRender: (actions) => (failed ? null : actions),
+      }}
+    />
+  );
+}
+
 export function BackgroundPicker({
   mode,
   onChoose,
@@ -72,29 +128,8 @@ export function BackgroundPicker({
   const [selected, setSelected] = useState<Selection | null>(null);
   const [confirmError, setConfirmError] = useState("");
   const [rechecking, setRechecking] = useState(false);
-  /* Zoom is view-only: identified by resource id + version, it never touches
-     the create selection or the one-click replace flow. */
-  const [preview, setPreview] = useState<{
-    title: string;
-    thumbnail: string;
-    src: string;
-  } | null>(null);
-  const previewEntry = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (!preview) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      // The large image owns the first Escape. Stop it reaching the shared
-      // Dialog's cancel handler so the background library stays open.
-      e.stopPropagation();
-      e.preventDefault();
-      setPreview(null);
-      queueMicrotask(() => previewEntry.current?.focus());
-    }
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [preview]);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   /* A live mirror of the account, query and selection a re-check reply must
      still match. Written during render (as useCreationScope does) so a change
      made while the request is in flight invalidates the stale reply. */
@@ -158,15 +193,19 @@ export function BackgroundPicker({
      close the loading window; this effect covers a refetch with the same key. */
   useEffect(() => {
     if (!isCreate || !q.data || !selected) return;
-    const visible = q.data.resources.some(
-      (r) =>
-        r.id === selected.resourceId &&
-        r.version === selected.resourceVersion &&
-        r.asset?.id === selected.assetId &&
-        r.asset?.version === selected.assetVersion,
+    const visible = q.data.resources.some((resource) =>
+      sameSelection(identity(resource), selected),
     );
     if (!visible) setSelected(null);
   }, [q.data, selected, isCreate]);
+
+  useEffect(() => {
+    if (!preview || !q.data) return;
+    const visible = q.data.resources.some((resource) =>
+      sameSelection(identity(resource), preview.target),
+    );
+    if (!visible) setPreview(null);
+  }, [q.data, preview]);
 
   function changeFilter(next: {
     keyword?: string;
@@ -248,6 +287,7 @@ export function BackgroundPicker({
       <p>选择预设背景。不同尺寸会调整画布和文字位置，字号保持不变。</p>
       <div className="picker-filters">
         <TextInput
+          ref={searchInput}
           aria-label="搜索预设背景"
           placeholder="搜索背景"
           value={keyword}
@@ -273,20 +313,21 @@ export function BackgroundPicker({
       )}
       <div className="background-picker-grid">
         {q.data?.resources.map((r) => {
-          if (!r.asset) return null;
+          const target = identity(r);
+          if (!r.asset || !target) return null;
           const asset = r.asset;
-          const sel = isCreate && selected?.resourceId === r.id;
-          const src = asset.url ?? asset.previewUrl ?? "";
+          const sel = isCreate && sameSelection(selected, target);
           return (
-            <div className="background-card" key={r.id}>
+            <div className="background-card fp-actionable-card" key={r.id}>
               <Button
+                className="background-select"
                 variant={sel ? "primary" : "secondary"}
                 aria-label={isCreate ? `选择 ${r.title}` : `选用 ${r.title}`}
                 aria-pressed={isCreate ? !!sel : undefined}
                 data-selected={isCreate && sel ? "" : undefined}
                 onClick={() => {
                   if (isCreate) {
-                    setSelected(identity(r));
+                    setSelected(target);
                     setConfirmError("");
                   } else {
                     // Ruling 63: replace keeps the one-click 「选用 X」 flow.
@@ -301,46 +342,32 @@ export function BackgroundPicker({
                   {isCreate && sel ? " · 已选中" : ""}
                 </small>
               </Button>
-              <button
-                type="button"
+              <Button
                 className="background-zoom"
                 aria-label={`放大预览 ${r.title}`}
-                data-fp-control=""
-                ref={(node) => {
-                  if (preview?.title === r.title) previewEntry.current = node;
-                }}
-                onClick={() =>
+                aria-haspopup="dialog"
+                onClick={(event) =>
                   setPreview({
+                    target,
                     title: r.title,
-                    thumbnail: asset.previewUrl ?? src,
-                    src,
+                    src: asset.url,
+                    opener: event.currentTarget,
                   })
                 }
               >
                 放大预览
-              </button>
+              </Button>
             </div>
           );
         })}
       </div>
-      <Image
-        alt=""
-        style={{ display: "none" }}
-        src={preview?.thumbnail}
-        preview={{
-          open: !!preview,
-          src: preview?.src,
-          onOpenChange: (open) => {
-            if (!open) {
-              setPreview(null);
-              queueMicrotask(() => previewEntry.current?.focus());
-            }
-          },
-          onVisibleChange: (open) => {
-            if (!open) setPreview(null);
-          },
-        }}
-      />
+      {preview && (
+        <BackgroundPreview
+          preview={preview}
+          searchInput={searchInput}
+          close={() => setPreview(null)}
+        />
+      )}
       {q.isPending && <LoadingState label="正在加载预设背景…" />}
       {q.error && (
         <div className="picker-failed">

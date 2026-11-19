@@ -23,6 +23,10 @@ type NumericEffectField =
 
 type ColorEffectField = "backgroundColor" | "strokeColor" | "shadowColor";
 
+function isTransparent(color: string) {
+  return color.length === 9 && color.endsWith("00");
+}
+
 function presetSample(preset: EffectPreset, kind: "shadow" | "stroke") {
   const patch = preset.patch;
   const glow = patch.shadowColor?.toLowerCase() === "#ffffffcc";
@@ -79,6 +83,12 @@ export function StylePanel({
   onNumericEnd: (action: "commit" | "cancel") => void;
   draft: (field: string) => NumberDraftBinding;
 }) {
+  const shadowPreset = matchShadowPreset(block.effects);
+  const strokePreset = matchStrokePreset(block.effects);
+  const shadowInactive = isTransparent(block.effects.shadowColor);
+  const strokeInactive =
+    block.effects.strokeWidth === 0 || isTransparent(block.effects.strokeColor);
+
   function applyPatch(patch: Partial<TextBlock["effects"]>) {
     update((b) => ({ ...b, effects: { ...b.effects, ...patch } }));
   }
@@ -89,17 +99,20 @@ export function StylePanel({
     min: number,
     max: number,
     step = 1,
-    unit = "px",
-    scale = 1,
   ) {
+    const percent = key === "opacity";
     return (
       <label key={key} className="panel-field">
         {label}
         <NumberField
           aria-label={label}
           variant="stepper"
-          unit={unit}
-          value={block.effects[key] * scale}
+          unit={percent ? "%" : "px"}
+          value={
+            percent
+              ? Math.round(block.effects.opacity * 100)
+              : block.effects[key]
+          }
           min={min}
           max={max}
           step={step}
@@ -107,9 +120,7 @@ export function StylePanel({
           onInteractionStart={onNumericStart}
           onInteractionEnd={onNumericEnd}
           onValueChange={(value) =>
-            applyPatch({ [key]: value / scale } as Partial<
-              TextBlock["effects"]
-            >)
+            applyPatch({ [key]: percent ? value / 100 : value })
           }
         />
       </label>
@@ -146,10 +157,7 @@ export function StylePanel({
 
   function applyShadow(value: string) {
     if (value === CUSTOM_EFFECT_PRESET) {
-      // Opening custom controls is inert once an effect already has parameters;
-      // from a fully off state it initializes with the designed default.
-      if (matchShadowPreset(block.effects)?.value === "none")
-        applyPatch(initialShadowPatch);
+      if (shadowInactive) applyPatch(initialShadowPatch);
       return;
     }
     const preset = shadowPresets.find((item) => item.value === value);
@@ -158,8 +166,7 @@ export function StylePanel({
 
   function applyStroke(value: string) {
     if (value === CUSTOM_EFFECT_PRESET) {
-      if (matchStrokePreset(block.effects)?.value === "none")
-        applyPatch(initialStrokePatch);
+      if (strokeInactive) applyPatch(initialStrokePatch);
       return;
     }
     const preset = strokePresets.find((item) => item.value === value);
@@ -194,7 +201,7 @@ export function StylePanel({
   return (
     <div className="effect-panel">
       <div className="panel-row">
-        {numberField("opacity", "透明度", 0, 100, 5, "%", 100)}
+        {numberField("opacity", "透明度", 0, 100, 5)}
         {numberField(
           "padding",
           "内边距",
@@ -209,12 +216,15 @@ export function StylePanel({
           <Select
             aria-label="预设阴影"
             options={shadowOptions}
-            value={
-              matchShadowPreset(block.effects)?.value ?? CUSTOM_EFFECT_PRESET
-            }
+            value={shadowPreset?.value ?? CUSTOM_EFFECT_PRESET}
             onValueChange={applyShadow}
           />
         </label>
+        {shadowInactive && !shadowPreset && (
+          <Button onClick={() => applyShadow(CUSTOM_EFFECT_PRESET)}>
+            启用自定义阴影
+          </Button>
+        )}
         <div className="panel-row">
           {numberField("shadowX", "阴影 X", -500, 500)}
           {numberField("shadowY", "阴影 Y", -500, 500)}
@@ -229,12 +239,15 @@ export function StylePanel({
           <Select
             aria-label="预设描边"
             options={strokeOptions}
-            value={
-              matchStrokePreset(block.effects)?.value ?? CUSTOM_EFFECT_PRESET
-            }
+            value={strokePreset?.value ?? CUSTOM_EFFECT_PRESET}
             onValueChange={applyStroke}
           />
         </label>
+        {strokeInactive && !strokePreset && (
+          <Button onClick={() => applyStroke(CUSTOM_EFFECT_PRESET)}>
+            启用自定义描边
+          </Button>
+        )}
         <div className="panel-row">
           {numberField("strokeWidth", "描边宽度", 0, 40)}
         </div>

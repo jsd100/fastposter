@@ -268,18 +268,37 @@ test("background preview does not select or create", async ({
       exact: true,
     });
     await expect(zoom).toBeVisible();
+    await expect(
+      library.getByRole("button", { name: "", exact: true }),
+    ).toHaveCount(0);
+    const cardSurface = library.locator(".background-card").filter({
+      has: page.getByRole("button", { name: `放大预览 ${title}`, exact: true }),
+    });
+    await page.mouse.move(0, 0);
+    await expect(cardSurface).toHaveCSS("box-shadow", "none");
+    await zoom.focus();
+    await expect(cardSurface).not.toHaveCSS("box-shadow", "none");
 
     await expect(card).toHaveAttribute("aria-pressed", "false");
     const originals: string[] = [];
     page.on("request", (req) => {
-      if (/\/api\/v1\/assets\/[^/]+\/versions\/[^/]+$/.test(req.url()))
+      if (/\/api\/v1\/assets\/[^/]+\/versions\/[^/?]+$/.test(req.url()))
         originals.push(req.url());
     });
-    await zoom.focus();
-    await zoom.click();
+    await zoom.press("Enter");
     const preview = page.getByRole("dialog");
     await expect(preview).toHaveCount(2);
-    expect(originals.length).toBeGreaterThan(0);
+    await expect.poll(() => originals.length).toBeGreaterThan(0);
+    const largeImage = page.getByRole("dialog", { name: title, exact: true });
+    const zoomOut = largeImage.getByRole("button", {
+      name: "zoomOut",
+      exact: true,
+    });
+    await expect(zoomOut).toBeDisabled();
+    await largeImage
+      .getByRole("button", { name: "zoomIn", exact: true })
+      .press("Enter");
+    await expect(zoomOut).toBeEnabled();
     // Opening the large image never selects or creates.
     await expect(card).toHaveAttribute("aria-pressed", "false");
     expect(creates.length).toBe(0);
@@ -311,7 +330,7 @@ test("background preview keeps filters and closes when the original fails", asyn
   try {
     await account(page, "bgpreview_fail_" + Date.now().toString(36));
     const originalRequests: string[] = [];
-    await page.route(/\/api\/v1\/assets\/[^/]+\/versions\/[^/]+$/, (route) => {
+    await page.route(/\/api\/v1\/assets\/[^/]+\/versions\/[^/?]+$/, (route) => {
       originalRequests.push(route.request().url());
       return route.fulfill({ status: 500, body: "broken" });
     });
@@ -331,10 +350,13 @@ test("background preview keeps filters and closes when the original fails", asyn
     });
     await expect(zoom).toBeVisible({ timeout: 20_000 });
 
-    const before = originalRequests.length;
+    expect(originalRequests).toHaveLength(0);
     await zoom.click();
-    await expect.poll(() => originalRequests.length).toBeGreaterThan(before);
+    await expect.poll(() => originalRequests.length).toBeGreaterThan(0);
     await expect(page.getByRole("dialog")).toHaveCount(2);
+    await expect(
+      page.getByRole("alert").filter({ hasText: "原图加载失败" }),
+    ).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(1);
     await expect(search).toHaveValue(title);

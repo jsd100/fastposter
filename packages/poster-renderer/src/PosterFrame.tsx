@@ -1,18 +1,13 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import type { CSSProperties } from "react";
 import type { PosterDocument, TextBlock } from "@fastposter/poster-schema";
 import { inlineCSS, RichText } from "./RichText";
-import { isGradientColor, layoutGradientRanges } from "./gradient";
+import { blockHasGradient, isGradientColor } from "./gradient";
+import { GradientPaint } from "./GradientPaint";
+import { documentFontVariables, loadDocumentFonts } from "./FontRegistry";
 export function blockCSS(b: TextBlock): CSSProperties {
   const e = b.effects;
-  // A block-level gradient background would leak a rectangle on transparent
-  // export; gradients are painted per glyph span with shared coordinates.
-  const base = inlineCSS(b.defaultStyle);
-  if (isGradientColor(b.defaultStyle.color)) {
-    delete base.backgroundImage;
-    delete base.backgroundClip;
-    delete base.WebkitBackgroundClip;
-  }
+  const color = b.defaultStyle.color;
   return {
     position: "absolute",
     left: b.x,
@@ -23,7 +18,10 @@ export function blockCSS(b: TextBlock): CSSProperties {
     padding: e.padding,
     opacity: e.opacity,
     background: e.backgroundColor,
-    ...base,
+    ...inlineCSS(b.defaultStyle),
+    ...(isGradientColor(color)
+      ? ({ "--fp-decoration-color": color.stops[0].color } as CSSProperties)
+      : {}),
     lineHeight: b.paragraphStyle.lineHeight,
     letterSpacing: b.paragraphStyle.letterSpacing,
     textAlign: b.paragraphStyle.align,
@@ -49,28 +47,16 @@ export function PosterFrame({
   backgroundUrl?: string;
   transparentTextOnly?: boolean;
 }) {
-  const frame = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    let alive = true;
-    const relayout = () => {
-      if (!alive || !frame.current) return;
-      frame.current
-        .querySelectorAll<HTMLElement>("[data-text-block]")
-        .forEach((block) => layoutGradientRanges(block));
-    };
-    relayout();
-    void document.fonts?.ready.then(relayout);
-    return () => {
-      alive = false;
-    };
-  }, [d]);
+    void loadDocumentFonts(d.fonts).catch(() => undefined);
+  }, [d.fonts]);
   return (
     <div
-      ref={frame}
       data-poster-frame
       data-width={d.canvas.width}
       data-height={d.canvas.height}
       style={{
+        ...documentFontVariables(d.fonts),
         position: "relative",
         width: d.canvas.width,
         height: d.canvas.height,
@@ -102,7 +88,12 @@ export function PosterFrame({
           data-y={b.y}
           style={blockCSS(b)}
         >
-          <RichText node={b.content} defaultStyle={b.defaultStyle} />
+          <GradientPaint
+            defaultColor={b.defaultStyle.color}
+            hasGradient={blockHasGradient(b)}
+          >
+            <RichText node={b.content} defaultStyle={b.defaultStyle} />
+          </GradientPaint>
         </div>
       ))}
     </div>

@@ -7,7 +7,8 @@ import type {
   RichNode,
   TextBlock,
 } from "@fastposter/poster-schema";
-import type { FontSource } from "@fastposter/poster-renderer";
+import { fontWeightBounds, type FontSource } from "@fastposter/poster-renderer";
+import { documentFontSources } from "./catalog";
 import {
   canonicalRichText,
   effectiveInlineStyle,
@@ -22,6 +23,7 @@ export type FontChoiceIntent = "family" | "weight";
 
 export type FontChangeOptions = {
   cursorStyle?: InlineStyle;
+  cursorItalic?: boolean;
   intent?: FontChoiceIntent;
   /** Continuous weight requested by the slider, independent of face.weight. */
   requestedWeight?: number;
@@ -37,40 +39,41 @@ export type PreparedFontChange = {
   adjustments: string[];
 };
 
-const normalFaces = (faces: FontSource[]) =>
-  faces.filter((face) => face.style === "normal");
-
-const weightRange = (face: FontSource) => ({
-  min: face.minWeight ?? face.weight,
-  max: face.maxWeight ?? face.weight,
-});
-
-function supportsWeight(faces: FontSource[], weight: number): boolean {
-  return normalFaces(faces).some((face) => {
-    const { min, max } = weightRange(face);
-    return weight >= min && weight <= max;
+function faceAt(
+  faces: FontSource[],
+  weight: number,
+  style: FontSource["style"] = "normal",
+) {
+  const matching = faces.filter((face) => {
+    if (face.style !== style) return false;
+    const bounds = fontWeightBounds(face);
+    return bounds
+      ? weight >= bounds.minWeight && weight <= bounds.maxWeight
+      : face.weight === weight;
   });
+  return matching.find((face) => face.weight === weight) ?? matching[0];
 }
 
-function faceAt(faces: FontSource[], weight: number): FontSource | undefined {
-  const normal = normalFaces(faces);
-  return (
-    normal.find((face) => face.weight === weight) ??
-    normal.find((face) => {
-      const { min, max } = weightRange(face);
-      return weight >= min && weight <= max;
-    }) ??
-    normal.find((face) => face.weight === 400) ??
-    normal[0] ??
-    faces[0]
+export function fontTargetIds(
+  block: TextBlock,
+  target: TextTarget,
+  cursorFontId?: string,
+) {
+  if (target.kind === "cursor")
+    return [cursorFontId ?? block.defaultStyle.fontId];
+  const ids = new Set<string>();
+  const node = schema.nodeFromJSON(block.content);
+  const whole = target.kind === "block";
+  if (whole) ids.add(block.defaultStyle.fontId);
+  node.nodesBetween(
+    whole ? 0 : target.from,
+    whole ? node.content.size : target.to,
+    (child) => {
+      if (child.isText)
+        ids.add(effectiveInlineStyle(child.marks, block.defaultStyle).fontId);
+    },
   );
-}
-
-function familyFaces(fonts: FontSource[], chosen: FontSource): FontSource[] {
-  const faces = fonts.filter((face) => face.family === chosen.family);
-  if (!faces.some((face) => face.assetId === chosen.assetId))
-    faces.push(chosen);
-  return faces;
+  return [...ids];
 }
 
 function toRef(source: FontSource): FontRef {
@@ -161,40 +164,44 @@ export function prepareFontChange(
     target.target.kind === "cursor" && options.cursorStyle
       ? options.cursorStyle
       : firstTargetStyle(doc, target);
-  const faces = familyFaces(fonts, chosen);
-  const weights = [...new Set(normalFaces(faces).map((face) => face.weight))];
-  const missing = new Set<number>();
-  const fallback = supportsWeight(faces, 400)
-    ? 400
-    : supportsWeight(faces, chosen.weight)
-      ? chosen.weight
-      : (weights[0] ?? chosen.weight);
-  const families = new Map<string, string>();
-  for (const font of doc.fonts) families.set(font.assetId, font.family);
-  for (const font of fonts)
-    if (!families.has(font.assetId)) families.set(font.assetId, font.family);
-  const resolveWeight = (current: number) => {
+  const sources = documentFontSources([...fonts, chosen], doc.fonts);
+  const families = new Map(sources.map((font) => [font.assetId, font.family]));
+  const adjustments = new Set<string>();
+  const requestedWeight = options.requestedWeight ?? chosen.weight;
+  const used = new Map<string, FontSource>();
+  let removedItalic = false;
+  function resolveStyle(current: InlineStyle, italic = false) {
+    const family =
+      intent === "family"
+        ? chosen.family
+        : (families.get(current.fontId) ?? chosen.family);
+    const faces = sources.filter((face) => face.family === family);
     const requested =
-      intent === "weight"
-        ? (options.requestedWeight ?? chosen.weight)
-        : current;
-    if (supportsWeight(faces, requested)) return requested;
-    missing.add(requested);
-    return fallback;
-  };
-  const italicFace = faces.find((face) => face.style === "italic");
-  const used = new Set<string>();
+      intent === "weight" ? requestedWeight : current.fontWeight;
+    const requestedFace = faceAt(faces, requested);
+    const fallback = faceAt(faces, 400);
+    const face =
+      requestedFace ??
+      fallback ??
+      faces.find((item) => item.style === "normal") ??
+      chosen;
+    const weight = requestedFace ? requested : fallback ? 400 : face.weight;
+    if (weight !== requested)
+      adjustments.add(`新字体没有 ${requested} 字重，已使用 ${weight}`);
+    const italicFace = italic ? faceAt(faces, weight, "italic") : undefined;
+    if (italic && !italicFace) {
+      removedItalic = true;
+      adjustments.add("新字体没有斜体，已取消斜体");
+    }
+    used.set(face.assetId, face);
+    if (italicFace) used.set(italicFace.assetId, italicFace);
+    return { fontId: face.assetId, fontWeight: weight, italicFace };
+  }
+
   const node = schema.nodeFromJSON(block.content);
   const from = target.target.kind === "block" ? 0 : target.target.from;
   const to =
     target.target.kind === "block" ? node.content.size : target.target.to;
-  let targetHasItalic = false;
-  node.nodesBetween(from, to, (child) => {
-    if (child.isText && child.marks.some((mark) => mark.type.name === "italic"))
-      targetHasItalic = true;
-  });
-  const targetItalic = target.target.kind !== "cursor" && targetHasItalic;
-  const removeItalic = targetItalic && !italicFace;
   let content: RichNode;
   if (target.target.kind === "cursor") {
     content = canonicalRichText(block.content);
@@ -214,77 +221,41 @@ export function prepareFontChange(
         ),
       ) as Partial<InlineStyle>;
       const current = effectiveInlineStyle(child.marks, block.defaultStyle);
-      const weight = resolveWeight(current.fontWeight);
-      const face = faceAt(faces, weight) ?? chosen;
-      if (intent === "family" && !supportsWeight(faces, current.fontWeight))
-        missing.add(current.fontWeight);
+      const italic = child.marks.some((mark) => mark.type.name === "italic");
+      const { fontId, fontWeight, italicFace } = resolveStyle(current, italic);
       tr.removeMark(begin, end, schema.marks.textStyle);
-      if (
-        weight !== 700 &&
-        child.marks.some((mark) => mark.type.name === "bold")
-      )
+      if (intent === "weight" || fontWeight !== 700)
         tr.removeMark(begin, end, schema.marks.bold);
-      if (removeItalic) tr.removeMark(begin, end, schema.marks.italic);
+      if (italic && !italicFace) tr.removeMark(begin, end, schema.marks.italic);
       tr.addMark(
         begin,
         end,
         schema.marks.textStyle.create({
           ...attrs,
-          fontId: face.assetId,
-          fontWeight: weight,
+          fontId,
+          fontWeight,
         }),
       );
-      used.add(face.assetId);
     });
     content = canonicalRichText(tr.doc.toJSON());
   }
-  const defaultWeight =
-    target.target.kind === "block"
-      ? resolveWeight(block.defaultStyle.fontWeight)
-      : block.defaultStyle.fontWeight;
-  const defaultFace = faceAt(faces, defaultWeight) ?? chosen;
-  if (target.target.kind === "block") {
-    if (
-      intent === "family" &&
-      !supportsWeight(faces, block.defaultStyle.fontWeight)
-    )
-      missing.add(block.defaultStyle.fontWeight);
-    used.add(defaultFace.assetId);
-  }
-  const insertionWeight = resolveWeight(start.fontWeight);
-  const insertionFace = faceAt(faces, insertionWeight) ?? chosen;
-  const insertionStyle: InlineStylePatch = {
-    fontId: insertionFace.assetId,
-    fontWeight: insertionWeight,
-  };
-  if (
-    target.target.kind === "cursor" &&
-    intent === "family" &&
-    !supportsWeight(faces, start.fontWeight)
-  )
-    missing.add(start.fontWeight);
-  used.add(insertionFace.assetId);
-  if (targetItalic && italicFace) used.add(italicFace.assetId);
-  const adjustments: string[] = [];
-  for (const weight of missing)
-    adjustments.push(`新字体没有 ${weight} 字重，已使用 ${fallback}`);
-  if (removeItalic) adjustments.push("新字体没有斜体，已取消斜体");
+  const cursor = target.target.kind === "cursor";
+  const { italicFace, ...insertionStyle } = resolveStyle(
+    start,
+    cursor && options.cursorItalic,
+  );
   const removeBold =
-    target.target.kind === "cursor" &&
+    cursor &&
     start.fontWeight === 700 &&
-    insertionWeight !== 700;
-  const nextBlock: TextBlock =
-    target.target.kind === "block"
-      ? {
-          ...block,
-          defaultStyle: {
-            ...block.defaultStyle,
-            fontId: defaultFace.assetId,
-            fontWeight: defaultWeight,
-          },
-          content,
-        }
-      : { ...block, content };
+    (intent === "weight" || insertionStyle.fontWeight !== 700);
+  const nextBlock: TextBlock = {
+    ...block,
+    defaultStyle:
+      target.target.kind === "block"
+        ? { ...block.defaultStyle, ...insertionStyle }
+        : block.defaultStyle,
+    content,
+  };
   const probeContent =
     target.target.kind === "cursor"
       ? ({
@@ -304,62 +275,63 @@ export function prepareFontChange(
   };
   const probeIds = new Set<string>([probeBlock.defaultStyle.fontId]);
   collectFontIds(probeContent, probeIds);
-  const needs = new Map<string, FaceNeed>();
-  collectFaceNeeds(probeContent, probeBlock.defaultStyle, families, needs);
-  for (const need of needs.values()) {
-    const face = fonts.find(
-      (item) =>
-        item.family === need.family &&
-        item.weight === need.weight &&
-        item.style === need.style,
-    );
-    if (face) {
-      used.add(face.assetId);
-      probeIds.add(face.assetId);
+  if (italicFace) probeIds.add(italicFace.assetId);
+
+  // Keep the immutable face selected for each implicit bold/italic run, in
+  // addition to the font IDs carried by textStyle and block defaults.
+  const refs = new Map(doc.fonts.map((font) => [font.assetId, font]));
+  for (const [id, face] of used) if (!refs.has(id)) refs.set(id, toRef(face));
+
+  const refsInOrder = [...refs.values()];
+  const availableById = new Map(sources.map((font) => [font.assetId, font]));
+  const referencedSources = refsInOrder
+    .map((ref) => availableById.get(ref.assetId))
+    .filter((source): source is FontSource => !!source);
+
+  function retainImplicit(blocks: TextBlock[], ids: Set<string>) {
+    const needs = new Map<string, FaceNeed>();
+    for (const item of blocks)
+      collectFaceNeeds(item.content, item.defaultStyle, families, needs);
+    for (const { family, weight, style } of needs.values()) {
+      const faces = referencedSources.filter((font) => font.family === family);
+      const face = faceAt(faces, weight, style);
+      if (face) ids.add(face.assetId);
+      else {
+        // A detached or still-loading reference may provide the needed axis.
+        for (const candidate of faces)
+          if (candidate.style === style) ids.add(candidate.assetId);
+      }
     }
   }
+  retainImplicit([probeBlock], probeIds);
+
   const nextBlocks = doc.textBlocks.map((item) =>
     item.id === target.blockId ? nextBlock : item,
   );
-  const neededIds = new Set<string>();
-  for (const block of nextBlocks) {
-    neededIds.add(block.defaultStyle.fontId);
-    collectFontIds(block.content, neededIds);
+  const neededIds = new Set<string>(probeIds);
+  for (const item of nextBlocks) {
+    neededIds.add(item.defaultStyle.fontId);
+    collectFontIds(item.content, neededIds);
   }
-  // A continuous weight is stored on the text run while the FontRef keeps the
-  // nominal face; prune duplicate nominal refs for the same variable file.
-  const refs =
+  retainImplicit(nextBlocks, neededIds);
+  const nextFonts =
     options.requestedWeight !== undefined
-      ? doc.fonts.filter((ref) => neededIds.has(ref.assetId))
-      : [...doc.fonts];
-  const known = new Set(refs.map((ref) => ref.assetId));
-  for (const id of used) {
-    if (known.has(id)) continue;
-    const face = faces.find((item) => item.assetId === id);
-    if (!face) continue;
-    refs.push(toRef(face));
-    known.add(id);
-  }
-  if (refs.length > 100) throw Error("字体引用已达上限");
+      ? refsInOrder.filter((ref) => neededIds.has(ref.assetId))
+      : refsInOrder;
+  if (nextFonts.length > 100) throw Error("字体引用已达上限");
   const nextDocument: PosterDocument = {
     ...doc,
-    fonts: refs,
+    fonts: nextFonts,
     textBlocks: nextBlocks,
   };
-  const probeFonts: FontRef[] = [];
-  for (const id of probeIds) {
-    const ref = refs.find((item) => item.assetId === id);
-    const source = ref ? undefined : fonts.find((item) => item.assetId === id);
-    if (!ref && !source) throw Error("缺少字体引用");
-    probeFonts.push(ref ?? toRef(source as FontSource));
-  }
+  const probeFonts = refsInOrder.filter((ref) => probeIds.has(ref.assetId));
   return {
     nextDocument,
     probeDocument: { ...doc, fonts: probeFonts, textBlocks: [probeBlock] },
     target,
     insertionStyle,
-    removeItalic,
+    removeItalic: removedItalic,
     removeBold,
-    adjustments,
+    adjustments: [...adjustments],
   };
 }

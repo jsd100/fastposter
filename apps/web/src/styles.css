@@ -347,7 +347,7 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 152px), 1fr));
 }
 
-.background-picker-grid .button,
+.background-card > .background-select,
 .copy-picker-list .button {
   display: flex;
   flex-direction: column;
@@ -360,7 +360,7 @@
   overflow-wrap: anywhere;
 }
 
-.background-picker-grid .button > span,
+.background-select > span,
 .copy-picker-list .button > span {
   display: block;
   max-width: 100%;
@@ -371,18 +371,12 @@
   flex-direction: column;
   min-width: 0;
 }
-.background-card > .button {
+.background-card > .background-select {
   flex: 1;
 }
-.background-zoom {
-  align-self: stretch;
+.background-card > .background-zoom {
   min-height: 44px;
   margin-top: 4px;
-  padding: 6px 8px;
-  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
-  background: var(--ant-color-bg-container, #fff);
-  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
-  cursor: pointer;
 }
 .background-picker-grid img {
   aspect-ratio: 4 / 3;

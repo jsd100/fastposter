@@ -257,7 +257,7 @@ Go 服务、迁移、管理员及运维命令自动读取该文件；同名进�
 | `CORE_ADDR`                  | `127.0.0.1:8888`                                       | 核心 RPC 监听与客户端连接地址                                                                                               |
 | `CHROME_PATH`                | macOS Google Chrome 路径                               | Chrome/Chromium 可执行文件；Playwright、服务端配置、导出 worker 与 Go 渲染用例统一读取                                      |
 | `FASTPOSTER_CHROME_SANDBOX`  | 未设置                                                 | 设为精确值 `1` 时导出 worker 恢复 Chrome 进程沙箱；受限宿主保持未设置（默认无进程沙箱，见「导出渲染宿主编排」）             |
-| `FASTPOSTER_GRADIENT_WRITES` | `false`                                                | 设为 `true` 时开放 v2 渐变文档写入；关闭时仅接受纯色写入，v2 文档仍可读取和导出。前端须同时以 `VITE_GRADIENT_WRITES=1` 构建 |
+| `FASTPOSTER_GRADIENT_WRITES` | `false`                                                | 设为 `true` 时允许创建或升级为 v2 文档以及写入渐变。关闭时已有 v2 仍可读取、导出和保存为纯色 v2。启用步骤见 [渐变文档升级与回退](deploy/local.md#渐变文档升级与回退) |
 | `MAGICK_PATH`                | `magick`                                               | ImageMagick 7 可执行文件                                                                                                    |
 | `REDIS_ADDR`                 | 未设置时为空                                           | 可选限流服务；示例文件默认填了本机 6379                                                                                     |
 | `COOKIE_SECURE`              | `false`                                                | HTTPS 对外服务应设为 `true`                                                                                                 |
@@ -274,6 +274,7 @@ Go 服务、迁移、管理员及运维命令自动读取该文件；同名进�
 | --------------------------- | --------------------------------------------------- | ---------------------------------------------------- |
 | `API_PROXY`                 | 两个前端各自的 `.env.local`，或启动前的进程环境变量 | 开发时 `/api` 转发目标，默认 `http://127.0.0.1:8080` |
 | `VITE_WEB_ORIGIN`           | `apps/admin/.env.local`                             | 管理站开发环境中“前往用户站”的地址                   |
+| `VITE_GRADIENT_WRITES`       | 两个前端各自的 `.env.local`，或构建进程环境变量     | 设为 `1` 时开放渐变编辑。上线顺序见 [渐变文档升级与回退](deploy/local.md#渐变文档升级与回退) |
 | `VITE_QUICK_LOGIN_USERNAME` | `apps/web/.env.local`                               | 可选本地快捷填充用户名                               |
 | `VITE_QUICK_LOGIN_PASSWORD` | `apps/web/.env.local`                               | 可选本地快捷填充密码，仅用于本地开发                 |
 

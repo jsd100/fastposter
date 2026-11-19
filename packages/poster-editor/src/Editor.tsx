@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import { RichTextEditor } from "./text/RichTextEditor";
+import { previewEditorWeight } from "./text/weight-preview";
 import { TextPanel, type TextPanelProps } from "./panels/TextPanel";
 import { gradientWritesEnabled } from "./gradient-writes";
 import { EditorInspector, type InspectorGroup } from "./panels/EditorInspector";
@@ -107,6 +108,10 @@ export function Editor({
 }: EditorProps) {
   const textSelection = useRef<{ from: number; to: number } | null>(null);
   const [activeEditor, setActiveEditor] = useState<TiptapEditor | null>(null);
+  const [weightPreview, setWeightPreview] = useState<{
+    blockId: string;
+    weight: number;
+  } | null>(null);
   const [, selectionChanged] = useState(0);
   const layout = useEditorLayout();
   const [layersOpen, setLayersOpen] = useState(true);
@@ -382,6 +387,7 @@ export function Editor({
       );
       const target = block ? fontTarget(block.id) : null;
       let cursorStyle: InlineStyle | undefined;
+      let cursorItalic: boolean | undefined;
       if (
         block &&
         target?.target.kind === "cursor" &&
@@ -392,12 +398,14 @@ export function Editor({
           activeEditor.state.storedMarks ??
           activeEditor.state.selection.$from.marks();
         cursorStyle = effectiveInlineStyle(marks, block.defaultStyle);
+        cursorItalic = marks.some((mark) => mark.type.name === "italic");
       }
       return {
         document: current.document,
         target,
         scope: fontCheckScope,
         cursorStyle,
+        cursorItalic,
       };
     },
     apply: applyPreparedFontChange,
@@ -563,6 +571,11 @@ export function Editor({
     return { blockId, target: { kind: "block", from: 0, to: 0 } };
   }
   const activeHandle = useRef<TransactionHandle | null>(null);
+  const gradientGesture = useRef<{
+    handle: TransactionHandle;
+    rangeId: string;
+    target: string;
+  } | null>(null);
   /** The edit target a control gesture is scoped to when it is acquired. */
   function gestureTarget() {
     return `${state.selectedId ?? ""}:${state.mode}:control`;
@@ -632,35 +645,36 @@ export function Editor({
       if (chosen) void fontChoice.choose(chosen);
       return;
     }
-    // Every gradient application owns a fresh block-local coordinate system,
-    // even when the same preset is applied twice. Keeping the same patch value
-    // (and thus rangeId) during one drag merges the gesture into one undo.
-    const nextPatch =
-      patch.color && isGradientColor(patch.color)
-        ? {
-            ...patch,
-            color: {
-              ...patch.color,
-              rangeId:
-                patch.color.rangeId ||
-                nextGradientRangeId(store.getState().document, selected.id),
-            },
-          }
-        : patch;
     withControlGesture(() => {
-      // A gradient cannot live in a v1 document. Upgrade on first gradient
-      // write inside the same gesture, but only on a deployment that can
-      // persist gradients; v2 documents keep their version.
-      if (
-        gradientWritesEnabled() &&
-        nextPatch.color &&
-        isGradientColor(nextPatch.color) &&
-        store.getState().document.schemaVersion === 1
-      )
-        store.update({
-          ...store.getState().document,
-          schemaVersion: 2,
-        });
+      let nextPatch = patch;
+      if (isGradientColor(patch.color)) {
+        if (!gradientWritesEnabled()) return;
+        // A partial edit must get its own range. Reuse that range throughout
+        // the popup gesture so moving a color stop does not fragment it.
+        const { kind, from, to } = fontTarget(selected.id).target;
+        const target = `${selected.id}:${kind}:${from}:${to}`;
+        let handle = store.activeTransaction()!;
+        if (
+          gradientGesture.current?.handle === handle &&
+          gradientGesture.current.target !== target
+        ) {
+          handle = store.acquire("control", `${gestureTarget()}:${target}`);
+          activeHandle.current = handle;
+        }
+        if (gradientGesture.current?.handle !== handle)
+          gradientGesture.current = {
+            handle,
+            target,
+            rangeId: nextGradientRangeId(
+              store.getState().document,
+              selected.id,
+            ),
+          };
+        nextPatch = {
+          ...patch,
+          color: { ...patch.color, rangeId: gradientGesture.current.rangeId },
+        };
+      }
       if (state.mode === "edit" && activeEditor && !activeEditor.isDestroyed) {
         if (textSelection.current)
           restoreSelection(activeEditor, textSelection.current);
@@ -670,7 +684,7 @@ export function Editor({
       } else {
         store.updateBlock(selected.id, (b) => ({
           ...b,
-          defaultStyle: { ...b.defaultStyle, ...patch },
+          defaultStyle: { ...b.defaultStyle, ...nextPatch },
           content: applyTextStyle(
             b.content,
             { kind: "block", from: 0, to: 0 },
@@ -768,6 +782,24 @@ export function Editor({
         block: selected,
         editor: state.mode === "edit" ? activeEditor : null,
         fonts: availableFonts,
+        fontRefs: state.document.fonts,
+        previewWeight: (weight) => {
+          if (
+            state.mode === "edit" &&
+            activeEditor &&
+            !activeEditor.isDestroyed
+          ) {
+            previewEditorWeight(
+              activeEditor,
+              textSelection.current ?? captureSelection(activeEditor),
+              weight,
+            );
+          } else {
+            setWeightPreview(
+              weight === null ? null : { blockId: selected.id, weight },
+            );
+          }
+        },
         apply,
         chooseFont: (face, intent, requestedWeight) =>
           void fontChoice.choose(face, intent, requestedWeight),
@@ -1040,6 +1072,12 @@ export function Editor({
           state={state}
           showGrid={showGrid}
           onShowGridChange={changeShowGrid}
+          weightPreview={
+            state.mode === "select" &&
+            weightPreview?.blockId === state.selectedId
+              ? weightPreview
+              : null
+          }
           visibleViewport={visibleViewport}
           renderEditing={
             renderEditing

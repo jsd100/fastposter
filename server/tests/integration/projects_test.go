@@ -290,4 +290,9 @@ func TestProjectGradientGateAndDowngradeProtection(t *testing.T) {
 	if e != nil || current.Document.SchemaVersion != 2 || current.Title != "新渐变" {
 		t.Fatal("rejected downgrade mutated the project", e, current)
 	}
+	svc.WithGradientWrites(false)
+	snapshot, e := svc.ResolveSnapshot(ctx, p, created.ID, created.Revision)
+	if e != nil || snapshot.RendererVersion != "poster-renderer-v2" {
+		t.Fatalf("existing v2 project must use the gradient-compatible renderer while writes are closed: %q, %v", snapshot.RendererVersion, e)
+	}
 }

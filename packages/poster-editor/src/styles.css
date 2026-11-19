@@ -436,6 +436,9 @@
   margin: 0;
   min-height: 1em;
 }
+.poster-rich-input .ProseMirror :is(u, s) {
+  text-decoration-color: var(--fp-decoration-color, currentColor);
+}
 .poster-rich-input .ProseMirror:focus {
   outline: none;
 }
@@ -545,4 +548,9 @@
   .editor-workspace {
     height: var(--editor-viewport-height, 100dvh);
   }
+}
+
+[data-font-weight-preview],
+[data-font-weight-preview] * {
+  font-weight: var(--fp-weight-preview) !important;
 }

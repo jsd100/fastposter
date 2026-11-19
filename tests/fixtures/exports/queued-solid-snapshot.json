@@ -83,7 +83,7 @@
     "assetId": "bg-1",
     "version": "1",
     "key": "objects/bg-1/1",
-    "sha256": "test-only"
+    "sha256": "9dc76cbe5b4a7563542b4a5b37f9d4ec673b4bde68c27a62973501b5af7582e1"
   },
   "fonts": [
     {
@@ -93,7 +93,7 @@
       "weight": 400,
       "style": "normal",
       "key": "objects/font-1/1",
-      "sha256": "test-only"
+      "sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da"
     }
   ],
   "rendererVersion": "poster-renderer-v1"

@@ -30,7 +30,8 @@ func (p WritePolicy) CheckWrite(currentVersion int, d Document) error {
 	if currentVersion == 2 && d.SchemaVersion == 1 {
 		return ErrSchemaDowngrade
 	}
-	if !p.GradientWrites && containsGradient(d) {
+	introducesV2 := d.SchemaVersion == 2 && currentVersion < 2
+	if !p.GradientWrites && (introducesV2 || containsGradient(d)) {
 		return ErrGradientWritesDisabled
 	}
 	return nil
@@ -47,12 +48,10 @@ func containsGradient(d Document) bool {
 
 func nodeHasGradient(n Node) bool {
 	for _, m := range n.Marks {
-		if value, ok := m.Attrs["color"]; ok {
-			if color, ok := value.(map[string]any); ok {
-				switch color["type"] {
-				case "linear", "radial":
-					return true
-				}
+		if value, ok := m.Attrs["color"]; m.Type == "textStyle" && ok {
+			color, _ := decodeMarkColor(value) // CheckWrite already validated the document.
+			if color.Gradient != nil {
+				return true
 			}
 		}
 	}

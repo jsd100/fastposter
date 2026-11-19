@@ -2,6 +2,8 @@ import type {
   LinearGradient,
   PosterDocument,
   RadialGradient,
+  RichNode,
+  TextBlock,
   TextColor,
 } from "@fastposter/poster-schema";
 
@@ -12,6 +14,23 @@ export function isGradientColor(
   color: TextColor | null | undefined,
 ): color is TextGradient {
   return typeof color === "object" && color !== null;
+}
+
+export function richTextHasGradient(node: RichNode): boolean {
+  return (
+    (node.marks ?? []).some(
+      (mark) =>
+        mark.type === "textStyle" &&
+        isGradientColor(mark.attrs?.color as TextColor | undefined),
+    ) || (node.content ?? []).some(richTextHasGradient)
+  );
+}
+
+export function blockHasGradient(block: TextBlock): boolean {
+  return (
+    isGradientColor(block.defaultStyle.color) ||
+    richTextHasGradient(block.content)
+  );
 }
 
 /** CSS uses the same angle convention and percentage stops as the document. */
@@ -69,42 +88,4 @@ export function nextGradientRangeId(
   let n = 1;
   while (used.has(`range-${n}`)) n += 1;
   return `range-${n}`;
-}
-
-/**
- * One range is one coordinate system. Every fragment receives a background
- * sized to the union of its siblings and positioned relative to its own
- * origin, so a wrapped or restyled range stays continuously colored.
- */
-export function layoutGradientRanges(root: ParentNode): void {
-  const scope = root as unknown as {
-    querySelectorAll: (selector: string) => NodeListOf<HTMLElement>;
-    getBoundingClientRect?: () => { left: number; top: number };
-  };
-  if (!scope.querySelectorAll) return;
-  const spans = Array.from(
-    scope.querySelectorAll(`[${GRADIENT_RANGE_ATTRIBUTE}]`),
-  );
-  const groups = new Map<string, HTMLElement[]>();
-  for (const span of spans) {
-    const rangeId = span.getAttribute(GRADIENT_RANGE_ATTRIBUTE);
-    if (!rangeId) continue;
-    const group = groups.get(rangeId) ?? [];
-    group.push(span);
-    groups.set(rangeId, group);
-  }
-  const origin = scope.getBoundingClientRect?.() ?? { left: 0, top: 0 };
-  for (const group of groups.values()) {
-    const rects = group.map((span) => span.getBoundingClientRect());
-    const left = Math.min(...rects.map((r) => r.left)) - origin.left;
-    const top = Math.min(...rects.map((r) => r.top)) - origin.top;
-    const right = Math.max(...rects.map((r) => r.right)) - origin.left;
-    const bottom = Math.max(...rects.map((r) => r.bottom)) - origin.top;
-    const width = right - left;
-    const height = bottom - top;
-    group.forEach((span, i) => {
-      span.style.backgroundSize = `${width}px ${height}px`;
-      span.style.backgroundPosition = `${left - (rects[i].left - origin.left)}px ${top - (rects[i].top - origin.top)}px`;
-    });
-  }
 }

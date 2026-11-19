@@ -8,7 +8,7 @@ import (
 	"io"
 	"math"
 	"regexp"
-	"strings"
+	"slices"
 	"unicode/utf8"
 )
 
@@ -29,40 +29,18 @@ func Parse(raw []byte) (Document, error) {
 	if e := dec.Decode(new(any)); e != io.EOF {
 		return d, errors.New("trailing JSON")
 	}
-	normalizeDocument(&d)
 	return d, Validate(d)
 }
 func normalizeAngle(angle float64) float64 {
-	a := math.Mod(angle, 360)
-	if a < 0 {
-		a += 360
-	}
-	return a
+	// Match the TypeScript normalization, including its decimal rounding.
+	return math.Mod(math.Mod(angle, 360)+360, 360)
 }
-func normalizeDocument(d *Document) {
-	for i := range d.TextBlocks {
-		b := &d.TextBlocks[i]
-		normalizeColor(&b.DefaultStyle.Color)
-		normalizeNode(&b.Content)
-	}
-}
-func normalizeColor(c *TextColor) {
-	if c.Gradient != nil && c.Gradient.Linear != nil {
-		c.Gradient.Linear.Angle = normalizeAngle(c.Gradient.Linear.Angle)
-	}
-}
-func normalizeNode(n *Node) {
-	for i := range n.Marks {
-		if v, ok := n.Marks[i].Attrs["color"]; ok {
-			if m, ok := v.(map[string]any); ok && m["type"] == "linear" {
-				if a, ok := m["angle"].(float64); ok {
-					m["angle"] = normalizeAngle(a)
-				}
-			}
-		}
-	}
-	for i := range n.Content {
-		normalizeNode(&n.Content[i])
+func normalizeStops(stops []GradientStop) {
+	// Preserve the positions that CSS draws for existing descending stops.
+	offset := 0.0
+	for i := range stops {
+		offset = max(offset, stops[i].Offset)
+		stops[i].Offset = offset
 	}
 }
 func bounded(v, lo, hi float64) bool {
@@ -93,37 +71,33 @@ func validateColor(c TextColor, version int) error {
 		return errors.New("gradient requires schema v2")
 	}
 	if g := c.Gradient.Linear; g != nil {
-		if !idPattern.MatchString(g.RangeID) || !finite(g.Angle) {
+		if c.Gradient.Radial != nil || g.Type != "linear" || !idPattern.MatchString(g.RangeID) || !finite(g.Angle) {
 			return errors.New("invalid linear gradient")
 		}
 		return validateStops(g.Stops)
 	}
 	if g := c.Gradient.Radial; g != nil {
-		if !idPattern.MatchString(g.RangeID) || !bounded(g.CenterX, 0, 100) || !bounded(g.CenterY, 0, 100) {
+		if g.Type != "radial" || !idPattern.MatchString(g.RangeID) || !bounded(g.CenterX, 0, 100) || !bounded(g.CenterY, 0, 100) {
 			return errors.New("invalid radial gradient")
 		}
 		return validateStops(g.Stops)
 	}
 	return errors.New("invalid gradient")
 }
-func gradientConfigKey(c TextColor) (string, string, bool) {
-	if c.Gradient == nil {
-		return "", "", false
+func gradientRangeID(gradient *Gradient) string {
+	if gradient.Linear != nil {
+		return gradient.Linear.RangeID
 	}
-	stopsKey := func(stops []GradientStop) string {
-		parts := make([]string, 0, len(stops))
-		for _, s := range stops {
-			parts = append(parts, fmt.Sprintf("%s@%v", s.Color, s.Offset))
-		}
-		return strings.Join(parts, ",")
+	return gradient.Radial.RangeID
+}
+func sameGradient(a, b *Gradient) bool {
+	if a.Linear != nil && b.Linear != nil {
+		return normalizeAngle(a.Linear.Angle) == normalizeAngle(b.Linear.Angle) && slices.Equal(a.Linear.Stops, b.Linear.Stops)
 	}
-	if g := c.Gradient.Linear; g != nil {
-		return g.RangeID, fmt.Sprintf("linear|%v|%s", normalizeAngle(g.Angle), stopsKey(g.Stops)), true
+	if a.Radial != nil && b.Radial != nil {
+		return a.Radial.CenterX == b.Radial.CenterX && a.Radial.CenterY == b.Radial.CenterY && slices.Equal(a.Radial.Stops, b.Radial.Stops)
 	}
-	if g := c.Gradient.Radial; g != nil {
-		return g.RangeID, fmt.Sprintf("radial|%v,%v|%s", g.CenterX, g.CenterY, stopsKey(g.Stops)), true
-	}
-	return "", "", false
+	return false
 }
 func Validate(d Document) error {
 	bad := func(s string) error { return fmt.Errorf("invalid document: %s", s) }
@@ -157,16 +131,17 @@ func Validate(d Document) error {
 		if !fonts[st.FontID] || !bounded(st.FontSize, 0.000001, 4096) || st.FontWeight < 100 || st.FontWeight > 900 {
 			return bad("default text style")
 		}
-		ranges := map[string]string{}
+		ranges := map[string]*Gradient{}
 		checkColor := func(c TextColor) error {
 			if e := validateColor(c, d.SchemaVersion); e != nil {
 				return e
 			}
-			if id, key, ok := gradientConfigKey(c); ok {
-				if prev, found := ranges[id]; found && prev != key {
+			if c.Gradient != nil {
+				id := gradientRangeID(c.Gradient)
+				if previous := ranges[id]; previous != nil && !sameGradient(previous, c.Gradient) {
 					return errors.New("conflicting gradient range configuration")
 				}
-				ranges[id] = key
+				ranges[id] = c.Gradient
 			}
 			return nil
 		}
@@ -181,14 +156,14 @@ func Validate(d Document) error {
 		if !bounded(e.Opacity, 0, 1) || !bounded(e.Padding, 0, 4096) || e.Padding*2 >= b.Width || !colorPattern.MatchString(e.BackgroundColor) || !colorPattern.MatchString(e.StrokeColor) || !colorPattern.MatchString(e.ShadowColor) || !bounded(e.StrokeWidth, 0, 100) || !bounded(e.ShadowBlur, 0, 500) || !bounded(e.ShadowX, -8192, 8192) || !bounded(e.ShadowY, -8192, 8192) {
 			return bad("effects")
 		}
-		count, err := validateNode(b.Content, "doc", fonts, d.SchemaVersion, ranges)
+		count, err := validateNode(b.Content, "doc", fonts, checkColor)
 		if err != nil || count > 10000 {
 			return bad("rich text or character limit")
 		}
 	}
 	return nil
 }
-func validateNode(n Node, expected string, fonts map[string]bool, version int, ranges map[string]string) (int, error) {
+func validateNode(n Node, expected string, fonts map[string]bool, checkColor func(TextColor) error) (int, error) {
 	fail := errors.New("invalid rich text")
 	if n.Type != expected {
 		return 0, fail
@@ -205,7 +180,7 @@ func validateNode(n Node, expected string, fonts map[string]bool, version int, r
 			} else if c.Type == "hardBreak" {
 				want = "hardBreak"
 			}
-			v, e := validateNode(c, want, fonts, version, ranges)
+			v, e := validateNode(c, want, fonts, checkColor)
 			if e != nil {
 				return 0, e
 			}
@@ -240,22 +215,9 @@ func validateNode(n Node, expected string, fonts map[string]bool, version int, r
 						return 0, fail
 					}
 				case "color":
-					enc, e := json.Marshal(v)
-					if e != nil {
+					color, e := decodeMarkColor(v)
+					if e != nil || checkColor(color) != nil {
 						return 0, fail
-					}
-					var tc TextColor
-					if e := json.Unmarshal(enc, &tc); e != nil {
-						return 0, fail
-					}
-					if e := validateColor(tc, version); e != nil {
-						return 0, fail
-					}
-					if id, key, ok := gradientConfigKey(tc); ok {
-						if prev, found := ranges[id]; found && prev != key {
-							return 0, fail
-						}
-						ranges[id] = key
 					}
 				case "fontSize":
 					f, ok := v.(float64)

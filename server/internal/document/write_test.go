@@ -37,6 +37,8 @@ func TestWritePolicyGradientGate(t *testing.T) {
 		{"v1 solid writes stay available", false, 0, v1Solid, nil},
 		{"v2 gradient writes are closed by default", false, 0, v2Gradient, ErrGradientWritesDisabled},
 		{"v2 gradient writes open when enabled", true, 0, v2Gradient, nil},
+		{"v2 solid create stays closed", false, 0, v2Solid, ErrGradientWritesDisabled},
+		{"v2 solid upgrade stays closed", false, 1, v2Solid, ErrGradientWritesDisabled},
 		{"solid-only v2 save stays available while closed", false, 2, v2Solid, nil},
 		{"stale v2 gradient payload stays closed", false, 2, v2Gradient, ErrGradientWritesDisabled},
 		{"v1 to v2 upgrade needs the gate", false, 1, v2Gradient, ErrGradientWritesDisabled},
@@ -106,7 +108,7 @@ func TestGradientDetectionCoversInlineMarks(t *testing.T) {
 	if !containsGradient(parsed) {
 		t.Fatal("inline gradient mark not detected")
 	}
-	if e = (WritePolicy{}).CheckWrite(0, parsed); !errors.Is(e, ErrGradientWritesDisabled) {
+	if e = (WritePolicy{}).CheckWrite(2, parsed); !errors.Is(e, ErrGradientWritesDisabled) {
 		t.Fatalf("inline gradient not gated: %v", e)
 	}
 }

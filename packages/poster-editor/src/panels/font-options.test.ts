@@ -1,5 +1,10 @@
 import { it, expect } from "vitest";
-import { fontFamilies, fontWeights, fontWeightRange } from "./font-options";
+import {
+  familySupportsWeight,
+  fontFamilies,
+  fontWeights,
+  fontWeightRange,
+} from "./font-options";
 
 function variable(over: Record<string, unknown> = {}) {
   return {
@@ -52,4 +57,19 @@ it("keeps the discrete weight list for static fonts", () => {
 
 it("does not show a slider for a family that has no matching face", () => {
   expect(fontWeightRange([variable()], "Missing")).toBeNull();
+});
+
+it("checks the weight within the requested font style", () => {
+  const italic = {
+    assetId: "italic-400",
+    version: "1",
+    family: "Variable",
+    weight: 400,
+    style: "italic" as const,
+    url: "/italic",
+  };
+  const fonts = [variable(), italic];
+  expect(familySupportsWeight(fonts, "Variable", 700, "normal")).toBe(true);
+  expect(familySupportsWeight(fonts, "Variable", 400, "italic")).toBe(true);
+  expect(familySupportsWeight(fonts, "Variable", 700, "italic")).toBe(false);
 });

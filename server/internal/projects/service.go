@@ -50,6 +50,11 @@ func (s *Service) checkWrite(currentVersion int, d document.Document) error {
 	}
 	return nil
 }
+
+// CheckCreateDocument lets importers validate before storing referenced assets.
+func (s *Service) CheckCreateDocument(d document.Document) error {
+	return s.checkWrite(0, d)
+}
 func validateTitle(title string) (string, error) {
 	title = strings.TrimSpace(title)
 	if title == "" || utf8.RuneCountInString(title) > 120 || strings.ContainsFunc(title, unicode.IsControl) {
@@ -112,7 +117,7 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, title string, d 
 	if e != nil {
 		return Project{}, e
 	}
-	if e = s.checkWrite(0, d); e != nil {
+	if e = s.CheckCreateDocument(d); e != nil {
 		return Project{}, e
 	}
 	tx, e := s.DB.BeginTx(ctx, nil)

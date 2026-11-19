@@ -25,6 +25,34 @@ type GradientStop struct {
 	Color  string  `json:"color"`
 	Offset float64 `json:"offset"`
 }
+
+func (s *GradientStop) UnmarshalJSON(raw []byte) error {
+	type plain GradientStop
+	var fields map[string]json.RawMessage
+	if e := json.Unmarshal(raw, &fields); e != nil {
+		return e
+	}
+	if !requiredFields(fields, "color", "offset") {
+		return errors.New("invalid gradient stop fields")
+	}
+	return json.Unmarshal(raw, (*plain)(s))
+}
+
+// Gradient fields are required and case-sensitive on the wire. Go's struct
+// decoder alone would also accept case variants and null numbers.
+func requiredFields(fields map[string]json.RawMessage, names ...string) bool {
+	if len(fields) != len(names) {
+		return false
+	}
+	for _, name := range names {
+		value, ok := fields[name]
+		if !ok || bytes.Equal(value, []byte("null")) {
+			return false
+		}
+	}
+	return true
+}
+
 type LinearGradient struct {
 	Type    string         `json:"type"`
 	RangeID string         `json:"rangeId"`
@@ -75,32 +103,48 @@ func (c *TextColor) UnmarshalJSON(b []byte) error {
 		c.Solid, c.Gradient = solid, nil
 		return nil
 	}
-	var head struct {
-		Type string `json:"type"`
-	}
-	if e := json.Unmarshal(raw, &head); e != nil {
+	var fields map[string]json.RawMessage
+	if e := json.Unmarshal(raw, &fields); e != nil {
 		return e
 	}
-	switch head.Type {
+	var kind string
+	if e := json.Unmarshal(fields["type"], &kind); e != nil {
+		return e
+	}
+	var color TextColor
+	switch kind {
 	case "linear":
+		if !requiredFields(fields, "type", "rangeId", "angle", "stops") {
+			return errors.New("invalid linear gradient fields")
+		}
 		var g LinearGradient
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.DisallowUnknownFields()
-		if e := dec.Decode(&g); e != nil {
+		if e := json.Unmarshal(raw, &g); e != nil {
 			return e
 		}
-		c.Solid, c.Gradient = "", &Gradient{Linear: &g}
+		color.Gradient = &Gradient{Linear: &g}
 	case "radial":
+		if !requiredFields(fields, "type", "rangeId", "centerX", "centerY", "stops") {
+			return errors.New("invalid radial gradient fields")
+		}
 		var g RadialGradient
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.DisallowUnknownFields()
-		if e := dec.Decode(&g); e != nil {
+		if e := json.Unmarshal(raw, &g); e != nil {
 			return e
 		}
-		c.Solid, c.Gradient = "", &Gradient{Radial: &g}
+		color.Gradient = &Gradient{Radial: &g}
 	default:
 		return errors.New("invalid gradient type")
 	}
+	if e := validateColor(color, 2); e != nil {
+		return e
+	}
+	if g := color.Gradient.Linear; g != nil {
+		g.Angle = normalizeAngle(g.Angle)
+		normalizeStops(g.Stops)
+	} else {
+		g := color.Gradient.Radial
+		normalizeStops(g.Stops)
+	}
+	*c = color
 	return nil
 }
 
@@ -130,6 +174,47 @@ type Mark struct {
 	Type  string         `json:"type"`
 	Attrs map[string]any `json:"attrs,omitempty"`
 }
+
+func (m *Mark) UnmarshalJSON(raw []byte) error {
+	type plain Mark
+	var mark plain
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if e := dec.Decode(&mark); e != nil {
+		return e
+	}
+	if value, ok := mark.Attrs["color"]; mark.Type == "textStyle" && ok {
+		color, e := decodeMarkColor(value)
+		if e != nil {
+			return e
+		}
+		if color.Gradient != nil {
+			mark.Attrs["color"] = color
+		}
+	}
+	*m = Mark(mark)
+	return nil
+}
+
+func decodeMarkColor(value any) (TextColor, error) {
+	switch color := value.(type) {
+	case string:
+		return TextColor{Solid: color}, nil
+	case TextColor:
+		return color, nil
+	case map[string]any:
+		raw, e := json.Marshal(color)
+		if e != nil {
+			return TextColor{}, e
+		}
+		var out TextColor
+		e = json.Unmarshal(raw, &out)
+		return out, e
+	default:
+		return TextColor{}, errors.New("invalid mark color")
+	}
+}
+
 type Node struct {
 	Type    string `json:"type"`
 	Content []Node `json:"content,omitempty"`

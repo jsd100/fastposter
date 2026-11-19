@@ -37,7 +37,10 @@ export function FontPreview({ resource }: { resource: ResourceDTO }) {
         style={
           ready && resource.asset
             ? {
-                fontFamily: fontFamily(resource.asset.id),
+                fontFamily: fontFamily(
+                  resource.asset.id,
+                  resource.asset.version,
+                ),
                 fontWeight: resource.weight,
                 fontStyle: resource.style,
                 fontSynthesis: "none",
