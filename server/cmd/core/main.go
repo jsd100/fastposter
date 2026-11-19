@@ -71,9 +71,9 @@ func main() {
 	if e = images.BootstrapFonts(context.Background(), root); e != nil {
 		log.Fatal("builtin font initialization failed")
 	}
-	posters := projects.NewService(db, store).WithGradientWrites(c.GradientWrites)
+	posters := projects.NewService(db, store)
 	deletions := projectdeletions.NewService(db, store)
-	library := catalog.NewService(db, store, images).WithGradientWrites(c.GradientWrites)
+	library := catalog.NewService(db, store, images)
 	copies := copy.NewService(db, library)
 	portable := templates.NewService(db, store, posters, images, library, filepath.Join(c.AbsoluteDataDir, ".work"))
 	s := coreservice.NewServer(&transport.CoreHandler{AuthFunc: transport.AuthAdapter(accounts), AssetsFunc: transport.AssetsAdapter(accounts, images), CatalogFunc: transport.CatalogAdapter(accounts, library, copies), AdminFunc: transport.AdminAdapter(accounts, library, deletions), ProjectsFunc: transport.ProjectsAdapter(accounts, posters, deletions), TemplatesFunc: transport.TemplatesAdapter(accounts, portable), ExportsFunc: transport.ExportsAdapter(accounts, exports.NewService(db, store, projects.NewService(db, store))), Health: db.PingContext}, server.WithServiceAddr(addr))

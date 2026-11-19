@@ -61,8 +61,7 @@
 }
 
 .gallery-title-actions,
-.empty-actions,
-.trash-actions {
+.empty-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -119,16 +118,19 @@
   gap: 8px;
 }
 
-/* Trash cards give the full row to the title/meta and place the two actions
-   on their own line, so a long title cannot squeeze a button past the edge. */
 .project-card-trash .project-card-info {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
-.project-card-trash .trash-actions {
-  margin-top: 12px;
+.trash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 8px;
 }
-.project-card-trash .trash-actions > button {
-  min-height: 44px;
+.trash-actions > .button {
+  padding-inline: 10px;
 }
 
 .project-card-info h3,
@@ -347,7 +349,6 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 152px), 1fr));
 }
 
-.background-card > .background-select,
 .copy-picker-list .button {
   display: flex;
   flex-direction: column;
@@ -360,28 +361,38 @@
   overflow-wrap: anywhere;
 }
 
-.background-select > span,
 .copy-picker-list .button > span {
   display: block;
   max-width: 100%;
 }
 
 .background-card {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
 }
-.background-card > .background-select {
-  flex: 1;
+.background-card[data-selected] {
+  border-color: var(--ant-color-primary, #1677ff);
 }
-.background-card > .background-zoom {
-  min-height: 44px;
-  margin-top: 4px;
+.background-card h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.background-picker-grid img {
-  aspect-ratio: 4 / 3;
-  width: 100%;
-  object-fit: contain;
+.background-card-size {
+  display: block;
+  margin-top: 2px;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
+  font-size: 12px;
+}
+.background-card .background-select {
+  margin-top: 8px;
+}
+/* Sizing only: the thumbnail's zoom, fallback and focus styles live in the
+   shared ImageZoom component. */
+.background-cover {
+  aspect-ratio: 4 / 5;
 }
 
 .picker-empty {

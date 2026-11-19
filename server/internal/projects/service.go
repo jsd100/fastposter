@@ -24,37 +24,23 @@ type Project struct {
 	DeletedAt                    *time.Time
 }
 type Service struct {
-	DB             *sql.DB
-	Store          storage.FileStore
-	GradientWrites bool
+	DB    *sql.DB
+	Store storage.FileStore
 }
 
 func NewService(db *sql.DB, store storage.FileStore) *Service { return &Service{DB: db, Store: store} }
 
-// WithGradientWrites applies the deployment compatibility switch. The zero
-// value stays closed so every caller must opt in explicitly.
-func (s *Service) WithGradientWrites(enabled bool) *Service {
-	s.GradientWrites = enabled
-	return s
-}
-
-func (s *Service) checkWrite(currentVersion int, d document.Document) error {
-	e := (document.WritePolicy{GradientWrites: s.GradientWrites}).CheckWrite(currentVersion, d)
+func checkWrite(currentVersion int, d document.Document) error {
+	e := document.CheckWrite(currentVersion, d)
 	switch {
 	case errors.Is(e, document.ErrSchemaDowngrade):
 		return domain.E("INVALID_INPUT", "不能将 v2 作品回退为 v1 文档")
-	case errors.Is(e, document.ErrGradientWritesDisabled):
-		return domain.E("INVALID_INPUT", "当前部署未启用渐变写入")
 	case e != nil:
 		return domain.E("INVALID_INPUT", "作品文档无效，请检查画布和文字设置")
 	}
 	return nil
 }
 
-// CheckCreateDocument lets importers validate before storing referenced assets.
-func (s *Service) CheckCreateDocument(d document.Document) error {
-	return s.checkWrite(0, d)
-}
 func validateTitle(title string) (string, error) {
 	title = strings.TrimSpace(title)
 	if title == "" || utf8.RuneCountInString(title) > 120 || strings.ContainsFunc(title, unicode.IsControl) {
@@ -117,9 +103,6 @@ func (s *Service) Create(ctx context.Context, p auth.Principal, title string, d 
 	if e != nil {
 		return Project{}, e
 	}
-	if e = s.CheckCreateDocument(d); e != nil {
-		return Project{}, e
-	}
 	tx, e := s.DB.BeginTx(ctx, nil)
 	if e != nil {
 		return Project{}, e
@@ -170,7 +153,7 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, id, expected, titl
 	if rev != want || rev == math.MaxUint64 {
 		return Project{}, conflict()
 	}
-	if e = s.checkWrite(current.Document.SchemaVersion, d); e != nil {
+	if e = checkWrite(current.Document.SchemaVersion, d); e != nil {
 		return Project{}, e
 	}
 	if _, e = s.resolveRefs(ctx, tx, p, d); e != nil {

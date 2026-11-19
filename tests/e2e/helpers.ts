@@ -88,6 +88,13 @@ export async function chooseOption(
 export async function setColor(page: Page, label: string, hex: string) {
   const trigger = page.getByLabel(label, { exact: true });
   await trigger.click();
+  if (label === "文字颜色") {
+    const input = page.getByRole("textbox", { name: "文字颜色 HEX" });
+    await input.fill(hex.replace(/^#/, ""));
+    await page.getByRole("button", { name: "关闭颜色面板" }).click();
+    await expect(input).toHaveCount(0);
+    return;
+  }
   const input = page.locator(".ant-color-picker-hex-input input");
   await expect(input).toBeVisible();
   await input.fill(hex.replace(/^#/, ""));

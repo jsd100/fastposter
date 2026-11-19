@@ -15,6 +15,7 @@ import {
   Dialog,
   FileField,
   FormField,
+  ImageZoom,
   NumberField,
   Select,
   Status,
@@ -22,7 +23,7 @@ import {
   Textarea,
   useErrorNotice,
 } from "@fastposter/ui";
-import { Plus, ImagePlus, Type } from "lucide-react";
+import { Plus, ImagePlus, Type, ZoomIn } from "lucide-react";
 import {
   errorMessage,
   isGone,
@@ -32,12 +33,14 @@ import {
   request,
 } from "../api";
 import { PAGE_SIZE, RecordPager } from "./records";
+import { titleFromFileName } from "./asset-title";
 import {
   pageAfterShrink,
   adminPageIdentity,
   canCorrectAdminPage,
 } from "./projects/pagination";
 export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
+  const isBackground = kind === "background";
   const cache = useQueryClient();
   const [page, setPage] = useState(1),
     [keyword, setKeyword] = useState(""),
@@ -268,15 +271,30 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
               </div>
             </Card>
           ))}
-        {q.data?.resources.map((r) => (
-          <Card
-            className="admin-resource-card fp-actionable-card"
-            data-testid="resource-card"
-            key={r.id}
-          >
+        {q.data?.resources.map((r) => {
+          const preview = (
             <div className="admin-resource-preview">
-              {kind === "background" ? (
-                <img src={r.asset?.previewUrl} alt="" />
+              {isBackground ? (
+                r.asset ? (
+                  <ImageZoom
+                    className="admin-background-cover"
+                    thumbnailSrc={r.asset.previewUrl}
+                    previewSrc={r.asset.url}
+                    title={r.title}
+                    fallback={
+                      <ImagePlus
+                        className="admin-background-placeholder"
+                        size={24}
+                      />
+                    }
+                    zoomIcon={<ZoomIn size={20} aria-hidden="true" />}
+                  />
+                ) : (
+                  <ImagePlus
+                    className="admin-background-placeholder"
+                    size={24}
+                  />
+                )
               ) : (
                 <FontPreview resource={r} />
               )}
@@ -287,43 +305,56 @@ export function ResourcesPage({ kind }: { kind: "background" | "font" }) {
                 {r.published ? "已发布" : "已下架"}
               </Tag>
             </div>
-            <div className="resource-card-details">
-              <h2 title={r.title}>{r.title}</h2>
-              <p>
-                版本 {r.version}
-                {r.asset && kind === "background"
-                  ? ` · ${r.asset.width} × ${r.asset.height} px`
-                  : ""}
-              </p>
-              {r.license && <small>{r.license}</small>}
-              <div className="resource-actions">
-                <Button
-                  density="compact"
-                  variant="link"
-                  onClick={() => setEditing(r)}
-                >
-                  编辑
-                </Button>
-                <Button
-                  density="compact"
-                  variant={r.published ? "secondary" : "primary"}
-                  disabled={busy}
-                  onClick={() => void publish(r)}
-                >
-                  {r.published ? "下架" : "发布"}
-                </Button>
-                <Button
-                  density="compact"
-                  variant="danger-outline"
-                  disabled={busy}
-                  onClick={() => void remove(r)}
-                >
-                  删除
-                </Button>
+          );
+          return (
+            <Card
+              className={`admin-resource-card fp-actionable-card${isBackground ? " admin-background-card" : ""}`}
+              data-testid="resource-card"
+              key={r.id}
+              size={isBackground ? "small" : undefined}
+              cover={isBackground ? preview : undefined}
+            >
+              {!isBackground && preview}
+              <div className="resource-card-details">
+                <h2 title={r.title}>{r.title}</h2>
+                <p>
+                  版本 {r.version}
+                  {r.asset && isBackground
+                    ? ` · ${r.asset.width} × ${r.asset.height} px`
+                    : ""}
+                </p>
+                {r.license && <small>{r.license}</small>}
+                <div className="resource-actions">
+                  <Button
+                    density="compact"
+                    variant={isBackground ? "secondary" : "link"}
+                    onClick={() => setEditing(r)}
+                  >
+                    编辑
+                  </Button>
+                  <Button
+                    density="compact"
+                    variant={
+                      isBackground || r.published ? "secondary" : "primary"
+                    }
+                    disabled={busy}
+                    onClick={() => void publish(r)}
+                  >
+                    {r.published ? "下架" : "发布"}
+                  </Button>
+                  <Button
+                    density="compact"
+                    variant="danger-outline"
+                    disabled={busy}
+                    onClick={() => void remove(r)}
+                  >
+                    删除
+                  </Button>
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
       {q.data?.resources.length === 0 && (
         <Empty
@@ -425,7 +456,21 @@ function ResourceForm({
     [busy, setBusy] = useState(false),
     [conflict, setConflict] = useState<ResourceDTO | null>(null);
   const uploadedAsset = useRef<string | undefined>(undefined);
+  /* The last name this form filled in from a file. A title the administrator
+     typed never matches it, so it survives every later file pick. */
+  const autoTitle = useRef<string | null>(null);
   useErrorNotice("admin:resource-form", error || null);
+  /* Only the background page pre-fills the name: the file is the only thing
+     the administrator picked, so its name is the natural title. A title that
+     was typed by hand always wins. */
+  function chooseFile(next: File | null) {
+    setFile(next);
+    if (!next || kind !== "background") return;
+    if (title.trim() && title !== autoTitle.current) return;
+    const derived = titleFromFileName(next.name);
+    autoTitle.current = derived;
+    setTitle(derived);
+  }
   async function submit(e: FormEvent) {
     e.preventDefault();
     await commit(resource?.version);
@@ -505,7 +550,10 @@ function ResourceForm({
         <FormField
           label="素材名称"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            autoTitle.current = null;
+            setTitle(e.target.value);
+          }}
           maxLength={120}
           required
           autoFocus
@@ -582,7 +630,7 @@ function ResourceForm({
           }
           disabled={busy}
           value={file}
-          onChange={setFile}
+          onChange={chooseFile}
           hint={
             kind === "font"
               ? "TTF / OTF / WOFF2 · 最大 20 MiB；字重样式须与文件真实提供的版本一致。"

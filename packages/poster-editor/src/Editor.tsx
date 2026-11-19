@@ -11,7 +11,6 @@ import type { Editor as TiptapEditor } from "@tiptap/react";
 import { RichTextEditor } from "./text/RichTextEditor";
 import { previewEditorWeight } from "./text/weight-preview";
 import { TextPanel, type TextPanelProps } from "./panels/TextPanel";
-import { gradientWritesEnabled } from "./gradient-writes";
 import { EditorInspector, type InspectorGroup } from "./panels/EditorInspector";
 import {
   captureSelection,
@@ -571,6 +570,11 @@ export function Editor({
     return { blockId, target: { kind: "block", from: 0, to: 0 } };
   }
   const activeHandle = useRef<TransactionHandle | null>(null);
+  const colorCaret = useRef<{
+    editor: TiptapEditor;
+    position: number;
+    marks: TiptapEditor["state"]["storedMarks"];
+  } | null>(null);
   const gradientGesture = useRef<{
     handle: TransactionHandle;
     rangeId: string;
@@ -590,6 +594,26 @@ export function Editor({
     if (handle && store.activeTransaction()?.id === handle.id)
       store.finish(handle, action);
     selectionChanged((v) => v + 1);
+  }
+  function beginColorInteraction() {
+    const editor = state.mode === "edit" ? activeEditor : null;
+    const selection = editor?.state.selection;
+    colorCaret.current =
+      editor && selection?.empty
+        ? { editor, position: selection.from, marks: editor.state.storedMarks }
+        : null;
+    beginNumericInteraction();
+  }
+  function endColorInteraction(action: "commit" | "cancel") {
+    const caret = colorCaret.current;
+    colorCaret.current = null;
+    endNumericInteraction(action);
+    if (action !== "cancel" || !caret || caret.editor.isDestroyed) return;
+    const { editor, position, marks } = caret;
+    const { selection, tr } = editor.state;
+    // Collapsed edits change stored marks without changing the document.
+    if (selection.empty && selection.from === position)
+      editor.view.dispatch(tr.setStoredMarks(marks));
   }
   /** End the gesture on the previous target before an active switch/delete. */
   function endActiveGesture(action: "commit" | "cancel" = "commit") {
@@ -648,7 +672,6 @@ export function Editor({
     withControlGesture(() => {
       let nextPatch = patch;
       if (isGradientColor(patch.color)) {
-        if (!gradientWritesEnabled()) return;
         // A partial edit must get its own range. Reuse that range throughout
         // the popup gesture so moving a color stop does not fragment it.
         const { kind, from, to } = fontTarget(selected.id).target;
@@ -804,10 +827,13 @@ export function Editor({
         chooseFont: (face, intent, requestedWeight) =>
           void fontChoice.choose(face, intent, requestedWeight),
         fontPending: fontChoice.pending,
+        phone: layout === "phone",
         sizeBase: firstTargetStyle(state.document, fontTarget(selected.id))
           .fontSize,
         onNumericStart: beginNumericInteraction,
         onNumericEnd: endNumericInteraction,
+        onColorStart: beginColorInteraction,
+        onColorEnd: endColorInteraction,
         update: updateSelected,
         draft: (field) => draft(selected.id, field),
         editing: state.mode === "edit",

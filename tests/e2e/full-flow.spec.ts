@@ -83,7 +83,7 @@ test("background preview does not replace", async ({ page, browser }) => {
       name: `放大预览 ${title}`,
       exact: true,
     });
-    await expect(zoom).toBeVisible();
+    await expect(zoom.locator("img")).toBeVisible();
 
     const originals: string[] = [];
     page.on("request", (req) => {
@@ -94,7 +94,7 @@ test("background preview does not replace", async ({ page, browser }) => {
     await zoom.click();
     const preview = page.getByRole("dialog");
     await expect(preview).toHaveCount(2);
-    expect(originals.length).toBeGreaterThan(0);
+    await expect.poll(() => originals.length).toBeGreaterThan(0);
     await page.keyboard.press("Escape");
     await expect(preview).toHaveCount(1);
     await expect(library).toBeVisible();

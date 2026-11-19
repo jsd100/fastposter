@@ -128,3 +128,8 @@ export const colorPresets = [
   { label: "活力 · 明黄", value: "#F2C744" },
   { label: "活力 · 亮紫", value: "#9456D5" },
 ].map((option) => ({ ...option, swatch: option.value }));
+
+export function presetHexKey(value: string) {
+  const lower = value.toLowerCase();
+  return lower.length === 9 && lower.endsWith("ff") ? lower.slice(0, 7) : lower;
+}

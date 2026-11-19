@@ -1,7 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { chooseOption, openPoster, selectScenery, setColor } from "./helpers";
+import {
+  chooseOption,
+  openPoster,
+  selectScenery,
+  selectValue,
+  setColor,
+} from "./helpers";
 
 async function exportPng(page: Page): Promise<Buffer> {
   await page.getByRole("button", { name: "导出 PNG", exact: true }).click();
@@ -32,7 +38,7 @@ test("selected words keep style and selection across panel edits and save", asyn
   await setColor(page, "文字颜色", "ff0000");
   await expect(
     page.getByRole("button", { name: "文字颜色", exact: true }),
-  ).toHaveText("#FF0000");
+  ).toContainText("#FF0000");
   await expect(input.getByText("风景", { exact: true })).toHaveCSS(
     "color",
     "rgb(255, 0, 0)",
@@ -182,7 +188,7 @@ async function twoChangesInOnePicker(
   second: string,
 ) {
   await trigger.click();
-  const hex = page.locator(".ant-color-picker-hex-input input");
+  const hex = page.getByRole("textbox", { name: "文字颜色 HEX" });
   await expect(hex).toBeVisible();
   await hex.fill(first);
   await page.waitForTimeout(900);
@@ -244,7 +250,9 @@ test("color gesture owns range changes until close", async ({ page }) => {
   await twoChangesInOnePicker(page, trigger, "ff0000", "0000ff");
   expect(writes).toHaveLength(0);
   await trigger.click();
-  await expect(page.locator(".ant-color-picker-hex-input")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "文字颜色 HEX" })).toHaveCount(
+    0,
+  );
   await expect.poll(() => savedColor(page)).toBe("#0000ff");
   await page.getByRole("button", { name: "撤销", exact: true }).click();
   await expect.poll(() => savedColor(page)).toBe("#284632");
@@ -266,7 +274,9 @@ test("color gesture owns range changes until close", async ({ page }) => {
     "rgb(0, 0, 255)",
   );
   await rangeTrigger.click();
-  await expect(page.locator(".ant-color-picker-hex-input")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "文字颜色 HEX" })).toHaveCount(
+    0,
+  );
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   // The two in-picker changes collapse into one committed range transaction.
   await expect.poll(() => savedRangeColor(page)).toBe("#0000ff");
@@ -309,16 +319,209 @@ test("color gesture owns range changes until close", async ({ page }) => {
   await expect.poll(() => savedColor(page)).toBe("#284632");
 });
 
+test("color presets stay in the color panel and keep the active gradient type", async ({
+  page,
+}) => {
+  await openPoster(page, "fpcolorpresets");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  const trigger = page.getByRole("button", { name: "文字颜色", exact: true });
+  await expect(
+    page.getByRole("combobox", { name: "预设文字颜色" }),
+  ).toHaveCount(0);
+  await trigger.click();
+  const panel = page.getByRole("dialog", { name: "编辑文字颜色" });
+  const solids = panel.getByRole("combobox", { name: "预设文字颜色" });
+  await solids.click();
+  const listbox = page.getByRole("listbox");
+  await expect(listbox.getByRole("option")).toHaveCount(116);
+  await expect(listbox.getByText("蓝色", { exact: true })).toBeVisible();
+  await solids.fill("#b58f91");
+  const dustyPink = listbox.getByRole("option", { name: "莫兰迪 · 雾粉" });
+  await expect(dustyPink).toBeVisible();
+  await solids.press("ArrowDown");
+  await expect(
+    panel.getByRole("textbox", { name: "文字颜色 HEX" }),
+  ).toHaveValue("#284632");
+  await solids.press("Enter");
+  await expect(
+    panel.getByRole("textbox", { name: "文字颜色 HEX" }),
+  ).toHaveValue("#B58F91");
+  await expect(selectValue(page, "预设文字颜色")).toHaveText("莫兰迪 · 雾粉");
+  await expect(panel).toBeVisible();
+
+  await panel.getByText("线性渐变", { exact: true }).click();
+  const linear = panel.getByRole("combobox", { name: "线性渐变预设" });
+  await linear.click();
+  await expect(listbox.getByRole("option")).toHaveCount(12);
+  await expect(
+    listbox.getByRole("option", { name: "霞光 · 中心扩散" }),
+  ).toHaveCount(0);
+  await listbox.getByRole("option", { name: "森林 · 斜向" }).click();
+  await expect(panel.getByRole("radio", { name: "线性渐变" })).toBeChecked();
+  await expect(panel.getByRole("spinbutton", { name: "角度" })).toHaveValue(
+    "45",
+  );
+  await expect(selectValue(page, "线性渐变预设")).toHaveText("森林 · 斜向");
+  await panel.getByRole("slider", { name: "渐变角度" }).press("ArrowRight");
+  await expect(selectValue(page, "线性渐变预设")).toHaveText("自定义渐变");
+
+  await panel.getByText("径向渐变", { exact: true }).click();
+  const radial = panel.getByRole("combobox", { name: "径向渐变预设" });
+  await radial.click();
+  await expect(listbox.getByRole("option")).toHaveCount(12);
+  await expect(
+    listbox.getByRole("option", { name: "森林 · 斜向" }),
+  ).toHaveCount(0);
+  await listbox.getByRole("option", { name: "霞光 · 中心扩散" }).click();
+  await expect(panel.getByRole("radio", { name: "径向渐变" })).toBeChecked();
+  await expect(selectValue(page, "径向渐变预设")).toHaveText("霞光 · 中心扩散");
+  await radial.click();
+  await page.keyboard.press("Escape");
+  await expect(listbox).toHaveCount(0);
+  await expect(radial).toBeFocused();
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect.poll(() => savedColor(page)).toBe("#284632");
+});
+
+test("gradient dial previews angle and Escape unwinds the picker first", async ({
+  page,
+}) => {
+  await openPoster(page, "fpgradientdial");
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "编辑文字颜色" });
+  await panel.getByText("线性渐变", { exact: true }).click();
+  const angle = panel.getByRole("slider", { name: "渐变角度" });
+  const degrees = panel.getByRole("spinbutton", { name: "角度" });
+  await expect(degrees).toHaveValue("90");
+  await angle.press("Shift+ArrowRight");
+  await expect(degrees).toHaveValue("105");
+  const bounds = (await angle.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 10, bounds.y + bounds.height / 2);
+  await page.mouse.up();
+  await expect(degrees).toHaveValue("270");
+  await degrees.fill("");
+  await degrees.press("Tab");
+  await expect(degrees).toHaveValue("270");
+  await panel.getByRole("button", { name: "打开取色器" }).click();
+  const hex = page.locator(".ant-color-picker-hex-input input");
+  await hex.fill("ff000080");
+  await page.keyboard.press("Escape");
+  await expect(hex).toHaveCount(0);
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "文字颜色", exact: true }),
+  ).toBeFocused();
+  await expect.poll(() => savedColor(page)).toBe("#284632");
+});
+
+test("gradient panel stays reachable at five viewport sizes", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openPoster(page, "fpgradlayouts");
+  for (const [width, height] of [
+    [1440, 1000],
+    [1024, 768],
+    [768, 1024],
+    [390, 844],
+    [320, 700],
+  ]) {
+    await page.setViewportSize({ width, height });
+    if (width <= 680)
+      await page.getByRole("button", { name: "文字设置", exact: true }).click();
+    else if (width <= 880)
+      await page.getByRole("button", { name: "切换文字设置" }).click();
+    const trigger = page.getByRole("button", { name: "文字颜色", exact: true });
+    await trigger.click();
+    const panel = page.getByRole("dialog", { name: "编辑文字颜色" });
+    await panel.getByText("径向渐变", { exact: true }).click();
+    const center = panel.getByTestId("gradient-center");
+    await center.click({ position: { x: 24, y: 75 } });
+    expect(
+      Math.abs(
+        Number(
+          await panel.getByRole("spinbutton", { name: "圆心 X" }).inputValue(),
+        ) - 25,
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        Number(
+          await panel.getByRole("spinbutton", { name: "圆心 Y" }).inputValue(),
+        ) - 75,
+      ),
+    ).toBeLessThanOrEqual(1);
+    await panel.getByText("线性渐变", { exact: true }).click();
+    await expect(panel.getByRole("slider", { name: "渐变角度" })).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      )
+      .toBe(true);
+    const finish = panel.getByRole("button", { name: "关闭颜色面板" });
+    await finish.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: testInfo.outputPath(`gradient-${width}.png`),
+      animations: "disabled",
+    });
+    await finish.click();
+    await expect(panel).toHaveCount(0);
+    if (width <= 680)
+      await page
+        .getByRole("dialog", { name: "文字设置", exact: true })
+        .getByRole("button", { name: "关闭", exact: true })
+        .click();
+  }
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
+});
+
+test("gradient canceled at the caret restores the previously chosen solid color", async ({
+  page,
+}) => {
+  await openPoster(page, "fpgradientcaret");
+  await page.getByRole("button", { name: "编辑文字", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "海报文字编辑" });
+  await input.fill("前");
+  await setColor(page, "文字颜色", "ff0000");
+
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
+  const panel = page.getByRole("dialog", { name: "编辑文字颜色" });
+  await panel.getByText("线性渐变", { exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await input.focus();
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.anchorOffset))
+    .toBe(1);
+  await input.pressSequentially("后");
+  await expect(input.getByText("后", { exact: true })).toHaveCSS(
+    "color",
+    "rgb(255, 0, 0)",
+  );
+  await expect(input.locator("[data-gradient-range]")).toHaveCount(0);
+});
+
 test("applies gradients to selection groups", async ({ page }) => {
   await openPoster(page, "gradient");
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
   const input = await selectScenery(page);
 
   // Switch the selected words to a linear gradient via the shared color panel.
-  await page.getByLabel("渐变填充", { exact: true }).click();
-  await page.getByRole("option", { name: "线性渐变", exact: true }).click();
-  await page.getByLabel("文字颜色", { exact: true }).click();
-  await page.getByLabel("渐变预设").selectOption("冷海 · 横向");
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "编辑文字颜色" })
+    .getByText("线性渐变", { exact: true })
+    .click();
+  await chooseOption(page, "线性渐变预设", "冷海 · 横向");
   await expect(input.locator("span[data-gradient-range]")).toHaveCount(1);
   const paint = page.locator("[data-text-block] [data-gradient-paint] > div");
   await expect(paint).toHaveCSS("background-clip", "text");
@@ -390,8 +593,12 @@ test("pasted gradient text gets a fresh range id", async ({ page }) => {
   await openPoster(page, "gpaste");
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
   const input = await selectScenery(page);
-  await page.getByLabel("渐变填充", { exact: true }).click();
-  await page.getByRole("option", { name: "线性渐变", exact: true }).click();
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "编辑文字颜色" })
+    .getByText("线性渐变", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "关闭颜色面板" }).click();
   await expect(input.locator("span[data-gradient-range]")).toHaveCount(1);
 
   const sourceId = await input
@@ -490,8 +697,12 @@ test("a partial gradient edit gets separate coordinates and preserves every stop
   await openPoster(page, "fpgrange");
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
   const input = await selectScenery(page);
-  await page.getByLabel("渐变填充", { exact: true }).click();
-  await page.getByRole("option", { name: "线性渐变", exact: true }).click();
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "编辑文字颜色" })
+    .getByText("线性渐变", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "关闭颜色面板" }).click();
   const original = input.locator("[data-gradient-range]");
   await expect(original).toHaveText("风景");
   const originalId = await original.getAttribute("data-gradient-range");
@@ -510,12 +721,16 @@ test("a partial gradient edit gets separate coordinates and preserves every stop
     .toBe("风");
   await page.getByRole("button", { name: "文字颜色", exact: true }).click();
   await page.getByRole("button", { name: "添加色标" }).click();
-  await page.getByLabel("颜色类型", { exact: true }).selectOption("radial");
-  await expect(page.getByRole("slider", { name: "圆心 X" })).toHaveAttribute(
-    "aria-valuenow",
+  await page
+    .getByRole("dialog", { name: "编辑文字颜色" })
+    .getByText("径向渐变", { exact: true })
+    .click();
+  await expect(page.getByRole("spinbutton", { name: "圆心 X" })).toHaveValue(
     "50",
   );
-  await expect(page.getByRole("button", { name: /^删除色标/ })).toHaveCount(3);
+  await expect(page.getByRole("button", { name: /^色标 [123]，/ })).toHaveCount(
+    3,
+  );
   await expect(input.locator("[data-gradient-range]")).toHaveCount(2);
   const updated = input
     .locator("[data-gradient-range]")
@@ -536,7 +751,10 @@ test("a partial gradient edit gets separate coordinates and preserves every stop
     selection.addRange(range);
     document.dispatchEvent(new Event("selectionchange"));
   });
-  const angle = page.getByRole("slider", { name: "渐变角度" });
+  const colorPanel = page.getByRole("dialog", { name: "编辑文字颜色" });
+  await expect(colorPanel).toHaveCount(0);
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
+  const angle = colorPanel.getByRole("slider", { name: "渐变角度" });
   await angle.press("ArrowRight");
   await expect(angle).toHaveAttribute("aria-valuenow", "91");
   expect(await remainder.getAttribute("data-gradient-range")).not.toBe(
@@ -555,8 +773,12 @@ test("gradient paint follows the line after changing alignment", async ({
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
   await page.getByRole("textbox", { name: "海报文字编辑" }).fill("风景");
   await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
-  await page.getByLabel("渐变填充", { exact: true }).click();
-  await page.getByRole("option", { name: "线性渐变", exact: true }).click();
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "编辑文字颜色" })
+    .getByText("线性渐变", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "关闭颜色面板" }).click();
   const paint = page.locator("[data-text-block] [data-gradient-paint] > div");
   await expect(paint).toHaveCSS("background-clip", "text");
   const left = await paint.evaluate((el) =>

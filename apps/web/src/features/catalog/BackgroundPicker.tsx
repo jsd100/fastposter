@@ -1,13 +1,7 @@
-import {
-  cloneElement,
-  useEffect,
-  useRef,
-  useState,
-  type ReactElement,
-  type RefObject,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Image, Pagination } from "antd";
+import { Card, Pagination } from "antd";
+import { ZoomIn } from "lucide-react";
 import {
   loadCatalogPages,
   routes,
@@ -17,11 +11,11 @@ import {
 import {
   Button,
   Dialog,
+  ImageZoom,
   LoadingState,
   Select,
   Status,
   TextInput,
-  restoreLayerFocus,
   useErrorNotice,
 } from "@fastposter/ui";
 import { request, errorMessage } from "../../api";
@@ -57,54 +51,6 @@ function sameSelection(a: Selection | null, b: Selection | null) {
   );
 }
 
-type Preview = {
-  target: Selection;
-  title: string;
-  src: string | undefined;
-  opener: HTMLButtonElement;
-};
-
-function BackgroundPreview({
-  preview,
-  searchInput,
-  close,
-}: {
-  preview: Preview;
-  searchInput: RefObject<HTMLInputElement | null>;
-  close: () => void;
-}) {
-  const [failed, setFailed] = useState(!preview.src);
-  useEffect(
-    () => () => restoreLayerFocus(preview.opener, () => searchInput.current),
-    [preview.opener, searchInput],
-  );
-
-  return (
-    <Image
-      alt={preview.title}
-      styles={{ root: { display: "none" } }}
-      preview={{
-        open: true,
-        src: preview.src,
-        onOpenChange: (open) => {
-          // Unmount the preview on close so an interrupted transition cannot
-          // leave an invisible modal over the library.
-          if (!open) close();
-        },
-        imageRender: (image) =>
-          failed ? (
-            <Status tone="error">原图加载失败，请关闭预览后重试。</Status>
-          ) : (
-            cloneElement(image as ReactElement<{ onError: () => void }>, {
-              onError: () => setFailed(true),
-            })
-          ),
-        actionsRender: (actions) => (failed ? null : actions),
-      }}
-    />
-  );
-}
-
 export function BackgroundPicker({
   mode,
   onChoose,
@@ -128,7 +74,6 @@ export function BackgroundPicker({
   const [selected, setSelected] = useState<Selection | null>(null);
   const [confirmError, setConfirmError] = useState("");
   const [rechecking, setRechecking] = useState(false);
-  const [preview, setPreview] = useState<Preview | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   /* A live mirror of the account, query and selection a re-check reply must
      still match. Written during render (as useCreationScope does) so a change
@@ -198,14 +143,6 @@ export function BackgroundPicker({
     );
     if (!visible) setSelected(null);
   }, [q.data, selected, isCreate]);
-
-  useEffect(() => {
-    if (!preview || !q.data) return;
-    const visible = q.data.resources.some((resource) =>
-      sameSelection(identity(resource), preview.target),
-    );
-    if (!visible) setPreview(null);
-  }, [q.data, preview]);
 
   function changeFilter(next: {
     keyword?: string;
@@ -284,7 +221,11 @@ export function BackgroundPicker({
       onClose={onClose}
       restoreFocusTo={restoreFocusTo}
     >
-      <p>选择预设背景。不同尺寸会调整画布和文字位置，字号保持不变。</p>
+      {!isCreate && (
+        <p className="picker-description">
+          选用不同尺寸的背景会调整画布和文字位置，字号保持不变。
+        </p>
+      )}
       <div className="picker-filters">
         <TextInput
           ref={searchInput}
@@ -318,13 +259,32 @@ export function BackgroundPicker({
           const asset = r.asset;
           const sel = isCreate && sameSelection(selected, target);
           return (
-            <div className="background-card fp-actionable-card" key={r.id}>
+            <Card
+              size="small"
+              className="background-card fp-actionable-card"
+              data-selected={sel ? "" : undefined}
+              key={`${r.id}:${r.version}:${asset.id}:${asset.version}`}
+              cover={
+                <ImageZoom
+                  className="background-cover"
+                  thumbnailSrc={asset.previewUrl}
+                  previewSrc={asset.url}
+                  title={r.title}
+                  zoomIcon={<ZoomIn size={20} aria-hidden="true" />}
+                  restoreFocusTo={() => searchInput.current}
+                />
+              }
+            >
+              <h3 title={r.title}>{r.title}</h3>
+              <small className="background-card-size">
+                {asset.width} × {asset.height} px
+              </small>
               <Button
                 className="background-select"
+                density="compact"
                 variant={sel ? "primary" : "secondary"}
                 aria-label={isCreate ? `选择 ${r.title}` : `选用 ${r.title}`}
                 aria-pressed={isCreate ? !!sel : undefined}
-                data-selected={isCreate && sel ? "" : undefined}
                 onClick={() => {
                   if (isCreate) {
                     setSelected(target);
@@ -335,39 +295,12 @@ export function BackgroundPicker({
                   }
                 }}
               >
-                <img src={asset.previewUrl} alt="" />
-                <span>{r.title}</span>
-                <small>
-                  {asset.width} × {asset.height}
-                  {isCreate && sel ? " · 已选中" : ""}
-                </small>
+                {isCreate ? (sel ? "已选择" : "选择") : "选用"}
               </Button>
-              <Button
-                className="background-zoom"
-                aria-label={`放大预览 ${r.title}`}
-                aria-haspopup="dialog"
-                onClick={(event) =>
-                  setPreview({
-                    target,
-                    title: r.title,
-                    src: asset.url,
-                    opener: event.currentTarget,
-                  })
-                }
-              >
-                放大预览
-              </Button>
-            </div>
+            </Card>
           );
         })}
       </div>
-      {preview && (
-        <BackgroundPreview
-          preview={preview}
-          searchInput={searchInput}
-          close={() => setPreview(null)}
-        />
-      )}
       {q.isPending && <LoadingState label="正在加载预设背景…" />}
       {q.error && (
         <div className="picker-failed">

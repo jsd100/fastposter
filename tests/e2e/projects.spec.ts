@@ -224,15 +224,153 @@ async function publishBackground(browser: Browser, title: string) {
   return context;
 }
 
-/**
- * A06.1 / A06.2 / A06.3. Both the top bar and the empty state reach one
- * clearly-named source selection. The baseline's 「新建海报」 opens the native
- * file chooser directly (or has no gallery entry at all); the fixed product
- * shows a source dialog, opens the file chooser only from 「上传本地图片」
- * inside the click's activation, and creates from a real published background
- * with zero local uploads, original dimensions/version, a returned id that can
- * be re-opened.
- */
+test("background thumbnails show both image edges in create and replace", async ({
+  page,
+}) => {
+  const resources = [
+    { title: "竖图", width: 1152, height: 2048 },
+    { title: "横图", width: 1600, height: 900 },
+    { title: "方图", width: 1000, height: 1000 },
+  ].map(({ title, width, height }, index) => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <rect width="100" height="100" fill="#777"/>
+      <rect width="100" height="16" fill="#ff0000"/>
+      <rect y="84" width="100" height="16" fill="#0000ff"/>
+    </svg>`;
+    return {
+      id: `background-${index}`,
+      kind: "background",
+      title,
+      sortOrder: index,
+      published: true,
+      version: "1",
+      asset: {
+        id: `image-${index}`,
+        version: "1",
+        kind: "image",
+        name: title,
+        width,
+        height,
+        size: String(svg.length),
+        sha256: "fixture",
+        previewUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+        url: `/api/v1/assets/image-${index}/versions/1`,
+      },
+    };
+  });
+  const date = "2026-01-01T00:00:00Z";
+  const project = {
+    id: "thumbnail-fixture",
+    title: "背景缩略图测试",
+    document: JSON.stringify({
+      schemaVersion: 1,
+      canvas: { width: 1152, height: 2048 },
+      background: { assetId: "image-0", version: "1" },
+      fonts: [],
+      textBlocks: [],
+    }),
+    revision: "1",
+    width: 1152,
+    height: 2048,
+    updatedAt: date,
+  };
+  const responses: Record<string, object> = {
+    "/api/v1/auth/me": {
+      user: {
+        id: "thumbnail-test-user",
+        username: "thumbnail-test",
+        role: "user",
+        disabled: false,
+        mustChangePassword: false,
+        createdAt: date,
+      },
+    },
+    "/api/v1/projects": { projects: [], total: 0 },
+    [`/api/v1/projects/${project.id}`]: { project },
+    "/api/v1/fonts": { fonts: [] },
+    "/api/v1/catalog/background": { resources, total: resources.length },
+    "/api/v1/catalog/background-category": { resources: [], total: 0 },
+  };
+  await page.route("**/api/v1/**", async (route) => {
+    const { pathname } = new URL(route.request().url());
+    const response = responses[pathname];
+    if (route.request().method() !== "GET") return route.abort();
+    if (pathname === resources[0].asset.url) {
+      return route.fulfill({
+        contentType: "image/png",
+        path: path.resolve("tests/fixtures/images/editor.png"),
+      });
+    }
+    if (response)
+      return route.fulfill({ json: { requestId: "e2e", ...response } });
+    return route.abort();
+  });
+
+  async function expectFullThumbnails() {
+    const library = page.getByRole("dialog", { name: "背景库" });
+    await expect(library).toBeVisible();
+    await page.mouse.move(0, 0);
+    for (const { title, asset } of resources) {
+      const thumbnail = library.getByRole("button", {
+        name: `放大预览 ${title}`,
+        exact: true,
+      });
+      const image = thumbnail.locator("img");
+      await expect(image).toHaveJSProperty("naturalWidth", asset.width);
+      const screenshot = await thumbnail.screenshot({
+        animations: "disabled",
+        scale: "css",
+      });
+      const edges = await page.evaluate(
+        async ({ png, width, height }) => {
+          const img = new Image();
+          img.src = `data:image/png;base64,${png}`;
+          await img.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const context = canvas.getContext("2d")!;
+          context.drawImage(img, 0, 0);
+          const fittedHeight = Math.min(
+            img.height,
+            (img.width * height) / width,
+          );
+          const pixelAt = (fraction: number) => {
+            const y = Math.floor(
+              (img.height - fittedHeight) / 2 + fittedHeight * fraction,
+            );
+            return Array.from(
+              context.getImageData(Math.floor(img.width / 2), y, 1, 1).data,
+            );
+          };
+          return { top: pixelAt(0.08), bottom: pixelAt(0.92) };
+        },
+        {
+          png: screenshot.toString("base64"),
+          width: asset.width,
+          height: asset.height,
+        },
+      );
+      expect(edges, `${title}的上下边缘`).toEqual({
+        top: [255, 0, 0, 255],
+        bottom: [0, 0, 255, 255],
+      });
+      await expect(image).toHaveCSS("object-fit", "contain");
+      const size = (await thumbnail.boundingBox())!;
+      expect(size.width / size.height).toBeCloseTo(4 / 5, 2);
+    }
+  }
+
+  await page.goto("/projects");
+  await page.getByRole("button", { name: "新建海报", exact: true }).click();
+  await page.getByRole("button", { name: "从背景库选择", exact: true }).click();
+  await expectFullThumbnails();
+
+  await page.goto(`/projects/${project.id}/edit`);
+  await page.getByRole("button", { name: "背景库", exact: true }).click();
+  await expectFullThumbnails();
+});
+
 test("background preview does not select or create", async ({
   page,
   browser,
@@ -267,7 +405,8 @@ test("background preview does not select or create", async ({
       name: `放大预览 ${title}`,
       exact: true,
     });
-    await expect(zoom).toBeVisible();
+    await expect(zoom.locator("img")).toBeVisible();
+    await expect(zoom).toHaveText("");
     await expect(
       library.getByRole("button", { name: "", exact: true }),
     ).toHaveCount(0);
@@ -285,7 +424,7 @@ test("background preview does not select or create", async ({
       if (/\/api\/v1\/assets\/[^/]+\/versions\/[^/?]+$/.test(req.url()))
         originals.push(req.url());
     });
-    await zoom.press("Enter");
+    await zoom.press("Space");
     const preview = page.getByRole("dialog");
     await expect(preview).toHaveCount(2);
     await expect.poll(() => originals.length).toBeGreaterThan(0);
@@ -348,7 +487,7 @@ test("background preview keeps filters and closes when the original fails", asyn
       name: `放大预览 ${title}`,
       exact: true,
     });
-    await expect(zoom).toBeVisible({ timeout: 20_000 });
+    await expect(zoom.locator("img")).toBeVisible({ timeout: 20_000 });
 
     expect(originalRequests).toHaveLength(0);
     await zoom.click();
@@ -366,6 +505,15 @@ test("background preview keeps filters and closes when the original fails", asyn
   }
 });
 
+/**
+ * A06.1 / A06.2 / A06.3. Both the top bar and the empty state reach one
+ * clearly-named source selection. The baseline's 「新建海报」 opens the native
+ * file chooser directly (or has no gallery entry at all); the fixed product
+ * shows a source dialog, opens the file chooser only from 「上传本地图片」
+ * inside the click's activation, and creates from a real published background
+ * with zero local uploads, original dimensions/version, a returned id that can
+ * be re-opened.
+ */
 test("gallery creates at the published background dimensions", async ({
   page,
   browser,

@@ -555,7 +555,23 @@ test("quick publish conflict reloads newest resource and waits for explicit conf
     await expect(admin).toHaveURL(/\/admin\/backgrounds$/);
     const card = admin.getByTestId("resource-card");
     await expect(card).toHaveCount(1);
-    await card.getByRole("button", { name: "发布", exact: true }).click();
+    await admin.mouse.move(0, 0);
+    const edit = card.getByRole("button", { name: "编辑", exact: true });
+    const publish = card.getByRole("button", { name: "发布", exact: true });
+    const remove = card.getByRole("button", { name: "删除", exact: true });
+    const actionStyle = (button: typeof edit) =>
+      button.evaluate((element) => {
+        const style = window.getComputedStyle(element);
+        return [style.borderTopColor, style.backgroundColor, style.height];
+      });
+    const editStyle = await actionStyle(edit);
+    const publishStyle = await actionStyle(publish);
+    const removeStyle = await actionStyle(remove);
+    expect(editStyle[0]).not.toBe("rgba(0, 0, 0, 0)");
+    expect(publishStyle).toEqual(editStyle);
+    expect(removeStyle.slice(1)).toEqual(editStyle.slice(1));
+    expect(removeStyle[0]).not.toBe(editStyle[0]);
+    await publish.click();
 
     // (a) 409 must NOT trigger an automatic second POST.
     await expect.poll(() => postCount).toBe(1);
@@ -595,6 +611,91 @@ test("quick publish conflict reloads newest resource and waits for explicit conf
     // (e) success clears the conflict state and refreshes the list.
     await expect(admin.getByTestId("version-conflict")).toHaveCount(0);
     await expect(admin.getByTestId("resource-card")).toContainText("已发布");
+    await admin.mouse.move(0, 0);
+    const unpublish = card.getByRole("button", { name: "下架", exact: true });
+    for (const width of [320, 390, 768, 1024, 1440]) {
+      await admin.setViewportSize({ width, height: 900 });
+      const cardBox = (await card.boundingBox())!;
+      for (const button of [edit, unpublish, remove]) {
+        const box = (await button.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(cardBox.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(
+          cardBox.x + cardBox.width,
+        );
+      }
+      expect(await actionStyle(unpublish)).toEqual(await actionStyle(edit));
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+/* The background form borrows the file's own name, and the card opens the
+   original the same way the poster library does. Both are conveniences of
+   this page, so the assertions stay here. */
+test("background upload names the asset after its file and previews the original", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const context = await browser.newContext();
+  const admin = await context.newPage();
+  await admin.goto("http://127.0.0.1:15174/admin/login");
+  await admin.getByLabel("用户名", { exact: true }).fill("admin-e2e");
+  await admin
+    .getByLabel("密码", { exact: true })
+    .fill("fastposter-test-only-password");
+  await admin
+    .getByRole("button", { name: "登录管理后台", exact: true })
+    .click();
+  await expect(admin).toHaveURL(/\/admin\/overview$/);
+  try {
+    await admin.getByRole("link", { name: "背景库", exact: true }).click();
+    await admin.getByRole("button", { name: "添加背景", exact: true }).click();
+    const form = admin.getByRole("dialog", { name: "添加背景" });
+    const name = form.getByLabel("素材名称", { exact: true });
+    // Picking the file is enough: the name follows it, without the extension.
+    await form
+      .getByLabel("背景图片文件", { exact: true })
+      .setInputFiles(path.resolve("tests/fixtures/images/rgba.png"));
+    await expect(name).toHaveValue("rgba");
+    // A typed name belongs to the administrator; a later file must not win.
+    await name.fill("后台预览 " + Date.now().toString(36));
+    const title = await name.inputValue();
+    await form
+      .getByLabel("背景图片文件", { exact: true })
+      .setInputFiles(path.resolve("tests/fixtures/images/editor.png"));
+    await expect(name).toHaveValue(title);
+    await form.getByLabel("立即发布", { exact: true }).check();
+    await form.getByRole("button", { name: "保存素材", exact: true }).click();
+    const card = admin.getByTestId("resource-card").filter({ hasText: title });
+    await expect(card).toBeVisible();
+
+    // The original is requested only when the preview opens.
+    const originals: string[] = [];
+    admin.on("request", (req) => {
+      if (
+        /\/api\/v1\/assets\/[^/]+\/versions\/[^/?]+$/.test(
+          new URL(req.url()).pathname,
+        )
+      )
+        originals.push(req.url());
+    });
+    const zoom = card.getByRole("button", {
+      name: `放大预览 ${title}`,
+      exact: true,
+    });
+    await expect(zoom.locator("img")).toBeVisible();
+    expect(originals).toHaveLength(0);
+    await zoom.click();
+    const preview = admin.getByRole("dialog", { name: title, exact: true });
+    await expect(preview).toBeVisible();
+    await expect.poll(() => originals.length).toBeGreaterThan(0);
+    // Looking at the original is not an action on the resource.
+    await expect(card).toContainText("已发布");
+    await admin.keyboard.press("Escape");
+    await expect(preview).toHaveCount(0);
+    await expect(zoom).toBeFocused();
+    await expect(card).toBeVisible();
   } finally {
     await context.close();
   }
