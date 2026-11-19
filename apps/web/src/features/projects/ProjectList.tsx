@@ -7,7 +7,6 @@ import {
   ImagePlus,
   MoreHorizontal,
   Pencil,
-  RotateCcw,
   Trash2,
   LayoutTemplate,
 } from "lucide-react";
@@ -165,19 +164,16 @@ export function ProjectListView({
             {trash ? (
               <div className="trash-actions">
                 <Button
-                  variant="ghost"
                   onClick={() => onAction("restore", project)}
                   aria-label="恢复作品"
                 >
-                  <RotateCcw size={16} />
                   恢复
                 </Button>
                 <Button
-                  variant="danger"
+                  variant="danger-outline"
                   onClick={() => onAction("permanent-delete", project)}
                   aria-label={`彻底删除 ${project.title}`}
                 >
-                  <Trash2 size={16} />
                   彻底删除
                 </Button>
               </div>

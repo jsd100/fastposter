@@ -34,7 +34,6 @@ type Service struct {
 	DB                *sql.DB
 	Store             storage.FileStore
 	Assets            *assets.Service
-	GradientWrites    bool
 	TemplateValidator func(context.Context, auth.Principal, document.Document) ([]document.AssetRef, error)
 }
 
@@ -42,30 +41,17 @@ func NewService(db *sql.DB, store storage.FileStore, images *assets.Service) *Se
 	return &Service{DB: db, Store: store, Assets: images}
 }
 
-// WithGradientWrites applies the deployment compatibility switch to template
-// documents. The zero value stays closed.
-func (s *Service) WithGradientWrites(enabled bool) *Service {
-	s.GradientWrites = enabled
-	return s
-}
-
-func (s *Service) checkWrite(currentVersion int, d document.Document) error {
-	e := (document.WritePolicy{GradientWrites: s.GradientWrites}).CheckWrite(currentVersion, d)
+func checkWrite(currentVersion int, d document.Document) error {
+	e := document.CheckWrite(currentVersion, d)
 	switch {
 	case errors.Is(e, document.ErrSchemaDowngrade):
 		return domain.E("INVALID_INPUT", "不能将 v2 模板回退为 v1 文档")
-	case errors.Is(e, document.ErrGradientWritesDisabled):
-		return domain.E("INVALID_INPUT", "当前部署未启用渐变写入")
 	case e != nil:
 		return domain.E("INVALID_INPUT", "模板文档无效")
 	}
 	return nil
 }
 
-// CheckCreateDocument lets importers validate before storing referenced assets.
-func (s *Service) CheckCreateDocument(d document.Document) error {
-	return s.checkWrite(0, d)
-}
 func validKind(kind string) bool {
 	switch kind {
 	case "background", "font", "template", "copy", "background-category", "font-category", "template-category", "copy-category":
@@ -350,7 +336,7 @@ func (s *Service) Save(ctx context.Context, p auth.Principal, input ResourceInpu
 		if err != nil {
 			return Resource{}, domain.E("INVALID_INPUT", "模板文档无效")
 		}
-		if e = s.checkWrite(currentVersion, doc); e != nil {
+		if e = checkWrite(currentVersion, doc); e != nil {
 			return Resource{}, e
 		}
 		canonical, err := json.Marshal(doc)

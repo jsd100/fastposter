@@ -72,7 +72,6 @@ export const PosterTextStyle = TextStyle.extend({
 
 export function preparePastedText(
   slice: Slice,
-  allowGradients: boolean,
   fontIds: ReadonlySet<string>,
 ): Slice {
   const ranges = new Map<string, string>();
@@ -86,7 +85,6 @@ export function preparePastedText(
         if (attrs.fontId && !fontIds.has(attrs.fontId)) attrs.fontId = null;
         const color = attrs.color;
         if (!isGradientColor(color)) return mark.type.create(attrs);
-        if (!allowGradients) return mark.type.create({ ...attrs, color: null });
         const key = `${color.rangeId}:${gradientValueKey(color)}`;
         let rangeId = ranges.get(key);
         if (!rangeId) {

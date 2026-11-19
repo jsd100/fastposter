@@ -486,6 +486,7 @@ test("a preset color changes only selected text and survives saving and reload",
   await openPoster(page, "colorpreset");
   await page.getByRole("button", { name: "编辑文字", exact: true }).click();
   const input = await selectScenery(page);
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
   await chooseOption(page, "预设文字颜色", "莫兰迪 · 雾粉");
   await expect(input.getByText("风景", { exact: true })).toHaveCSS(
     "color",
@@ -501,6 +502,7 @@ test("a preset color changes only selected text and survives saving and reload",
     throw new Error("Unselected text is missing");
   });
   expect(outsideColor).not.toBe("rgb(181, 143, 145)");
+  await page.getByRole("button", { name: "关闭颜色面板" }).click();
   await page.getByRole("button", { name: "完成文字编辑", exact: true }).click();
   await page.getByRole("button", { name: "保存作品", exact: true }).click();
   await expect(page.getByText("已保存", { exact: true })).toBeVisible();

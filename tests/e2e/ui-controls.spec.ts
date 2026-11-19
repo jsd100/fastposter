@@ -744,11 +744,11 @@ test("reduced motion leaves overlays usable", async ({ browser, page }) => {
     // ColorPicker
     const color = target.getByLabel("文字颜色", { exact: true });
     await color.click();
-    const hexInput = target.locator(".ant-color-picker-hex-input input");
+    const hexInput = target.getByRole("textbox", { name: "文字颜色 HEX" });
     await assertUsable(hexInput, `${mode} color hex input`);
     await hexInput.fill("00ff00");
-    await color.click();
-    await expect(target.locator(".ant-color-picker-hex-input")).toHaveCount(0);
+    await target.getByRole("button", { name: "关闭颜色面板" }).click();
+    await expect(hexInput).toHaveCount(0);
 
     // Tooltip
     const copy = target.getByRole("button", {
@@ -1033,14 +1033,21 @@ test("closed select values share the trigger center", async ({
     await expect(text, `${label} value or placeholder`).toHaveCount(1);
     const caret = root.locator(".ant-select-suffix svg");
     await expect(caret, `${label} caret`).toHaveCount(1);
-    const rootBox = (await root.boundingBox())!;
-    const valueBox = (await text.boundingBox())!;
-    const caretBox = (await caret.boundingBox())!;
-    return {
-      trigger: rootBox.y + rootBox.height / 2,
-      value: valueBox.y + valueBox.height / 2,
-      caret: caretBox.y + caretBox.height / 2,
-    };
+    // Read all three in the same frame while a portalled Select is aligning.
+    return root.evaluate((element) => {
+      const center = (node: Element) => {
+        const box = node.getBoundingClientRect();
+        return box.y + box.height / 2;
+      };
+      const value =
+        element.querySelector("[data-fp-select-value]") ??
+        element.querySelector(".ant-select-selection-placeholder")!;
+      return {
+        trigger: center(element),
+        value: center(value),
+        caret: center(element.querySelector(".ant-select-suffix svg")!),
+      };
+    });
   }
   function expectCentered(m: Alignment, note: string) {
     expect(
@@ -1055,11 +1062,10 @@ test("closed select values share the trigger center", async ({
 
   // A static family retains a numeric select. Variable fonts use a slider.
   await chooseOption(page, "文字字体", "霞鹜文楷");
-  // A04.1 list: numeric weight, Chinese font, and preset colour swatch.
+  // A04.1 list: numeric weight and Chinese font in the inspector.
   const cases = [
     ["文字字重", "数字/字号与混合态"],
     ["文字字体", "中文字体"],
-    ["预设文字颜色", "预设色/色块"],
   ] as const;
   for (const [label, note] of cases) {
     expectCentered(await alignment(page, label), `${label} (${note})`);
@@ -1068,20 +1074,25 @@ test("closed select values share the trigger center", async ({
   // The colour swatch itself must share the same centre line. Select a preset
   // first so labelRender actually renders the swatch span (the initial colour
   // is a custom #000000 with no preset swatch).
+  await page.getByRole("button", { name: "文字颜色", exact: true }).click();
+  expectCentered(await alignment(page, "预设文字颜色"), "预设文字颜色");
   await chooseOption(page, "预设文字颜色", "经典 · 墨黑");
   {
     const root = selectRoot(page, "预设文字颜色");
     const swatch = root.locator("[data-fp-select-value] > span").first();
     await expect(swatch, "preset swatch").toHaveCount(1);
-    const rootBox = (await root.boundingBox())!;
-    const swatchBox = (await swatch.boundingBox())!;
-    expect(
-      Math.abs(
-        swatchBox.y + swatchBox.height / 2 - (rootBox.y + rootBox.height / 2),
-      ),
-      "preset swatch vs trigger",
-    ).toBeLessThanOrEqual(2);
+    const offset = await root.evaluate((element) => {
+      const control = element.getBoundingClientRect();
+      const swatch = element
+        .querySelector("[data-fp-select-value] > span")!
+        .getBoundingClientRect();
+      return Math.abs(
+        swatch.y + swatch.height / 2 - (control.y + control.height / 2),
+      );
+    });
+    expect(offset, "preset swatch vs trigger").toBeLessThanOrEqual(2);
   }
+  await page.getByRole("button", { name: "关闭颜色面板" }).click();
 
   // Ruling 36 / A04.4: "样式不作用到海报文档节点" is proved by reading the
   // document node's computed font-size / colour and comparing them with the

@@ -30,13 +30,6 @@ import (
 	"time"
 )
 
-func gradientWritesValue(enabled bool) string {
-	if enabled {
-		return "1"
-	}
-	return "0"
-}
-
 // Browser acceptance uses actual domain services and transports in a disposable
 // MySQL schema and data directory, never the developer's fastposter database.
 func TestBrowserStack(t *testing.T) {
@@ -63,9 +56,8 @@ func TestBrowserStack(t *testing.T) {
 	if e = images.BootstrapFonts(context.Background(), root); e != nil {
 		t.Fatal(e)
 	}
-	gradientWrites := os.Getenv("FASTPOSTER_GRADIENT_WRITES") == "1"
-	posters := projects.NewService(db, store).WithGradientWrites(gradientWrites)
-	library := catalog.NewService(db, store, images).WithGradientWrites(gradientWrites)
+	posters := projects.NewService(db, store)
+	library := catalog.NewService(db, store, images)
 	copies := copy.NewService(db, library)
 	portable := templates.NewService(db, store, posters, images, library, t.TempDir())
 	rl, e := net.Listen("tcp", "127.0.0.1:0")
@@ -127,7 +119,6 @@ func TestBrowserStack(t *testing.T) {
 	cmd.Env = append(os.Environ(),
 		"API_PROXY=http://127.0.0.1:18080",
 		"FASTPOSTER_VITE_CACHE_DIR="+t.TempDir(),
-		"VITE_GRADIENT_WRITES="+gradientWritesValue(gradientWrites),
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -150,7 +141,6 @@ func TestBrowserStack(t *testing.T) {
 	adminCmd.Env = append(os.Environ(),
 		"API_PROXY=http://127.0.0.1:18080",
 		"FASTPOSTER_VITE_CACHE_DIR="+t.TempDir(),
-		"VITE_GRADIENT_WRITES="+gradientWritesValue(gradientWrites),
 	)
 	adminCmd.Stdout = os.Stdout
 	adminCmd.Stderr = os.Stderr

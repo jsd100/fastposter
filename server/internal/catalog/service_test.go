@@ -47,18 +47,16 @@ func TestTemplateGradientWriteBoundary(t *testing.T) {
 	}
 
 	v1Solid, v2Gradient := read("valid-mixed"), read("gradient-v2")
-	closed := NewService(nil, nil, nil)
-	if e := closed.checkWrite(0, v1Solid); e != nil {
-		t.Fatal("closed deployment rejected a v1 solid template write", e)
+	if e := checkWrite(0, v1Solid); e != nil {
+		t.Fatal("rejected v1 solid template", e)
 	}
-	if e := closed.checkWrite(0, v2Gradient); code(e) != "INVALID_INPUT" {
-		t.Fatal("closed deployment accepted a gradient template write", e)
+	if e := checkWrite(0, v2Gradient); e != nil {
+		t.Fatal("rejected v2 gradient template with default configuration", e)
 	}
-	open := NewService(nil, nil, nil).WithGradientWrites(true)
-	if e := open.checkWrite(0, v2Gradient); e != nil {
-		t.Fatal("enabled deployment rejected a gradient template write", e)
+	if e := checkWrite(1, v2Gradient); e != nil {
+		t.Fatal("rejected v1 to v2 template upgrade", e)
 	}
-	if e := open.checkWrite(2, v1Solid); code(e) != "INVALID_INPUT" {
-		t.Fatal("enabled deployment accepted a v2 to v1 template downgrade", e)
+	if e := checkWrite(2, v1Solid); code(e) != "INVALID_INPUT" {
+		t.Fatal("accepted a v2 to v1 template downgrade", e)
 	}
 }

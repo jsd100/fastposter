@@ -46,6 +46,12 @@ describe("project list states", () => {
     );
     expect(html).toContain("恢复作品");
     expect(html).toContain("彻底删除");
+    expect(html).toMatch(
+      /<button\b[^>]*aria-label="恢复作品"[^>]*class="[^"]*\bant-btn-default\b/,
+    );
+    expect(html).toMatch(
+      /<button\b[^>]*aria-label="彻底删除 旧海报"[^>]*class="[^"]*\bant-btn-default\b[^"]*\bant-btn-dangerous\b/,
+    );
     expect(html).not.toContain("/projects/p1/edit");
   });
   it("does not claim the trash is empty while cleanup is pending", () => {

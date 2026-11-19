@@ -3,6 +3,7 @@ export * from "./Button";
 export * from "./Checkbox";
 export * from "./Dialog";
 export * from "./Form";
+export * from "./ImageZoom";
 export * from "./Input";
 export * from "./LoadingState";
 export * from "./modal-layer";

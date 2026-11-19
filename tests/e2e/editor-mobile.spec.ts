@@ -11,6 +11,76 @@ test.use({
   hasTouch: true,
   deviceScaleFactor: 2,
 });
+
+test("mobile color preset search and Escape stay inside the color drawer", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await openPoster(page, "fppresetmobile");
+  await page.getByRole("button", { name: "文字设置", exact: true }).tap();
+  await page.getByRole("button", { name: "文字颜色", exact: true }).tap();
+  const panel = page.getByRole("dialog", { name: "编辑文字颜色" });
+  const preset = panel.getByRole("combobox", { name: "预设文字颜色" });
+  await preset.tap();
+  const listbox = panel.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  await preset.fill("宝石蓝");
+  await expect(preset).toHaveCSS("font-size", "16px");
+  await page.keyboard.press("Escape");
+  await expect(listbox).toHaveCount(0);
+  await expect(panel).toBeVisible();
+  await preset.tap();
+  await preset.fill("宝石蓝");
+  await listbox.getByRole("option", { name: "蓝色 · 宝石蓝" }).tap();
+  await expect(
+    panel.getByRole("textbox", { name: "文字颜色 HEX" }),
+  ).toHaveValue("#2563EB");
+  await panel.getByRole("button", { name: "关闭颜色面板" }).tap();
+  await expect(panel).toHaveCount(0);
+  await expect(
+    page.getByRole("dialog", { name: "文字设置", exact: true }),
+  ).toBeVisible();
+});
+
+test("touch changes the gradient angle and can select overlapping color stops", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await openPoster(page, "touchgradient");
+  await page.getByRole("button", { name: "文字设置", exact: true }).tap();
+  await page.getByRole("button", { name: "文字颜色", exact: true }).tap();
+  const panel = page.getByRole("dialog", { name: "编辑文字颜色" });
+  await panel.getByText("线性渐变", { exact: true }).tap();
+  const dial = panel.getByRole("slider", { name: "渐变角度" });
+  const ring = (await dial.boundingBox())!;
+  await page.touchscreen.tap(ring.x + 9, ring.y + ring.height / 2);
+  const angle = panel.getByRole("spinbutton", { name: "角度" });
+  await expect(angle).toHaveValue("270");
+  await expect(angle).toHaveCSS("font-size", "16px");
+
+  const position = panel.getByRole("spinbutton", { name: "位置" });
+  await position.fill("100");
+  await position.press("Tab");
+  await expect(panel.getByRole("button", { name: "色标 1，100%" })).toHaveCount(
+    1,
+  );
+  await expect(panel.getByRole("button", { name: "色标 2，100%" })).toHaveCount(
+    1,
+  );
+  const hex = panel.getByRole("textbox", { name: "文字颜色 HEX" });
+  await expect(hex).toHaveCSS("font-size", "16px");
+  const first = await hex.inputValue();
+  await panel.getByRole("button", { name: "下一个色标" }).tap();
+  await expect(hex).not.toHaveValue(first);
+  await panel.getByRole("button", { name: "上一个色标" }).tap();
+  await expect(hex).toHaveValue(first);
+  await panel.getByRole("button", { name: "关闭颜色面板" }).tap();
+  await expect(
+    page.getByRole("dialog", { name: "文字设置", exact: true }),
+  ).toBeVisible();
+  await expect(panel).toHaveCount(0);
+});
+
 test("mobile bottom sheet styles selected text without horizontal overflow", async ({
   page,
 }) => {

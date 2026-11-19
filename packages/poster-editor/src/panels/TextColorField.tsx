@@ -1,381 +1,208 @@
-import { Button, ColorPicker, Slider } from "antd";
+import { Button, Popover, type RefSelectProps } from "antd";
+import { ChevronDown } from "lucide-react";
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
-  type KeyboardEvent,
-  type ReactElement,
 } from "react";
 import type { TextColor } from "@fastposter/poster-schema";
 import {
   gradientCSS,
+  gradientValueKey,
   isGradientColor,
-  type TextGradient,
 } from "@fastposter/poster-renderer";
-import { registerPopupLayer } from "@fastposter/ui";
-import { ColorField } from "./ColorField";
-import { gradientPresets } from "./gradient-presets";
-import { gradientWritesEnabled } from "../gradient-writes";
-import styles from "./ColorField.module.css";
+import { BottomSheet, registerPopupLayer } from "@fastposter/ui";
+import { TextColorPanel } from "./TextColorPanel";
+import shared from "./ColorField.module.css";
+import styles from "./TextColorField.module.css";
 
-const DEFAULT_SOLID = "#000000";
-export function gradientWithType(
-  kind: TextGradient["type"],
-  current?: TextGradient,
-): TextGradient {
-  if (current?.type === kind) return current;
-  const rangeId = current?.rangeId ?? "";
-  const stops = current?.stops ?? [
-    { color: "#FFB75E", offset: 0 },
-    { color: "#ED8F03", offset: 100 },
-  ];
-  return kind === "linear"
-    ? { type: "linear", rangeId, angle: 90, stops }
-    : { type: "radial", rangeId, centerX: 50, centerY: 50, stops };
-}
+type CloseAction = "commit" | "cancel";
+type ChildPopup = "presets" | "picker";
 
-function GradientEditor({
-  value,
-  onChange,
-}: {
-  value: TextGradient;
-  onChange: (next: TextGradient) => void;
-}) {
-  const rangeId = value.rangeId;
-  const patch = (next: TextGradient) => onChange({ ...next, rangeId });
-  const setStop = (index: number, stop: { color?: string; offset?: number }) =>
-    patch({
-      ...value,
-      stops: value.stops.map((s, i) => (i === index ? { ...s, ...stop } : s)),
-    });
-  return (
-    <div className={styles.gradientEditor}>
-      <div className={styles.gradientRow}>
-        <label>
-          预设
-          <select
-            aria-label="渐变预设"
-            value=""
-            onChange={(e) => {
-              const item = gradientPresets.find(
-                (preset) => preset.label === e.target.value,
-              );
-              if (item) onChange(item.value);
-            }}
-          >
-            <option value="">选择预设</option>
-            {gradientPresets.map((preset) => (
-              <option key={preset.label} value={preset.label}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {value.type === "linear" ? (
-        <label className={styles.gradientRow}>
-          角度 {value.angle}°
-          <Slider
-            ariaLabelForHandle="渐变角度"
-            min={0}
-            max={359}
-            step={1}
-            value={value.angle}
-            onChange={(angle) => patch({ ...value, angle })}
-          />
-        </label>
-      ) : (
-        <div className={styles.gradientRow}>
-          <label>
-            圆心 X {value.centerX}%
-            <Slider
-              ariaLabelForHandle="圆心 X"
-              min={0}
-              max={100}
-              value={value.centerX}
-              onChange={(centerX) => patch({ ...value, centerX })}
-            />
-          </label>
-          <label>
-            圆心 Y {value.centerY}%
-            <Slider
-              ariaLabelForHandle="圆心 Y"
-              min={0}
-              max={100}
-              value={value.centerY}
-              onChange={(centerY) => patch({ ...value, centerY })}
-            />
-          </label>
-        </div>
-      )}
-      <div className={styles.stops}>
-        {value.stops.map((stop, index) => (
-          <div key={index} className={styles.stopRow}>
-            <ColorPicker
-              value={stop.color}
-              onChange={(color) =>
-                setStop(index, { color: color.toHexString() })
-              }
-            >
-              <Button
-                htmlType="button"
-                aria-label={`色标 ${index + 1} 颜色`}
-                size="small"
-              >
-                <span
-                  aria-hidden="true"
-                  className={styles.stopSwatch}
-                  style={{ backgroundColor: stop.color }}
-                />
-                {stop.color.toUpperCase()}
-              </Button>
-            </ColorPicker>
-            <input
-              aria-label={`色标 ${index + 1} 位置`}
-              type="number"
-              min={value.stops[index - 1]?.offset ?? 0}
-              max={value.stops[index + 1]?.offset ?? 100}
-              value={stop.offset}
-              onChange={(e) => {
-                const offset = Number(e.target.value);
-                if (Number.isFinite(offset))
-                  setStop(index, {
-                    offset: Math.max(
-                      value.stops[index - 1]?.offset ?? 0,
-                      Math.min(value.stops[index + 1]?.offset ?? 100, offset),
-                    ),
-                  });
-              }}
-            />
-            <Button
-              htmlType="button"
-              size="small"
-              aria-label={`删除色标 ${index + 1}`}
-              disabled={value.stops.length <= 2}
-              onClick={() =>
-                patch({
-                  ...value,
-                  stops: value.stops.filter((_, i) => i !== index),
-                })
-              }
-            >
-              删除
-            </Button>
-          </div>
-        ))}
-      </div>
-      <Button
-        htmlType="button"
-        size="small"
-        aria-label="添加色标"
-        disabled={value.stops.length >= 8}
-        onClick={() => {
-          const last = value.stops[value.stops.length - 1];
-          patch({
-            ...value,
-            stops: [
-              ...value.stops,
-              { color: last.color, offset: Math.min(100, last.offset + 10) },
-            ],
-          });
-        }}
-      >
-        添加色标
-      </Button>
-    </div>
-  );
-}
+const DEFAULT_TEXT_COLOR = "#000000";
 
-/**
- * Solid colors delegate to the shared ColorField so its hex popup contract is
- * untouched. Gradients use a dedicated controlled popup whose open -> close
- * cycle is one undo step.
- */
 export function TextColorField({
-  label,
   value,
-  onChange,
-  onInteractionStart,
-  onInteractionEnd,
-  allowGradient = gradientWritesEnabled(),
-}: {
-  label: string;
-  value: TextColor;
-  onChange: (next: TextColor) => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: (action: "commit" | "cancel") => void;
-  allowGradient?: boolean;
-}): ReactElement {
-  const gradient = isGradientColor(value) ? value : null;
-  const solid = typeof value === "string" ? value : DEFAULT_SOLID;
-
-  // Pure color keeps the original ColorField trigger and popup verbatim.
-  if (!gradient)
-    return (
-      <ColorField
-        label={label}
-        value={solid}
-        onChange={(next) => onChange(next)}
-        onInteractionStart={onInteractionStart}
-        onInteractionEnd={onInteractionEnd}
-      />
-    );
-
-  // A deployment that cannot write gradients still renders them faithfully;
-  // it simply does not offer an editor for the stored value.
-  if (!allowGradient)
-    return (
-      <label className="panel-field">
-        {label}
-        <span
-          aria-label={label}
-          style={{
-            display: "inline-block",
-            width: 32,
-            height: 18,
-            borderRadius: 4,
-            backgroundImage: gradientCSS(gradient),
-          }}
-        />
-      </label>
-    );
-
-  return (
-    <GradientTrigger
-      label={label}
-      value={gradient}
-      onChange={onChange}
-      onInteractionStart={onInteractionStart}
-      onInteractionEnd={onInteractionEnd}
-    />
-  );
-}
-
-function GradientTrigger({
-  label,
-  value,
+  target,
+  sample,
+  phone,
   onChange,
   onInteractionStart,
   onInteractionEnd,
 }: {
-  label: string;
-  value: TextGradient;
+  value: TextColor | null;
+  target: string;
+  sample: string;
+  phone: boolean;
   onChange: (next: TextColor) => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: (action: "commit" | "cancel") => void;
-}): ReactElement {
-  const [open, setOpen] = useState(false);
-  const trigger = useRef<HTMLButtonElement | null>(null);
-  const releasePopup = useRef<(() => void) | null>(null);
+  onInteractionStart: () => void;
+  onInteractionEnd: (action: CloseAction) => void;
+}) {
+  const [session, setSession] = useState<{
+    target: string;
+    phone: boolean;
+  } | null>(null);
+  const [popup, setPopup] = useState<ChildPopup | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const pickerTrigger = useRef<HTMLButtonElement>(null);
+  const presetTrigger = useRef<RefSelectProps>(null);
+  const release = useRef<(() => void) | null>(null);
   const changed = useRef(false);
-  const valueRef = useRef<TextColor>(value);
-  const startHandler = useRef(onInteractionStart);
   const endHandler = useRef(onInteractionEnd);
-  valueRef.current = value;
-  startHandler.current = onInteractionStart;
   endHandler.current = onInteractionEnd;
 
-  const emit = (next: TextColor) => {
-    if (JSON.stringify(next) === JSON.stringify(valueRef.current)) return;
-    if (!changed.current) {
-      changed.current = true;
-      startHandler.current?.();
+  const finish = useCallback((action: CloseAction) => {
+    release.current?.();
+    release.current = null;
+    if (changed.current) {
+      changed.current = false;
+      endHandler.current(action);
     }
-    onChange(next);
-  };
-  const end = (action: "commit" | "cancel" = "commit") => {
-    releasePopup.current?.();
-    releasePopup.current = null;
-    if (!changed.current) return;
-    changed.current = false;
-    endHandler.current?.(action);
-  };
-  useEffect(
-    () => () => {
-      releasePopup.current?.();
-      releasePopup.current = null;
-      if (changed.current) {
-        changed.current = false;
-        endHandler.current?.("commit");
-      }
+  }, []);
+  const close = useCallback(
+    (action: CloseAction, focus = false) => {
+      finish(action);
+      setPopup(null);
+      setSession(null);
+      if (focus) trigger.current?.focus({ preventScroll: true });
     },
-    [],
+    [finish],
   );
-  const preview = gradientCSS(value);
-  return (
-    <span
-      className={styles.field}
-      onKeyDown={(event: KeyboardEvent<HTMLSpanElement>) => {
-        if (!open || event.key !== "Escape") return;
-        event.preventDefault();
-        event.stopPropagation();
-        setOpen(false);
-        end("cancel");
-        trigger.current?.focus();
-      }}
+
+  useEffect(() => () => finish("commit"), [finish]);
+  useLayoutEffect(() => {
+    if (session && (session.target !== target || session.phone !== phone))
+      close("commit");
+  }, [session, target, phone, close]);
+
+  useEffect(() => {
+    if (!session) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing) return;
+      event.stopPropagation();
+      event.preventDefault();
+      if (popup) {
+        setPopup(null);
+        const opener =
+          popup === "picker" ? pickerTrigger.current : presetTrigger.current;
+        opener?.focus({ preventScroll: true });
+      } else close("cancel", true);
+    };
+    window.addEventListener("keydown", escape, true);
+    return () => window.removeEventListener("keydown", escape, true);
+  }, [session, popup, close]);
+
+  function setChildPopup(child: ChildPopup, open: boolean) {
+    setPopup((current) => (open ? child : current === child ? null : current));
+  }
+
+  const open =
+    !!session && session.target === target && session.phone === phone;
+  const setOpen = (next: boolean) => {
+    if (next) {
+      if (session) return;
+      if (!phone) release.current = registerPopupLayer();
+      setSession({ target, phone });
+    } else {
+      close("commit");
+      window.requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (active === document.body || !active?.isConnected)
+          trigger.current?.focus({ preventScroll: true });
+      });
+    }
+  };
+  const gradient = isGradientColor(value) ? value : null;
+  const control = (
+    <Button
+      ref={trigger}
+      className={`${shared.trigger} ${styles.trigger}`}
+      aria-label="文字颜色"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      onClick={phone ? () => setOpen(true) : undefined}
     >
-      <Button
-        ref={trigger}
-        htmlType="button"
-        className={styles.trigger}
-        aria-label={label}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => {
-          if (!open) {
-            changed.current = false;
-            if (!releasePopup.current)
-              releasePopup.current = registerPopupLayer();
-            setOpen(true);
-          } else {
-            setOpen(false);
-            end("commit");
-          }
-        }}
-      >
+      <span className={shared.swatch} aria-hidden="true">
         <span
-          className={styles.swatch}
-          style={{ background: preview }}
-          aria-hidden="true"
+          className={shared.swatchColor}
+          style={{
+            background: gradient
+              ? gradientCSS(gradient)
+              : typeof value === "string"
+                ? value
+                : DEFAULT_TEXT_COLOR,
+          }}
         />
-        <span className={styles.hex}>
-          {value.type === "linear" ? "线性渐变" : "径向渐变"}
-        </span>
-      </Button>
-      {open && (
-        <div className={styles.popup} data-fp-popup="" role="dialog">
-          <label className={styles.gradientRow}>
-            颜色类型
-            <select
-              aria-label="颜色类型"
-              value={value.type}
-              onChange={(e) => {
-                const kind = e.target.value;
-                if (kind === "solid") emit(value.stops[0].color);
-                else if (kind === "linear" || kind === "radial")
-                  emit(gradientWithType(kind, value));
-              }}
-            >
-              <option value="solid">纯色</option>
-              <option value="linear">线性渐变</option>
-              <option value="radial">径向渐变</option>
-            </select>
-          </label>
-          <GradientEditor value={value} onChange={emit} />
-          <Button
-            htmlType="button"
-            size="small"
-            aria-label="关闭颜色面板"
-            onClick={() => {
-              setOpen(false);
-              end("commit");
-              trigger.current?.focus();
-            }}
+      </span>
+      <span className={shared.hex}>
+        {gradient
+          ? gradient.type === "linear"
+            ? "线性渐变"
+            : "径向渐变"
+          : typeof value === "string"
+            ? `${value.toUpperCase()} · 纯色 / 渐变`
+            : "纯色 / 渐变"}
+      </span>
+      <ChevronDown size={14} className={styles.chevron} aria-hidden="true" />
+    </Button>
+  );
+  const content = open && (
+    <TextColorPanel
+      value={value}
+      fallbackColor={DEFAULT_TEXT_COLOR}
+      sample={sample}
+      phone={phone}
+      pickerOpen={popup === "picker"}
+      onPickerOpenChange={(open) => setChildPopup("picker", open)}
+      pickerTrigger={pickerTrigger}
+      presetsOpen={popup === "presets"}
+      onPresetsOpenChange={(open) => setChildPopup("presets", open)}
+      presetTrigger={presetTrigger}
+      onChange={(next) => {
+        if (value && gradientValueKey(next) === gradientValueKey(value)) return;
+        if (!changed.current) {
+          changed.current = true;
+          onInteractionStart();
+        }
+        onChange(next);
+      }}
+      onDone={() => close("commit", true)}
+    />
+  );
+
+  if (phone)
+    return (
+      <>
+        {control}
+        {open && (
+          <BottomSheet
+            title="编辑文字颜色"
+            onClose={() => close("commit", true)}
+            restoreFocusTo={() => trigger.current}
           >
-            完成
-          </Button>
-        </div>
-      )}
-    </span>
+            {content}
+          </BottomSheet>
+        )}
+      </>
+    );
+  return (
+    <Popover
+      trigger="click"
+      placement="leftTop"
+      autoAdjustOverflow
+      arrow={false}
+      destroyOnHidden
+      open={open}
+      onOpenChange={setOpen}
+      content={<>{content}</>}
+      styles={{ container: { padding: 0 } }}
+      getPopupContainer={(node) =>
+        node.closest<HTMLElement>("[data-fp-overlay]") ?? document.body
+      }
+    >
+      {control}
+    </Popover>
   );
 }

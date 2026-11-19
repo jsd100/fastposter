@@ -61,7 +61,7 @@ pnpm dev
 - **固定版本**：直接导入 antd 的工作区包固定 `antd@6.7.0`，声明位置 `packages/ui/package.json:15`、`packages/poster-editor/package.json:15`、`apps/web/package.json:17`、`apps/admin/package.json:17`。不升级组件库、不换路由框架、不重写编辑器 store。
 - **共享 UIProvider**：用户站与管理站通过 `packages/ui/src/UIProvider.tsx` 使用同一个 provider。组件使用 antd 默认主题，provider 统一提供中文 locale、减少动态效果偏好及通知上下文。
 - **renderer 隔离**：`apps/renderer` 独立，不引入 `antd` 或 `packages/ui/src`。`tools/check-entry-boundary.mjs` 的 `forbidden` 规则：renderer 不得含 `node_modules/antd/`、`packages/ui/src/`、`@fastposter+ui@`；web/admin 的静态入口不得含 `@tiptap/`、`prosemirror-`，这些依赖随编辑器按需加载。以 `vite build --manifest --sourcemap` 产物审计。
-- **背景库入口与创建/替换契约**：`BackgroundPicker` 提供 `mode: "create" | "replace"`；create 以「用此背景创建」确认并复用 A05 的 `buildProjectFromBackground` 与创建事务（零本地上传），replace 保留 `aria-label="选用 ${title}"` 一次点击旧契约与异尺寸预检/撤销。「确认按钮应写作「替换背景」」的可见文案偏差当前未实现，按 Ruling 63 记为 FP-14 写回项。
+- **背景库入口与创建/替换契约**：`BackgroundPicker` 提供 `mode: "create" | "replace"`；create 以「用此背景创建」确认并复用 A05 的 `buildProjectFromBackground` 与创建事务（零本地上传），replace 保留 `aria-label="选用 ${title}"` 一次点击旧契约与异尺寸预检/撤销。「确认按钮应写作「替换背景」」的可见文案偏差当前未实现，按 Ruling 63 记为 FP-14 写回项。缩略图放大预览统一由 `packages/ui` 的 `ImageZoom` 提供：列表只用 `previewUrl`，放大时才请求 `url`，触发器可访问名为「放大预览 ${title}」；管理站背景卡片复用同一控件。`/admin/backgrounds` 添加背景时「素材名称」默认取所选文件名（去扩展名、截断 120 字符），手输名称不被覆盖，字体页不生效。
 - **手机历史与撤销**：390px / 320px 工作台提供可点击「撤销」「重做」，命中区 ≥44×44px；编辑手势、数值草稿与自动保存按 A02/A03 的会话边界收敛。
 - **当前视觉样式**：用户站、管理站和编辑器使用 Ant Design 6.7.0 的默认配色、字体、组件尺寸、边框和交互状态。页面样式负责内容排版、滚动和断点，编辑器样式还负责画布、选框和拖拽手柄。手机主操作保留 ≥44×44px 命中区，编辑器文本输入在手机宽度保留 16px。旧绿色主题和控件尺度见 A 批历史验收记录。
 - **页面与控件**：作品和素材预览保持原比例，卡片的标题、尺寸和版本或更新时间分层显示。后台搜索框最大宽度 288px，筛选控件按可用宽度换行。编辑器使用 antd Segmented 切换文字、段落、效果和位置，位置单位由数值输入框后缀承载。

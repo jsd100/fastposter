@@ -210,7 +210,7 @@ function metadataProject(index: number, title = `测试作品 ${index}`) {
   };
 }
 
-test("trash actions fit each project card", async ({ page }) => {
+test("trash actions fit each project card", async ({ browser, page }) => {
   test.setTimeout(60_000);
   const longTitle =
     "一个非常非常长的作品标题用于检验回收站按钮是否溢出卡片边界".repeat(2);
@@ -227,13 +227,20 @@ test("trash actions fit each project card", async ({ page }) => {
   });
   await expect(target).toHaveCount(1);
 
-  for (const width of [320, 360, 390, 720]) {
+  const restore = target.getByRole("button", {
+    name: "恢复作品",
+    exact: true,
+  });
+  const remove = target.getByRole("button", {
+    name: `彻底删除 ${longTitle}`,
+    exact: true,
+  });
+  for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const cardBox = (await target.boundingBox())!;
-    for (const name of ["恢复作品", `彻底删除 ${longTitle}`]) {
-      const buttonBox = (await target
-        .getByRole("button", { name, exact: true })
-        .boundingBox())!;
+    const restoreBox = (await restore.boundingBox())!;
+    const removeBox = (await remove.boundingBox())!;
+    for (const buttonBox of [restoreBox, removeBox]) {
       expect(buttonBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
       expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(
         cardBox.x + cardBox.width + 1,
@@ -246,11 +253,37 @@ test("trash actions fit each project card", async ({ page }) => {
       () => document.documentElement.scrollWidth <= window.innerWidth,
     );
     expect(noOverflow, `horizontal overflow at ${width}px`).toBe(true);
+    if (width >= 768) {
+      expect(restoreBox.y).toBeCloseTo(removeBox.y, 0);
+      expect(restoreBox.x).toBeLessThan(removeBox.x);
+      expect(restoreBox.height).toBe(removeBox.height);
+      expect(removeBox.height).toBeLessThan(44);
+    }
   }
 
-  await target
-    .getByRole("button", { name: `彻底删除 ${longTitle}`, exact: true })
-    .click();
+  const touchContext = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+    storageState: await page.context().storageState(),
+    viewport: { width: 320, height: 700 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  try {
+    const touchPage = await touchContext.newPage();
+    await touchPage.goto("/projects");
+    await openTrash(touchPage);
+    const touchCard = card(touchPage, longTitle);
+    for (const name of ["恢复作品", `彻底删除 ${longTitle}`]) {
+      const button = touchCard.getByRole("button", { name, exact: true });
+      await expect(button).toBeVisible();
+      const box = (await button.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  } finally {
+    await touchContext.close();
+  }
+
+  await remove.click();
   await expect(deletionDialog(page)).toBeVisible();
 });
 

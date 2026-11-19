@@ -1,4 +1,3 @@
-import { colorPresets } from "./color-presets";
 import {
   canApplyFontMark,
   effectiveInlineStyle,
@@ -13,7 +12,7 @@ import {
 import type { Editor } from "@tiptap/react";
 import { Slider } from "antd";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { TextBlock, FontRef, TextColor } from "@fastposter/poster-schema";
+import type { TextBlock, FontRef } from "@fastposter/poster-schema";
 import type { FontSource } from "@fastposter/poster-renderer";
 import {
   Button,
@@ -26,11 +25,9 @@ import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
 import { selectionStyle, type InlineStylePatch } from "../text/selection";
 import { fontTargetIds, type FontChoiceIntent } from "../fonts/prepare-change";
 import { FontPicker } from "../fonts/FontPicker";
-import { gradientWithType, TextColorField } from "./TextColorField";
-import { gradientWritesEnabled } from "../gradient-writes";
+import { TextColorField } from "./TextColorField";
 import {
   fontWeightRevision,
-  isGradientColor,
   subscribeFontWeights,
 } from "@fastposter/poster-renderer";
 import { ColorField } from "./ColorField";
@@ -50,19 +47,17 @@ export type TextPanelProps = {
     requestedWeight?: number,
   ) => void;
   fontPending: boolean;
+  phone: boolean;
   sizeBase?: number;
   onNumericStart: () => void;
   onNumericEnd: (action: "commit" | "cancel") => void;
+  onColorStart: () => void;
+  onColorEnd: (action: "commit" | "cancel") => void;
   update: (change: (block: TextBlock) => TextBlock) => void;
   draft: (field: string) => NumberDraftBinding;
   editing: boolean;
   onToggleEdit: () => void;
 };
-
-const DEFAULT_TEXT_COLOR = "#000000";
-function editableColor(color: TextColor | null | undefined): string | null {
-  return typeof color === "string" ? color : null;
-}
 
 function WeightControl({
   min,
@@ -138,9 +133,12 @@ export function TextPanel({
   apply,
   chooseFont,
   fontPending,
+  phone,
   sizeBase,
   onNumericStart,
   onNumericEnd,
+  onColorStart,
+  onColorEnd,
   update,
   draft,
   editing,
@@ -324,55 +322,19 @@ export function TextPanel({
           onValueChange={(fontSize) => apply({ fontSize })}
         />
       </label>
-      <label className="panel-field">
-        颜色
+      <div className="panel-field">
+        <span>文字颜色</span>
         <TextColorField
-          label="文字颜色"
-          value={current.color ?? DEFAULT_TEXT_COLOR}
+          value={current.color ?? null}
+          target={`${block.id}:${target.kind}:${target.from}:${target.to}`}
+          sample={targetText.trim() || "海报文字"}
+          phone={phone}
           onChange={(color) => apply({ color })}
-          onInteractionStart={onNumericStart}
-          onInteractionEnd={onNumericEnd}
+          onInteractionStart={onColorStart}
+          onInteractionEnd={onColorEnd}
         />
         {current.color === null && <small>混合</small>}
-      </label>
-      {gradientWritesEnabled() && !isGradientColor(current.color) && (
-        <label className="panel-field">
-          渐变填充
-          <Select
-            aria-label="渐变填充"
-            value=""
-            valueLabel="添加渐变"
-            options={[
-              { value: "linear", label: "线性渐变" },
-              { value: "radial", label: "径向渐变" },
-            ]}
-            onValueChange={(type) => {
-              if (type === "linear" || type === "radial")
-                apply({ color: gradientWithType(type) });
-            }}
-          />
-        </label>
-      )}
-      {!isGradientColor(current.color) && (
-        <label className="panel-field">
-          预设文字颜色
-          <Select
-            aria-label="预设文字颜色"
-            value={editableColor(current.color) ?? ""}
-            valueLabel={
-              colorPresets.some(
-                (option) => option.value === editableColor(current.color),
-              )
-                ? undefined
-                : editableColor(current.color) === null
-                  ? "混合颜色"
-                  : "自定义颜色"
-            }
-            options={colorPresets}
-            onValueChange={(color) => apply({ color })}
-          />
-        </label>
-      )}
+      </div>
       <div className="format-buttons">
         {(
           [

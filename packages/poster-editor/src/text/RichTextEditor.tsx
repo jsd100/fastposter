@@ -11,7 +11,6 @@ import type { EditorStore, TransactionHandle } from "../store";
 import { preparePastedText, richTextExtensions } from "./extensions";
 import { WeightPreview } from "./weight-preview";
 import { documentFontSources } from "../fonts/catalog";
-import { gradientWritesEnabled } from "../gradient-writes";
 import { canApplyFontMark, canonicalRichText } from "./selection";
 export function RichTextEditor({
   block,
@@ -111,7 +110,6 @@ export function RichTextEditor({
         transformPasted: (slice) =>
           preparePastedText(
             slice,
-            gradientWritesEnabled(),
             new Set(
               store.getState().document.fonts.map((font) => font.assetId),
             ),

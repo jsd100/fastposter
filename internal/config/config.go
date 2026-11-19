@@ -13,7 +13,6 @@ import (
 type Config struct {
 	MySQLDSN, RedisAddr, AbsoluteDataDir, GatewayAddr, CoreAddr, ChromePath, MagickPath string
 	CookieSecure                                                                        bool
-	GradientWrites                                                                      bool
 	AppOrigins                                                                          []string
 }
 
@@ -29,10 +28,6 @@ func Load(env map[string]string, baseDir string) (Config, error) {
 	c.CookieSecure, e = strconv.ParseBool(value("COOKIE_SECURE", "false"))
 	if e != nil {
 		return c, errors.New("invalid COOKIE_SECURE")
-	}
-	c.GradientWrites, e = strconv.ParseBool(value("FASTPOSTER_GRADIENT_WRITES", "false"))
-	if e != nil {
-		return c, errors.New("invalid FASTPOSTER_GRADIENT_WRITES")
 	}
 	for _, origin := range strings.Split(value("APP_ORIGINS", "http://127.0.0.1:5173,http://127.0.0.1:5174,http://localhost:5173,http://localhost:5174,http://127.0.0.1:8080,http://localhost:8080"), ",") {
 		origin = strings.TrimSuffix(strings.TrimSpace(origin), "/")
