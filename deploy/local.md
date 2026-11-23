@@ -10,7 +10,7 @@
 
 表结构通过 `go run ./server/cmd/migrate -direction up` 显式应用，不在应用启动时自动改表。回滚需要 `-direction down -allow-destructive-down`，会删除本应用的表。
 
-真实 MySQL 测试：`python3 tools/test-integration.py`。可设置 `FASTPOSTER_TEST_MYSQL_DSN`；默认只从名为 fastposter 的业务 DSN 派生 fastposter_test_integration，Go 测试再次强制检查前缀。测试用户需能在 fastposter_test_* 范围创建/删除测试自身生成的独立数据库，不能使用已有业务 schema 做清理。
+真实 MySQL 测试：`python3 tools/test-integration.py`。可设置 `FASTPOSTER_TEST_MYSQL_DSN`；默认只从名为 fastposter 的业务 DSN 派生 fastposter_test_integration，Go 测试再次强制检查前缀。测试用户需能在 fastposter_test_* 范围创建/删除测试自身生成的独立数据库，不能使用已有业务 schema 做清理。测试被 `Ctrl-C`、`go test -timeout` 或崩溃中断时，进程内清理不会执行，随机命名的库会留在本机：用 `go run ./tools/clean-test-dbs` 查看，加 `-apply` 删除；默认只删闲置 ≥24 小时且名称严格匹配 `fastposter_test_` 加 16 位小写十六进制的库，始终保留 `fastposter_test_integration`。
 
 接口生成：先将 `deploy/toolchain.lock.json` 指定版本的 hz、kitex、thriftgo 安装到 `.tools/bin`，然后 `pnpm contracts:generate`。此命令从 Thrift 同时更新 Hertz 模型、Kitex 客户端/服务端、TypeScript DTO 和路由元数据；生成文件不手改。`pnpm contracts:check` 会重新生成并比较文件集合和 SHA-256，`pnpm verify` 已包含该检查。
 
