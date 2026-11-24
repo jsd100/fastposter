@@ -43,6 +43,7 @@ pnpm dev
 | `pnpm test:server` | 测试 `server/...` 和 `tools/...` |
 | `go test ./internal/...` | 验证根目录共享配置包 |
 | `python3 tools/test-integration.py --all-server` | 使用受保护的测试 DSN 运行服务端测试 |
+| `go run ./tools/clean-test-dbs` | 清理中断测试残留的 `fastposter_test_*` 数据库（默认试运行，`-apply` 执行） |
 | `pnpm test:e2e` | Playwright 启动临时完整服务栈并执行验收 |
 | `pnpm verify` | 契约漂移检查、类型检查、单元测试及构建 |
 
@@ -79,7 +80,7 @@ Vitest 测试与源码相邻，命名为 `*.test.ts`；应用内也支持 `*.tes
 
 为行为变更和缺陷修复补充对应测试；当前未设置数值覆盖率门槛。可用 `pnpm exec vitest run <测试文件>` 或 `go test <包路径> -run <测试名>` 定向验证。
 
-数据库测试仅使用 `fastposter_test_*`，测试账号需有创建和删除临时测试库的权限。自定义业务库名时显式设置 `FASTPOSTER_TEST_MYSQL_DSN`。未配置测试 DSN 时，部分 Go 集成测试会跳过，提交说明中应区分通过与跳过。浏览器测试还需 MySQL、Chrome 和 ImageMagick；非默认 Chrome 路径通过 `CHROME_PATH` 指定。
+数据库测试仅使用 `fastposter_test_*`，测试账号需有创建和删除临时测试库的权限。自定义业务库名时显式设置 `FASTPOSTER_TEST_MYSQL_DSN`。未配置测试 DSN 时，部分 Go 集成测试会跳过，提交说明中应区分通过与跳过。集成测试的清理依赖进程内 defer，`Ctrl-C`、`go test -timeout` 或崩溃会遗留随机命名的库；用 `go run ./tools/clean-test-dbs` 查看、加 `-apply` 删除（默认只删闲置 ≥24 小时且名称严格匹配 `fastposter_test_` 加 16 位小写十六进制的库，始终保留 `fastposter_test_integration` 与 `-keep` 名单）。浏览器测试还需 MySQL、Chrome 和 ImageMagick；非默认 Chrome 路径通过 `CHROME_PATH` 指定。
 
 ## 提交与合并请求
 

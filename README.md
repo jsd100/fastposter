@@ -401,6 +401,7 @@ pnpm --filter @fastposter/admin dev
 | `pnpm test:server`                               | `server/...` 和 `tools/...` 的 Go 测试 | Go；未设测试 DSN 时部分数据库测试跳过         |
 | `go test ./internal/...`                         | 根目录共享配置测试                     | Go                                            |
 | `python3 tools/test-integration.py --all-server` | 带受保护测试 DSN 的服务端测试          | MySQL 测试账号及权限                          |
+| `go run ./tools/clean-test-dbs`                  | 查看并清理中断测试残留的测试库         | MySQL 管理权限                                |
 | `pnpm test:e2e`                                  | Playwright 浏览器验收                  | MySQL、Chrome、ImageMagick、Python 与前端依赖 |
 
 `pnpm verify` 不包含 Go 与浏览器测试。定向执行示例：
@@ -424,6 +425,20 @@ FASTPOSTER_TEST_MYSQL_DSN=fastposter_test:CHANGE_ME_TO_A_TEST_PASSWORD@tcp(127.0
 如果未显式配置测试 DSN，Python 启动器只会尝试把业务 DSN 中名为 `fastposter` 的库替换为 `fastposter_test_integration`，沿用原账号；因此仅有业务库权限的账号仍会测试失败。业务库使用其他名称时必须显式设置测试 DSN。
 
 测试实际创建随机命名的 `fastposter_test_*` 数据库，自动迁移后使用，结束时清理；不要手动把测试连接指向业务库。直接执行 `go test` 不会自动读取 `.env.local` 中的测试 DSN，建议通过 Python 启动器运行。记录测试结果时区分“通过”和“未配置 DSN 而跳过”。
+
+### 遗留测试数据库清理
+
+清理动作依赖测试进程内的 defer 执行：`Ctrl-C`、`go test -timeout` 超时或进程崩溃时不会运行，随机命名的 `fastposter_test_<16 位十六进制>` 库会留在本机。用 `tools/clean-test-dbs` 回收：
+
+```sh
+go run ./tools/clean-test-dbs              # 只读：列出匹配的库与可删除项
+go run ./tools/clean-test-dbs -apply       # 按默认阈值执行删除
+go run ./tools/clean-test-dbs -min-age 1h -apply
+```
+
+默认规则：只处理名称严格匹配 `fastposter_test_` 加 16 位小写十六进制的库，且要求最近活动距今至少 24 小时。`fastposter_test_integration`、`-keep` 指定的库以及当前 DSN 指向的库始终保留；其他 `fastposter_test_*` 名称只列出、不自动删除。没有表时间戳的库回退到本机数据目录的修改时间，仍无法判定年龄时跳过并在输出中标注。连接串按 `-dsn`、`FASTPOSTER_TEST_MYSQL_DSN`、`MYSQL_DSN` 的顺序取值，输出不回显密码。
+
+`-min-age 0` 会删除全部匹配库，包括仍在运行的测试刚创建的库，只在确认没有测试进程时使用。
 
 ### 浏览器与实际渲染测试
 
@@ -598,6 +613,7 @@ go run ./server/cmd/maintenance backup
 | `server/internal`、`internal/config` | 领域逻辑与共享配置                             |
 | `server/gen`、`idl`                  | Thrift 契约和生成代码                          |
 | `server/migrations`                  | 显式数据库迁移                                 |
+| `tools`                              | 环境检查、契约生成、测试启动与残留测试库清理   |
 | `assets/fonts`、`assets/branding`    | 字体、授权和品牌资源                           |
 | `tests/e2e`、`tests/fixtures`        | 浏览器测试及固定样例                           |
 | `deploy`、`docs/verification`        | 本机部署说明、工具链及验收记录                 |
